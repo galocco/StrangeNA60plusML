@@ -162,9 +162,9 @@ class TrainingAnalysis:
         if not os.path.exists(handlers_path):
             os.makedirs(handlers_path)
 
-        filename_handler = handlers_path + '/model_handler' + info_string + '.pkl'
+        filename_handler = handlers_path + '/model_handler_'+suffix + info_string + '.pkl'
         filename_model = models_path + '/BDT' + info_string + '.model'
-        filename_efficiencies = efficiencies_path + '/Eff_Score' + info_string + '.npy'
+        filename_efficiencies = efficiencies_path + '/Eff_Score_'+suffix + info_string + '.npy'
 
         model_handler.dump_model_handler(filename_handler)
         model_handler.dump_original_model(filename_model, xgb_format=True)
@@ -185,19 +185,19 @@ class TrainingAnalysis:
         if not os.path.exists(bdt_score_dir):
             os.makedirs(bdt_score_dir)
 
-        bdt_score_plot.savefig(bdt_score_dir + '/BDT_Score' + info_string + '.pdf')
+        bdt_score_plot.savefig(bdt_score_dir + '/BDT_Score_' + suffix + info_string + '.pdf')
 
         bdt_eff_plot = plot_utils.plot_bdt_eff(eff_score_array[1], eff_score_array[0])
         if not os.path.exists(bdt_eff_dir):
             os.makedirs(bdt_eff_dir)
 
-        bdt_eff_plot.savefig(bdt_eff_dir + '/BDT_Eff' + info_string + '.pdf')
+        bdt_eff_plot.savefig(bdt_eff_dir + '/BDT_Eff_' + suffix + info_string + '.pdf')
 
         feat_imp = plot_utils.plot_feature_imp(data[2][model_handler.get_original_model().get_booster().feature_names], data[3], model_handler)
         if not os.path.exists(feat_imp_dir):
             os.makedirs(feat_imp_dir)
 
-        plt.savefig(feat_imp_dir + '/FeatImp' + info_string + '.pdf')
+        plt.savefig(feat_imp_dir + '/FeatImp_' + suffix + info_string + '.pdf')
         plt.close()
 
         print('ML plots saved.\n')
