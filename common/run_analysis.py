@@ -4,11 +4,12 @@ import math
 import os
 import time
 import warnings
-#import ROOT
+
 import analysis_utils as au
 import numpy as np
 import pandas as pd
 import xgboost as xgb
+import matplotlib.pyplot as plt
 import yaml
 from analysis_classes import ModelApplication, TrainingAnalysis
 from hipe4ml import analysis_utils, plot_utils
@@ -42,6 +43,10 @@ with open(os.path.expandvars(args.config), 'r') as stream:
 N_BODY = params['NBODY']
 PDG_CODE = params['PDG']
 FILE_PREFIX = params['FILE_PREFIX']
+MULTIPLICITY = params['MULTIPLICITY']
+BRATIO = params['BRATIO']
+EINT = params['EINT']
+T = params['T']
 
 CENT_CLASSES = params['CENTRALITY_CLASS']
 PT_BINS = params['PT_BINS']
@@ -73,8 +78,9 @@ else:
 # define paths for loading data
 signal_path = os.path.expandvars(params['MC_PATH'])
 bkg_path = os.path.expandvars(params['BKG_PATH'])
-data_path = os.path.expandvars(params['DATA_PATH'])
-analysis_res_path = os.path.expandvars(params['ANALYSIS_RESULTS_PATH'])
+data_sig_path = os.path.expandvars(params['DATA_SIG_PATH'])
+data_bkg_path = os.path.expandvars(params['DATA_BKG_PATH'])
+event_path = os.path.expandvars(params['EVENT_PATH'])
 results_dir = os.environ[f'HYPERML_RESULTS_{N_BODY}']
 
 ###############################################################################
@@ -82,7 +88,7 @@ start_time = time.time()                          # for performances evaluation
 mass = TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
 if TRAIN:
     for split in SPLIT_LIST:
-        ml_analysis = TrainingAnalysis(PDG_CODE, N_BODY, '../Data/fntSig_K0s_TS.root', '../Data/fntBkg_K0s_TS.root', split, entrystop=1000000)
+        ml_analysis = TrainingAnalysis(PDG_CODE, N_BODY, signal_path, bkg_path, split, entrystop=1000000)
         print(f'--- analysis initialized in {((time.time() - start_time) / 60):.2f} minutes ---\n')
 
         for cclass in CENT_CLASSES:
@@ -115,12 +121,26 @@ if TRAIN:
 
                     y_pred = model_handler.predict(data[2])
                     data[2].insert(0, 'score', y_pred)
+
                     eff, tsd = analysis_utils.bdt_efficiency_array(data[3], y_pred, n_points=1000)
                     score_from_eff_array = analysis_utils.score_from_efficiency_array(data[3], y_pred, FIX_EFF_ARRAY)
                     fixed_eff_array = np.vstack((FIX_EFF_ARRAY, score_from_eff_array))
+                    
+                    col = COLUMNS+['m']
+                    SIG_DF = ml_analysis.df_signal[col]
+                    BKG_DF = ml_analysis.df_bkg[col]
+                    plot_utils.plot_roc(data[3], y_pred)                    
+                    plt.savefig(f'../Figures/2Body/roc_curve_{FILE_PREFIX}.pdf')
+                    plot_utils.plot_precision_recall(data[3], y_pred)
+                    plt.savefig(f'../Figures/2Body/prescision_recall_{FILE_PREFIX}.pdf')
+                    plot_utils.plot_distr([SIG_DF, BKG_DF], SIG_DF.columns)
+                    plt.savefig(f'../Figures/2Body/plot_distr_{FILE_PREFIX}.pdf')
+                    plot_utils.plot_corr([SIG_DF, BKG_DF], SIG_DF.columns)
+                    plt.savefig(f'../Figures/2Body/plot_corr_{FILE_PREFIX}.pdf')
+                    plt.show()
 
                     ml_analysis.save_ML_analysis(model_handler, fixed_eff_array, cent_class=cclass,pt_range=ptbin, ct_range=ctbin, split=split)
-                    ml_analysis.save_ML_plots(model_handler, data, [eff, tsd],cent_class=cclass, pt_range=ptbin, ct_range=ctbin, split=split)
+                    ml_analysis.save_ML_plots(model_handler, data, [eff, tsd],cent_class=cclass, pt_range=ptbin, ct_range=ctbin, split=split, suffix='_'+FILE_PREFIX)
 
         del ml_analysis
 
@@ -142,7 +162,7 @@ if APPLICATION:
         sigscan_results = {}    
 
     for split in SPLIT_LIST:
-        ml_application = ModelApplication(PDG_CODE, N_BODY, data_path, analysis_res_path, CENT_CLASSES, split)
+        ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split)
         
         for cclass in CENT_CLASSES:
             # create output structure
@@ -171,6 +191,8 @@ if APPLICATION:
                     #print("non va")
 
                     pt_spectrum = TF1("fpt","x*exp(-TMath::Sqrt(x**2+[0]**2)/[1])",0,100)
+                    pt_spectrum.SetParameter(0,mass)
+                    pt_spectrum.SetParameter(1,T)
                     if SIGNIFICANCE_SCAN:
                         sigscan_eff, sigscan_tsd = ml_application.significance_scan(df_applied, presel_eff, eff_score_array, cclass, ptbin, ctbin, pt_spectrum, split, mass_bins)
                         eff_score_array = np.append(eff_score_array, [[sigscan_eff], [sigscan_tsd]], axis=1)
@@ -210,7 +232,7 @@ if APPLICATION:
     except:
         print('No sigscan, no sigscan results!')
 
-    df_sign.to_parquet(os.path.dirname(data_path) + '/selected_df.parquet.gzip', compression='gzip')
+    #df_sign.to_parquet(os.path.dirname(data_path) + '/selected_df.parquet.gzip', compression='gzip')
     print (f'--- ML application time: {((time.time() - app_time) / 60):.2f} minutes ---')
     
     results_histos_file.Close()

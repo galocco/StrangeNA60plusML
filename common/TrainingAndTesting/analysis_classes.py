@@ -22,7 +22,9 @@ class TrainingAnalysis:
     def __init__(self, pdg_code, mode, mc_file_name, bkg_file_name, split = '', entrystop=10000000):
         self.mode = mode
         self.mass = ROOT.TDatabasePDG.Instance().GetParticle(pdg_code).Mass()
-        self.lifetime = 89.54 #ROOT.TDatabasePDG.Instance().GetParticle(pdg_code).Lifetime()*1e+12 #lifetime in ps
+        self.lifetime = ROOT.TDatabasePDG.Instance().GetParticle(pdg_code).Lifetime()*1e+12 #lifetime in ps
+        if self.lifetime == 0:
+            self.lifetime = 89.54# ps
 
         print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
         print('\nStarting BDT training and testing ')
@@ -59,7 +61,6 @@ class TrainingAnalysis:
         else:
             cut  =  f'{ct_bins[0]}<=ct<={ct_bins[1]}'            
             
-        # rap_cut = ' and abs(rapidity)<0.5'
         pres_histo = au.h2_preselection_efficiency(pt_bins, ct_bins)
         gen_histo = au.h2_generated(pt_bins, ct_bins)
 
@@ -172,7 +173,7 @@ class TrainingAnalysis:
 
         print('ML analysis results saved.\n')
 
-    def save_ML_plots(self, model_handler, data, eff_score_array, cent_class, pt_range, ct_range, split=''):
+    def save_ML_plots(self, model_handler, data, eff_score_array, cent_class, pt_range, ct_range, split='', suffix=''):
         fig_path = os.environ['HYPERML_FIGURES_{}'.format(self.mode)]
         info_string = f'_{cent_class[0]}{cent_class[1]}_{pt_range[0]}{pt_range[1]}_{ct_range[0]}{ct_range[1]}{split}'
 
@@ -204,41 +205,37 @@ class TrainingAnalysis:
 
 class ModelApplication:
 
-    def __init__(self, pdg_code, mode, data_filename, analysis_res_filename, cent_classes, split, skimmed_data=0):
+    def __init__(self, pdg_code, multiplicity, branching_ratio, mode, data_sig_filename, data_bkg_filename, event_filename, cent_classes, split, skimmed_data=0):
 
         print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
         print('\nStarting BDT appplication and signal extraction')
 
         self.mode = mode
         self.mass = ROOT.TDatabasePDG.Instance().GetParticle(pdg_code).Mass()
-        self.lifetime = 89.54#ROOT.TDatabasePDG.Instance().GetParticle(pdg_code).Lifetime()*1e+12 #lifetime in ps
-        self.multiplicity = (103.0+51.9)/2
-        self.branching_ratio = 0.6920
+        self.lifetime = ROOT.TDatabasePDG.Instance().GetParticle(pdg_code).Lifetime()*1e+12 #lifetime in ps
+        if self.lifetime == 0:
+            self.lifetime = 89.54# ps
+        self.multiplicity = multiplicity
+        self.branching_ratio = branching_ratio
+
         print("lifetime: ",self.lifetime)
         print("mass: ",self.mass)
         self.n_events = []
 
         eff = 0.068
-        background_file = ROOT.TFile('../Data/Bkg-histos_K0s.root')
+        background_file = ROOT.TFile(event_filename)
         hist_ev = background_file.Get('hNevents')
         n_ev = hist_ev.GetBinContent(1)
         nsig = self.multiplicity*eff*n_ev*self.branching_ratio
 
-        df_sig = uproot.open('../Data/fntSig_K0s.root')["ntcand"].pandas.df(entrystop=nsig)
-        df_bkg = uproot.open('../Data/fntBkg_K0s.root')["ntcand"].pandas.df()
+        df_sig = uproot.open(data_sig_filename)["ntcand"].pandas.df(entrystop=nsig)
+        df_bkg = uproot.open(data_bkg_filename)["ntcand"].pandas.df()
         self.df_data = pd.concat([df_sig, df_bkg])
         #self.df_data = skimmed_data if isinstance(skimmed_data, pd.DataFrame) else uproot.open(data_filename)['DataTable'].pandas.df()
         
 
 
-        if analysis_res_filename == data_filename:
-            self.hist_centrality = uproot.open('../Data/Bkg-histos_K0s.root')['hCentrality']
-
-        else:
-            if self.mode == 2:
-                self.hist_centrality = uproot.open(analysis_res_filename)["AliAnalysisTaskHyperTriton2He3piML_custom_summary"][11]
-            if self.mode == 3:
-                self.hist_centrality = uproot.open(analysis_res_filename)["AliAnalysisTaskHypertriton3_summary"][11]
+        self.hist_centrality = uproot.open(event_filename)['hCentrality']
 
         for cent in cent_classes:
             self.n_events.append(sum(self.hist_centrality[cent[0] + 1:cent[1]]))
@@ -313,13 +310,10 @@ class ModelApplication:
 
         return self.df_data.query(data_range)[application_columns]
 
-    def significance_scan(self, df_bkg, pre_selection_efficiency, eff_score_array, cent_class, pt_range, ct_range, pt_spectrum, split='', mass_bins=40):
+    def significance_scan(self, df_bkg, pre_selection_efficiency, eff_score_array, cent_class, pt_range, ct_range, pt_spectrum, split='', mass_bins=40, custom = False):
         print('\nSignificance scan: ...')
 
         hist_range = [self.mass*0.97, self.mass*1.03]
-
-        pt_spectrum.SetParameter(0,self.mass)
-        pt_spectrum.SetParameter(1,0.2289)
 
         bdt_efficiency = eff_score_array[0]
         threshold_space = eff_score_array[1]
@@ -363,15 +357,12 @@ class ModelApplication:
 
             sig = exp_signal / np.sqrt(exp_signal + exp_background + 1e-10)
             sig_error = au.significance_error(exp_signal, exp_background)
-
-            significance.append(sig)
-            significance_error.append(sig_error)
-
-            sig_custom = sig * bdt_efficiency[index]
-            sig_custom_error = sig_error * bdt_efficiency[index]
-
-            significance_custom.append(sig_custom)
-            significance_custom_error.append(sig_custom_error)
+            if custom:
+                significance.append(sig)
+                significance_error.append(sig_error)
+            else:
+                significance.append(sig * bdt_efficiency[index])
+                significance_error.append(sig_error * bdt_efficiency[index])
 
         nevents = sum(self.hist_centrality[cent_class[0]+1:cent_class[1]])
 

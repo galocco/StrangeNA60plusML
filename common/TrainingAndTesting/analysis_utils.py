@@ -68,7 +68,7 @@ def get_skimmed_large_data(data_path, cent_classes, pt_bins, ct_bins, training_c
 #2)absorbtion
 #3)matter and antimatter
 def expected_signal_counts(bw, multiplicity, branching_ratio, pt_range, eff, nevents):
-    signal = multiplicity * sum(nevents) * bw.Integral(pt_range[0], pt_range[1], 1e-8) * branching_ratio / bw.Integral(0, 10, 1e-8)
+    signal = multiplicity * sum(nevents)* branching_ratio  * bw.Integral(pt_range[0], pt_range[1], 1e-8) / bw.Integral(0, 10, 1e-8) * eff
     return int(round(signal * eff))
 
 
@@ -130,6 +130,16 @@ def h1_invmass(counts, cent_class, pt_range, ct_range, name=''):
     th1.SetDirectory(0)
     return th1
 
+def h1_invmass_ov(counts, cent_class, pt_range, ct_range, hist_range, bins=40, name=''):
+    th1 = TH1D(f'ct{ct_range[0]}{ct_range[1]}_pT{pt_range[0]}{pt_range[1]}_cen{cent_class[0]}{cent_class[1]}_{name}', '', bins, hist_range[0], hist_range[1])
+
+    for index in range(0, len(counts)):
+        th1.SetBinContent(index+1, counts[index])
+        th1.SetBinError(index + 1, math.sqrt(counts[index]))
+
+    th1.SetDirectory(0)
+
+    return th1
 
 def round_to_error(x, error):
     return round(x, -int(floor(log10(abs(error)))))
@@ -169,10 +179,17 @@ def fit_hist(
     fit_tpl.SetParName(n_bkgpars + 1, '#mu')
     fit_tpl.SetParName(n_bkgpars + 2, '#sigma')
     # define parameter values and limits
-    #fit_tpl.SetParameter(n_bkgpars, 40)
-    #fit_tpl.SetParLimits(n_bkgpars, 0.001, 10000)
+    max_hist_value = histo.GetMaximum()
+    hist_bkg_eval = (histo.GetBinContent(1)+histo.GetBinContent(histo.GetNbinsX()))/2.
+    if hist_bkg_eval < 5:
+        hist_bkg_eval = 5
+
+    fit_tpl.SetParameter(n_bkgpars, max_hist_value-hist_bkg_eval)
+    fit_tpl.SetParLimits(n_bkgpars, 0, max_hist_value+3*hist_bkg_eval)
     fit_tpl.SetParameter(n_bkgpars + 1, mass)
-    fit_tpl.SetParLimits(n_bkgpars + 1, mass-0.005, mass+0.005)
+    fit_tpl.SetParLimits(n_bkgpars + 1, mass-0.01, mass+0.01)
+    fit_tpl.SetParameter(n_bkgpars + 1, 0.0025)
+    fit_tpl.SetParLimits(n_bkgpars + 2, 0.0005, 0.005)
 
     # define signal and bkg_model TF1 separately
     sigTpl = TF1('fitTpl', 'gausn(0)', 0, 5)
@@ -262,7 +279,7 @@ def fit_hist(
     string = 'Pb-Pb #sqrt{s_{NN}} = '+f'{Eint} GeV, centrality {cent_class[0]}-{cent_class[1]}%'
     pinfo2.AddText(string)
 
-    string = ', %i #leq #it{ct} < %i cm %i #leq #it{p}_{T} < %i GeV/#it{c} ' % (
+    string = '%i #leq #it{ct} < %i cm, %i #leq #it{p}_{T} < %i GeV/#it{c} ' % (
         ct_range[0], ct_range[1], pt_range[0], pt_range[1])
     pinfo2.AddText(string)
 

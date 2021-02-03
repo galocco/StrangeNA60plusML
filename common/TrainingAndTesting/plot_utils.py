@@ -70,9 +70,11 @@ def plot_efficiency_significance(mode, tsd, significance, efficiency, data_range
 
 def plot_significance_scan(
         max_index, significance, significance_error, expected_signal, bkg_df, score_list, data_range_array,
-        n_ev, mode, split='', mass_bins=40, mass = 2.992, hist_range = [2.96,3.04]):
-
-    label = 'Significance x Efficiency'
+        n_ev, mode, split='', mass_bins=40, mass = 2.992, hist_range = [2.96,3.04], custom = False):
+    if custom:
+        label = 'Significance x Efficiency'
+    else:
+        label = 'Significance'
 
     raw_yield = expected_signal[max_index]
     max_score = score_list[max_index]

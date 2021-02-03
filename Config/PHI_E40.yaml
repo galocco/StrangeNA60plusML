@@ -1,7 +1,11 @@
 NBODY: 2
-FILE_PREFIX: 'K0S_analysis'
+FILE_PREFIX: 'PHI_E40_analysis'
 
-PDG: 310
+PDG: 333
+EINT: 40
+MULTIPLICITY: 2.55
+BRATIO: 0.489
+T: 244.6
 
 CENTRALITY_CLASS: 
   - [0, 5]
@@ -12,10 +16,11 @@ BKG_MODELS: ['expo', 'pol1', 'pol2']
 
 BDT_EFFICIENCY: [0.20, 1., 0.01] ##min, max ,step
 
-MC_PATH: ../Data/fntSig_K0s_TS.root
-BKG_PATH: ../Data/fntBkg_K0s_TS.root
-DATA_PATH: ../Data/fntBkg_K0s.root
-ANALYSIS_RESULTS_PATH: ../Data/fntBkg_K0s.root
+MC_PATH: ../Data/PHI_E40/fntSig_PHI_E40_TS.root
+BKG_PATH: ../Data/PHI_E40/fntBkg_PHI_E40_TS.root
+DATA_SIG_PATH: ../Data/PHI_E40/fntSig_PHI_E40_Data.root
+DATA_BKG_PATH: ../Data/PHI_E40/fntBkg_PHI_E40_Data.root
+EVENT_PATH: ../Data/PHI_E40/Bkg-histos_PHI_E40_Data.root
 
 
 XGBOOST_PARAMS:

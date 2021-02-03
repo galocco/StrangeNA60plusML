@@ -35,6 +35,9 @@ with open(os.path.expandvars(args.config), 'r') as stream:
 N_BODY = params['NBODY']
 PDG_CODE = params['PDG']
 FILE_PREFIX = params['FILE_PREFIX']
+MULTIPLICITY = params['MULTIPLICITY']
+BRATIO = params['BRATIO']
+EINT = params['EINT']
 
 CENT_CLASSES = params['CENTRALITY_CLASS']
 PT_BINS = params['PT_BINS']
@@ -117,14 +120,14 @@ for split in SPLIT_LIST:
                         hist.SetDirectory(0)
 
                         if key == input_subdir.GetListOfKeys()[0] and bkgmodel=="pol2":
-                            rawcounts, err_rawcounts, significance, err_significance, mu, mu_err, sigma, sigma_err = hau.fit_hist(hist, cclass, ptbin, ctbin, mass, model=bkgmodel, mode=N_BODY)
+                            rawcounts, err_rawcounts, significance, err_significance, mu, mu_err, sigma, sigma_err = hau.fit_hist(hist, cclass, ptbin, ctbin, mass, model=bkgmodel, mode=N_BODY, Eint=EINT)
                             mean_fit.append(mu)
                             mean_fit_error.append(mu_err)
                             sigma_fit.append(sigma)
                             sigma_fit_error.append(sigma_err)
                             
                         else:
-                            rawcounts, err_rawcounts, significance, err_significance, _, _, _, _ = hau.fit_hist(hist, cclass, ptbin, ctbin, mass, model=bkgmodel, mode=N_BODY)
+                            rawcounts, err_rawcounts, significance, err_significance, _, _, _, _ = hau.fit_hist(hist, cclass, ptbin, ctbin, mass, model=bkgmodel, mode=N_BODY, Eint=EINT)
 
                         dict_key = f'{keff}_{bkgmodel}'
 
