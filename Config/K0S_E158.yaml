@@ -57,7 +57,10 @@ HYPERPARAMS_RANGE: #TODO: check if it works without tuples
 
 TRAINING_COLUMNS: 
   - cosp
-  - pt
   - dist
   - dca
   - rapidity
+  - d0prod
+  - d01
+  - d02
+  - ptMin

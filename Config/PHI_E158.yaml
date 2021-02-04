@@ -1,5 +1,5 @@
 NBODY: 2
-FILE_PREFIX: 'PHI_analysis'
+FILE_PREFIX: 'PHI_E158_analysis'
 
 PDG: 333
 EINT: 17.3
@@ -57,7 +57,6 @@ HYPERPARAMS_RANGE: #TODO: check if it works without tuples
 
 TRAINING_COLUMNS: 
   - cosp
-  - pt
   - dist
   - dca
   - rapidity
@@ -65,4 +64,3 @@ TRAINING_COLUMNS:
   - d01
   - d02
   - ptMin
-  - ptMax

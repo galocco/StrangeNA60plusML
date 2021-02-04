@@ -135,12 +135,12 @@ if TRAIN:
                     plt.savefig(f'../Figures/2Body/prescision_recall_{FILE_PREFIX}.pdf')
                     plot_utils.plot_distr([SIG_DF, BKG_DF], SIG_DF.columns)
                     plt.savefig(f'../Figures/2Body/plot_distr_{FILE_PREFIX}.pdf')
-                    plot_utils.plot_corr([SIG_DF, BKG_DF], SIG_DF.columns)
-                    plt.savefig(f'../Figures/2Body/plot_corr_{FILE_PREFIX}.pdf')
-                    plt.show()
+                    corr_plot = plot_utils.plot_corr([SIG_DF, BKG_DF], SIG_DF.columns)
+                    corr_plot[0].savefig(f'../Figures/2Body/plot_corr_Sig_{FILE_PREFIX}.pdf')
+                    corr_plot[1].savefig(f'../Figures/2Body/plot_corr_Bkg_{FILE_PREFIX}.pdf')
 
-                    ml_analysis.save_ML_analysis(model_handler, fixed_eff_array, cent_class=cclass,pt_range=ptbin, ct_range=ctbin, split=split)
-                    ml_analysis.save_ML_plots(model_handler, data, [eff, tsd],cent_class=cclass, pt_range=ptbin, ct_range=ctbin, split=split, suffix='_'+FILE_PREFIX)
+                    ml_analysis.save_ML_analysis(model_handler, fixed_eff_array, cent_class=cclass,pt_range=ptbin, ct_range=ctbin, split=split, suffix=FILE_PREFIX)
+                    ml_analysis.save_ML_plots(model_handler, data, [eff, tsd],cent_class=cclass, pt_range=ptbin, ct_range=ctbin, split=split, suffix=FILE_PREFIX)
 
         del ml_analysis
 
