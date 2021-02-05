@@ -8,8 +8,8 @@ import warnings
 import numpy as np
 import yaml
 
-import analysis_utils as hau
-
+import analysis_utils as au
+import plot_utils as pu
 
 from ROOT import TH1D, TFile, gROOT, TDatabasePDG
 
@@ -37,7 +37,7 @@ PDG_CODE = params['PDG']
 FILE_PREFIX = params['FILE_PREFIX']
 MULTIPLICITY = params['MULTIPLICITY']
 BRATIO = params['BRATIO']
-EINT = params['EINT']
+EINT = pu.get_sNN(params['EINT'])
 
 CENT_CLASSES = params['CENTRALITY_CLASS']
 PT_BINS = params['PT_BINS']
@@ -87,17 +87,17 @@ for split in SPLIT_LIST:
         cent_dir.cd()
 
         h2_eff = input_file.Get(cent_dir_name + '/PreselEff')
-        h2_BDT_eff = hau.h2_rawcounts(PT_BINS, CT_BINS, name = "BDTeff")
+        h2_BDT_eff = au.h2_rawcounts(PT_BINS, CT_BINS, name = "BDTeff")
 
         for lab in LABELS:
-            h2_rawcounts_dict[lab] = hau.h2_rawcounts(PT_BINS, CT_BINS, suffix=lab)
-            significance_dict[lab] = hau.h2_significance(PT_BINS, CT_BINS, suffix=lab)
+            h2_rawcounts_dict[lab] = au.h2_rawcounts(PT_BINS, CT_BINS, suffix=lab)
+            significance_dict[lab] = au.h2_significance(PT_BINS, CT_BINS, suffix=lab)
 
         for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
-            ptbin_index = hau.get_ptbin_index(h2_eff, ptbin)
+            ptbin_index = au.get_ptbin_index(h2_eff, ptbin)
 
             for ctbin in zip(CT_BINS[:-1], CT_BINS[1:]):
-                ctbin_index = hau.get_ctbin_index(h2_eff, ctbin)
+                ctbin_index = au.get_ctbin_index(h2_eff, ctbin)
 
                 # get the dir where the inv mass histo are
                 subdir_name = f'ct_{ctbin[0]}{ctbin[1]}' if 'ct' in FILE_PREFIX else f'pt_{ptbin[0]}{ptbin[1]}'
@@ -120,14 +120,14 @@ for split in SPLIT_LIST:
                         hist.SetDirectory(0)
 
                         if key == input_subdir.GetListOfKeys()[0] and bkgmodel=="pol2":
-                            rawcounts, err_rawcounts, significance, err_significance, mu, mu_err, sigma, sigma_err = hau.fit_hist(hist, cclass, ptbin, ctbin, mass, model=bkgmodel, mode=N_BODY, Eint=EINT)
+                            rawcounts, err_rawcounts, significance, err_significance, mu, mu_err, sigma, sigma_err = au.fit_hist(hist, cclass, ptbin, ctbin, mass, model=bkgmodel, mode=N_BODY, Eint=EINT)
                             mean_fit.append(mu)
                             mean_fit_error.append(mu_err)
                             sigma_fit.append(sigma)
                             sigma_fit_error.append(sigma_err)
                             
                         else:
-                            rawcounts, err_rawcounts, significance, err_significance, _, _, _, _ = hau.fit_hist(hist, cclass, ptbin, ctbin, mass, model=bkgmodel, mode=N_BODY, Eint=EINT)
+                            rawcounts, err_rawcounts, significance, err_significance, _, _, _, _ = au.fit_hist(hist, cclass, ptbin, ctbin, mass, model=bkgmodel, mode=N_BODY, Eint=EINT)
 
                         dict_key = f'{keff}_{bkgmodel}'
 

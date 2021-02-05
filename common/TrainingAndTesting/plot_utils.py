@@ -76,7 +76,7 @@ def plot_significance_scan(
         label = 'Significance x Efficiency'
     else:
         label = 'Significance'
-        
+
     raw_yield = expected_signal[max_index]
     max_score = score_list[max_index]
 
@@ -275,7 +275,7 @@ def mass_plot_makeup(histo, fit_function, model, ptbin, split):
     string_list.append('Pb-Pb  #sqrt{#it{s}_{NN}} = 5.02 TeV,  0-90%')
     string_list.append('B_{#Lambda}'+' = {:.3f} #pm {:.3f} '.format(round(fit_function.GetParameter(0), 3), round(fit_function.GetParError(0), 3)) + 'MeV')
         
-    if fit_function.GetNDF() is not 0:
+    if fit_function.GetNDF() != 0:
         string_list.append(f'#chi^{{2}} / NDF = {(fit_function.GetChisquare() / fit_function.GetNDF()):.2f}')
     for s in string_list:
         pinfo.AddText(s)
@@ -312,3 +312,18 @@ def sigma_plot_makeup(histo, model, ptbin, split):
     pinfo.Draw('x0same')
     histo.Draw('ex0same')
     canvas.Write()
+
+def get_sNN(e_nucleon):
+    if e_nucleon == 158:
+        return 17.3
+    elif e_nucleon == 80:
+        return 12.3
+    elif e_nucleon == 40:
+        return 8.8
+    elif e_nucleon == 30:
+        return 7.6
+    elif e_nucleon == 20:
+        return 6.3
+    else:
+        print("energy not available")
+        return 0

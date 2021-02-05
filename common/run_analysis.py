@@ -6,6 +6,7 @@ import time
 import warnings
 
 import analysis_utils as au
+import plot_utils as pu
 import numpy as np
 import pandas as pd
 import xgboost as xgb
@@ -45,8 +46,9 @@ PDG_CODE = params['PDG']
 FILE_PREFIX = params['FILE_PREFIX']
 MULTIPLICITY = params['MULTIPLICITY']
 BRATIO = params['BRATIO']
-EINT = params['EINT']
+EINT = pu.get_sNN(params['EINT'])
 T = params['T']
+EFF = params['EFF']
 
 CENT_CLASSES = params['CENTRALITY_CLASS']
 PT_BINS = params['PT_BINS']
@@ -92,7 +94,7 @@ if TRAIN:
         print(f'--- analysis initialized in {((time.time() - start_time) / 60):.2f} minutes ---\n')
 
         for cclass in CENT_CLASSES:
-            ml_analysis.preselection_efficiency(cclass, CT_BINS, PT_BINS, split)
+            ml_analysis.preselection_efficiency(cclass, CT_BINS, PT_BINS, split, suffix = FILE_PREFIX)
 
             for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
                 for ctbin in zip(CT_BINS[:-1], CT_BINS[1:]):
@@ -162,13 +164,13 @@ if APPLICATION:
         sigscan_results = {}    
 
     for split in SPLIT_LIST:
-        ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split)
+        ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split)
         
         for cclass in CENT_CLASSES:
             # create output structure
             cent_dir_histos = results_histos_file.mkdir(f'{cclass[0]}-{cclass[1]}{split}')
 
-            th2_efficiency = ml_application.load_preselection_efficiency(cclass, split)
+            th2_efficiency = ml_application.load_preselection_efficiency(cclass, split, FILE_PREFIX)
 
             df_sign = pd.DataFrame()
 
@@ -185,7 +187,7 @@ if APPLICATION:
                     mass_bins = 40
 
                     presel_eff = ml_application.get_preselection_efficiency(ptbin_index, ctbin_index)
-                    eff_score_array, model_handler = ml_application.load_ML_analysis(cclass, ptbin, ctbin, split)
+                    eff_score_array, model_handler = ml_application.load_ML_analysis(cclass, ptbin, ctbin, split, FILE_PREFIX)
                     #print("va")
                     df_applied = ml_application.apply_BDT_to_data(model_handler, cclass, ptbin, ctbin, model_handler.get_training_columns(), application_columns)
                     #print("non va")
@@ -194,7 +196,7 @@ if APPLICATION:
                     pt_spectrum.SetParameter(0,mass)
                     pt_spectrum.SetParameter(1,T)
                     if SIGNIFICANCE_SCAN:
-                        sigscan_eff, sigscan_tsd = ml_application.significance_scan(df_applied, presel_eff, eff_score_array, cclass, ptbin, ctbin, pt_spectrum, split, mass_bins)
+                        sigscan_eff, sigscan_tsd = ml_application.significance_scan(df_applied, presel_eff, eff_score_array, cclass, ptbin, ctbin, pt_spectrum, split, mass_bins, suffix=FILE_PREFIX)
                         eff_score_array = np.append(eff_score_array, [[sigscan_eff], [sigscan_tsd]], axis=1)
 
                         sigscan_results[f'ct{ctbin[0]}{ctbin[1]}pt{ptbin[0]}{ptbin[1]}{split}'] = [sigscan_eff, sigscan_tsd]
