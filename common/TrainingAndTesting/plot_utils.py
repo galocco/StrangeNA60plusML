@@ -70,12 +70,13 @@ def plot_efficiency_significance(mode, tsd, significance, efficiency, data_range
 
 def plot_significance_scan(
         max_index, significance, significance_error, expected_signal, bkg_df, score_list, data_range_array,
-        n_ev, mode, split='', mass_bins=40, mass = 2.992, hist_range = [2.96,3.04], custom = False):
+        n_ev, mode, split='', mass_bins=40, mass = 2.992, hist_range = [2.96,3.04], custom = False, suffix = ''):
+
     if custom:
         label = 'Significance x Efficiency'
     else:
         label = 'Significance'
-
+        
     raw_yield = expected_signal[max_index]
     max_score = score_list[max_index]
 
@@ -160,14 +161,15 @@ def plot_significance_scan(
 
     # axs[1].text(0.37, 0.95, text, transform=axs[1].transAxes, verticalalignment='top', bbox=props)
 
-    fig_name = 'Significance_ct{}{}_pT{}{}_cen{}{}{}.pdf'.format(
+    fig_name = 'Significance_ct{}{}_pT{}{}_cen{}{}{}_{}.pdf'.format(
         data_range_array[0],
         data_range_array[1],
         data_range_array[2],
         data_range_array[3],
         data_range_array[4],
         data_range_array[5],
-        split)
+        split,
+        suffix)
 
     fig_sig_path = os.environ['HYPERML_FIGURES_{}'.format(
         mode)]+'/Significance'

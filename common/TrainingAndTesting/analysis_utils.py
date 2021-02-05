@@ -63,12 +63,8 @@ def get_skimmed_large_data(data_path, cent_classes, pt_bins, ct_bins, training_c
     print(df_applied.info(memory_usage='deep'))
     return df_applied
     
-#TODO: fix this function, now it doesn't take into account:
-#1)different centrality class
-#2)absorbtion
-#3)matter and antimatter
 def expected_signal_counts(bw, multiplicity, branching_ratio, pt_range, eff, nevents):
-    signal = multiplicity * sum(nevents)* branching_ratio  * bw.Integral(pt_range[0], pt_range[1], 1e-8) / bw.Integral(0, 10, 1e-8) * eff
+    signal = multiplicity * sum(nevents)* branching_ratio  * bw.Integral(pt_range[0], pt_range[1], 1e-8) / bw.Integral(0, 10, 1e-8)
     return int(round(signal * eff))
 
 

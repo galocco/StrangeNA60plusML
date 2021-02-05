@@ -53,7 +53,7 @@ class TrainingAnalysis:
         self.df_signal['y'] = 1
         self.df_bkg['y'] = 0
 
-    def preselection_efficiency(self, cent_class, ct_bins, pt_bins, split, save=True):
+    def preselection_efficiency(self, cent_class, ct_bins, pt_bins, split, save=True, suffix=''):
         cent_cut = f'{cent_class[0]}<=centrality<={cent_class[1]}'
 
         if (len(ct_bins)>2):
@@ -76,7 +76,7 @@ class TrainingAnalysis:
         if save:
             path = os.environ['HYPERML_EFFICIENCIES_{}'.format(self.mode)]
 
-            filename = path + f'/PreselEff_cent{cent_class[0]}{cent_class[1]}{split}.root'
+            filename = path + f'/PreselEff_cent{cent_class[0]}{cent_class[1]}{split}{suffix}.root'
             t_file = ROOT.TFile(filename, 'recreate')
             
             pres_histo.Write()
@@ -149,7 +149,7 @@ class TrainingAnalysis:
         np.save(filename_sigma, np.array(sigma_dict))
         np.save(filename_sigma_error, np.array(sigma_error_dict))
 
-    def save_ML_analysis(self, model_handler, eff_score_array, cent_class, pt_range, ct_range, split=''):
+    def save_ML_analysis(self, model_handler, eff_score_array, cent_class, pt_range, ct_range, split='', suffix=''):
         info_string = f'_{cent_class[0]}{cent_class[1]}_{pt_range[0]}{pt_range[1]}_{ct_range[0]}{ct_range[1]}{split}'
 
         models_path = os.environ['HYPERML_MODELS_{}'.format(self.mode)]+'/models'
@@ -205,7 +205,7 @@ class TrainingAnalysis:
 
 class ModelApplication:
 
-    def __init__(self, pdg_code, multiplicity, branching_ratio, mode, data_sig_filename, data_bkg_filename, event_filename, cent_classes, split, skimmed_data=0):
+    def __init__(self, pdg_code, multiplicity, branching_ratio, eff, mode, data_sig_filename, data_bkg_filename, event_filename, cent_classes, split, skimmed_data=0):
 
         print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
         print('\nStarting BDT appplication and signal extraction')
@@ -217,17 +217,16 @@ class ModelApplication:
             self.lifetime = 89.54# ps
         self.multiplicity = multiplicity
         self.branching_ratio = branching_ratio
-
+        self.eff = eff
         print("lifetime: ",self.lifetime)
         print("mass: ",self.mass)
         self.n_events = []
 
-        eff = 0.068
         background_file = ROOT.TFile(event_filename)
         hist_ev = background_file.Get('hNevents')
         n_ev = hist_ev.GetBinContent(1)
-        nsig = self.multiplicity*eff*n_ev*self.branching_ratio
-
+        nsig = int(self.multiplicity*self.eff*n_ev*self.branching_ratio)
+        print("nsig: ",nsig)
         df_sig = uproot.open(data_sig_filename)["ntcand"].pandas.df(entrystop=nsig)
         df_bkg = uproot.open(data_bkg_filename)["ntcand"].pandas.df()
         self.df_data = pd.concat([df_sig, df_bkg])
@@ -252,9 +251,9 @@ class ModelApplication:
 
         print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
 
-    def load_preselection_efficiency(self, cent_class, split):
+    def load_preselection_efficiency(self, cent_class, split, suffix = ''):
         efficiencies_path = os.environ['HYPERML_EFFICIENCIES_{}'.format(self.mode)]
-        filename_efficiencies = efficiencies_path + f'/PreselEff_cent{cent_class[0]}{cent_class[1]}{split}.root'
+        filename_efficiencies = efficiencies_path + f'/PreselEff_cent{cent_class[0]}{cent_class[1]}{split}{suffix}.root'
 
         tfile = ROOT.TFile(filename_efficiencies)
 
@@ -263,15 +262,15 @@ class ModelApplication:
 
         return self.presel_histo
 
-    def load_ML_analysis(self, cent_class, pt_range, ct_range, split=''):
+    def load_ML_analysis(self, cent_class, pt_range, ct_range, split='', suffix=''):
 
         info_string = f'_{cent_class[0]}{cent_class[1]}_{pt_range[0]}{pt_range[1]}_{ct_range[0]}{ct_range[1]}{split}'
 
         handlers_path = os.environ['HYPERML_MODELS_{}'.format(self.mode)] + '/handlers'
         efficiencies_path = os.environ['HYPERML_EFFICIENCIES_{}'.format(self.mode)]
 
-        filename_handler = handlers_path + '/model_handler' + info_string + '.pkl'
-        filename_efficiencies = efficiencies_path + '/Eff_Score' + info_string + '.npy'
+        filename_handler = handlers_path + '/model_handler_' + suffix + info_string + '.pkl'
+        filename_efficiencies = efficiencies_path + '/Eff_Score_' + suffix + info_string + '.npy'
 
         eff_score_array = np.load(filename_efficiencies)
 
@@ -310,7 +309,7 @@ class ModelApplication:
 
         return self.df_data.query(data_range)[application_columns]
 
-    def significance_scan(self, df_bkg, pre_selection_efficiency, eff_score_array, cent_class, pt_range, ct_range, pt_spectrum, split='', mass_bins=40, custom = False):
+    def significance_scan(self, df_bkg, pre_selection_efficiency, eff_score_array, cent_class, pt_range, ct_range, pt_spectrum, split='', mass_bins=40, custom = False, suffix = ''):
         print('\nSignificance scan: ...')
 
         hist_range = [self.mass*0.97, self.mass*1.03]
@@ -372,7 +371,7 @@ class ModelApplication:
         data_range_array = [ct_range[0], ct_range[1], pt_range[0], pt_range[1], cent_class[0], cent_class[1]]
         pu.plot_significance_scan(
             max_index, significance, significance_error, expected_signal, df_bkg, threshold_space,
-            data_range_array, nevents, self.mode, split, mass_bins, self.mass, hist_range)
+            data_range_array, nevents, self.mode, split, mass_bins, self.mass, hist_range, custom, suffix)
 
         bdt_eff_max_score = bdt_efficiency[max_index]
 

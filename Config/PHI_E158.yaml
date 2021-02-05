@@ -5,7 +5,8 @@ PDG: 333
 EINT: 17.3
 MULTIPLICITY: 8.46
 BRATIO: 0.489
-T: 298.7
+T: 0.298
+EFF: 0.374
 
 CENTRALITY_CLASS: 
   - [0, 5]
@@ -64,3 +65,4 @@ TRAINING_COLUMNS:
   - d01
   - d02
   - ptMin
+  - cts
