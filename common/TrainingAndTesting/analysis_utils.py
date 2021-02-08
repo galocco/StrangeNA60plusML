@@ -184,8 +184,8 @@ def fit_hist(
     fit_tpl.SetParLimits(n_bkgpars, 0, max_hist_value+3*hist_bkg_eval)
     fit_tpl.SetParameter(n_bkgpars + 1, mass)
     fit_tpl.SetParLimits(n_bkgpars + 1, mass-0.01, mass+0.01)
-    fit_tpl.SetParameter(n_bkgpars + 1, 0.0025)
-    fit_tpl.SetParLimits(n_bkgpars + 2, 0.0005, 0.005)
+    fit_tpl.SetParameter(n_bkgpars + 2, 0.004)
+    fit_tpl.SetParLimits(n_bkgpars + 2, 0.0005, 0.008)
 
     # define signal and bkg_model TF1 separately
     sigTpl = TF1('fitTpl', 'gausn(0)', 0, 5)

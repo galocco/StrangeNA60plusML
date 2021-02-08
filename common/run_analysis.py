@@ -15,7 +15,7 @@ import yaml
 from analysis_classes import ModelApplication, TrainingAnalysis
 from hipe4ml import analysis_utils, plot_utils
 from hipe4ml.model_handler import ModelHandler
-from ROOT import TFile, gROOT, TF1, TDatabasePDG
+from ROOT import TFile, gROOT, TF1, TDatabasePDG, TH1D, TCanvas
 
 # avoid pandas warning
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -49,6 +49,7 @@ BRATIO = params['BRATIO']
 EINT = pu.get_sNN(params['EINT'])
 T = params['T']
 EFF = params['EFF']
+SIGMA = params['SIGMA']
 
 CENT_CLASSES = params['CENTRALITY_CLASS']
 PT_BINS = params['PT_BINS']
@@ -156,9 +157,9 @@ if APPLICATION:
     results_histos_file = TFile(file_name, 'recreate')
 
     if (N_BODY==3):
-        application_columns = ['score', 'm', 'ct', 'pt', 'centrality']
+        application_columns = ['score', 'm', 'ct', 'pt', 'centrality','y']
     else:
-        application_columns = ['score', 'm', 'ct', 'pt', 'centrality']
+        application_columns = ['score', 'm', 'ct', 'pt', 'centrality','y']
 
     if SIGNIFICANCE_SCAN:
         sigscan_results = {}    
@@ -196,11 +197,28 @@ if APPLICATION:
                     pt_spectrum.SetParameter(0,mass)
                     pt_spectrum.SetParameter(1,T)
                     if SIGNIFICANCE_SCAN:
-                        sigscan_eff, sigscan_tsd = ml_application.significance_scan(df_applied, presel_eff, eff_score_array, cclass, ptbin, ctbin, pt_spectrum, split, mass_bins, suffix=FILE_PREFIX)
+                        sigscan_eff, sigscan_tsd = ml_application.significance_scan(df_applied, presel_eff, eff_score_array, cclass, ptbin, ctbin, pt_spectrum, split, mass_bins, suffix=FILE_PREFIX, sigma_mass = SIGMA)
                         eff_score_array = np.append(eff_score_array, [[sigscan_eff], [sigscan_tsd]], axis=1)
 
                         sigscan_results[f'ct{ctbin[0]}{ctbin[1]}pt{ptbin[0]}{ptbin[1]}{split}'] = [sigscan_eff, sigscan_tsd]
 
+                        pt_bins = [0,0.5,1,1.5,2.,2.5,3]
+                        hist_rec = ml_application.get_pt_hist(pt_bins)
+                        if len(PT_BINS) == 2:
+                            counts_eff, _ = np.histogram(df_applied.query("y > 0.5 and score > @sigscan_tsd")['pt'], len(pt_bins)-1, range=[pt_bins[0],pt_bins[len(pt_bins)-1]])
+                            hist_eff = TH1D('hist_eff', ';#it{p}_{T} (GeV/c);BDT efficiency', len(pt_bins)-1, pt_bins[0], pt_bins[len(pt_bins)-1])
+
+                            for index in range(0, len(pt_bins)-1):
+                                eff = counts_eff[index]/hist_rec.GetBinContent(index+1)
+                                if eff>1:
+                                    eff = 1
+                                hist_eff.SetBinContent(index + 1, eff)
+                                hist_eff.SetBinError(index + 1, math.sqrt(eff*(1-eff)/hist_rec.GetBinContent(index+1)))
+
+                            cv = TCanvas("cv","cv")
+                            hist_eff.Draw()
+                            cv.SaveAs("eff_"+FILE_PREFIX+"_pt.png")
+                            cv.SaveAs("eff_"+FILE_PREFIX+"_pt.pdf")
 
                     # define subdir for saving invariant mass histograms
                     sub_dir_histos = cent_dir_histos.mkdir(f'ct_{ctbin[0]}{ctbin[1]}') if 'ct' in FILE_PREFIX else cent_dir_histos.mkdir(f'pt_{ptbin[0]}{ptbin[1]}')

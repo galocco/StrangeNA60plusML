@@ -70,7 +70,7 @@ def plot_efficiency_significance(mode, tsd, significance, efficiency, data_range
 
 def plot_significance_scan(
         max_index, significance, significance_error, expected_signal, bkg_df, score_list, data_range_array,
-        n_ev, mode, split='', mass_bins=40, mass = 2.992, hist_range = [2.96,3.04], custom = False, suffix = ''):
+        n_ev, mode, split='', mass_bins=40, mass = 2.992, hist_range = [2.96,3.04], custom = False, suffix = '', sigma_mass=0.005):
 
     if custom:
         label = 'Significance x Efficiency'
@@ -86,10 +86,10 @@ def plot_significance_scan(
         selected_bkg['m'], bins=mass_bins, range=hist_range)
 
     bin_centers = 0.5 * (bins[1:] + bins[:-1])
-    signal_counts_norm = norm.pdf(bin_centers, loc=mass, scale=0.0025)
+    signal_counts_norm = norm.pdf(bin_centers, loc=mass, scale=sigma_mass)
     signal_counts = raw_yield * signal_counts_norm / sum(signal_counts_norm)
 
-    side_map = (bin_centers < mass-0.007) + (bin_centers > mass+0.007)
+    side_map = (bin_centers < mass-3*sigma_mass) + (bin_centers > mass+3*sigma_mass)
     bins_side = bin_centers[side_map]
     mass_map = np.logical_not(side_map)
 
@@ -131,8 +131,8 @@ def plot_significance_scan(
                     fmt='.', ecolor='k', color='r', elinewidth=1., label='Pseudodata')
     axs[1].plot(bin_centers, bkg_roi_counts, 'g-', label='Background fit')
 
-    x = np.linspace(mass - 3 * 0.0025, mass + 3 * 0.0025, 1000)
-    gauss_signal_counts = norm.pdf(x, loc=mass, scale=0.0025)
+    x = np.linspace(mass - 3 * sigma_mass, mass + 3 * sigma_mass, 1000)
+    gauss_signal_counts = norm.pdf(x, loc=mass, scale=sigma_mass)
     gauss_signal_counts = (raw_yield / sum(signal_counts_norm)) * \
         gauss_signal_counts + np.polyval(bkg_roi_shape, x)
 

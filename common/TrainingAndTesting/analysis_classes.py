@@ -12,7 +12,7 @@ import xgboost as xgb
 from hipe4ml import analysis_utils, plot_utils
 from hipe4ml.model_handler import ModelHandler
 from sklearn.model_selection import train_test_split
-
+import math
 import analysis_utils as au
 import plot_utils as pu
 
@@ -227,9 +227,12 @@ class ModelApplication:
         n_ev = hist_ev.GetBinContent(1)
         nsig = int(self.multiplicity*self.eff*n_ev*self.branching_ratio)
         print("nsig: ",nsig)
-        df_sig = uproot.open(data_sig_filename)["ntcand"].pandas.df(entrystop=nsig)
-        df_bkg = uproot.open(data_bkg_filename)["ntcand"].pandas.df()
+        df_sig = uproot.open(data_sig_filename)["ntcand"].pandas.df(entrystop=nsig).query("cosp > 0.999 or cosp < -0.999")
+        df_bkg = uproot.open(data_bkg_filename)["ntcand"].pandas.df().query("cosp > 0.999 or cosp < -0.999")
+        df_sig['y'] = 1
+        df_bkg['y'] = 0
         self.df_data = pd.concat([df_sig, df_bkg])
+        #self.df_data = df_sig
         #self.df_data = skimmed_data if isinstance(skimmed_data, pd.DataFrame) else uproot.open(data_filename)['DataTable'].pandas.df()
         
 
@@ -309,7 +312,7 @@ class ModelApplication:
 
         return self.df_data.query(data_range)[application_columns]
 
-    def significance_scan(self, df_bkg, pre_selection_efficiency, eff_score_array, cent_class, pt_range, ct_range, pt_spectrum, split='', mass_bins=40, custom = False, suffix = ''):
+    def significance_scan(self, df_bkg, pre_selection_efficiency, eff_score_array, cent_class, pt_range, ct_range, pt_spectrum, split='', mass_bins=40, custom = False, suffix = '', sigma_mass = 2):
         print('\nSignificance scan: ...')
 
         hist_range = [self.mass*0.97, self.mass*1.03]
@@ -328,8 +331,7 @@ class ModelApplication:
 
             counts, bins = np.histogram(df_selected['m'], bins=mass_bins, range=hist_range)
             bin_centers = 0.5 * (bins[1:] + bins[:-1])
-
-            side_map = (bin_centers < self.mass-0.003) + (bin_centers > self.mass+0.003)
+            side_map = (bin_centers < self.mass-3*sigma_mass) + (bin_centers > self.mass+3*sigma_mass)
             mass_map = np.logical_not(side_map)
             bins_side = bin_centers[side_map]
             counts_side = counts[side_map]
@@ -371,7 +373,7 @@ class ModelApplication:
         data_range_array = [ct_range[0], ct_range[1], pt_range[0], pt_range[1], cent_class[0], cent_class[1]]
         pu.plot_significance_scan(
             max_index, significance, significance_error, expected_signal, df_bkg, threshold_space,
-            data_range_array, nevents, self.mode, split, mass_bins, self.mass, hist_range, custom, suffix)
+            data_range_array, nevents, self.mode, split, mass_bins, self.mass, hist_range, custom, suffix, sigma_mass)
 
         bdt_eff_max_score = bdt_efficiency[max_index]
 
@@ -380,6 +382,16 @@ class ModelApplication:
         # return max_score, bdt_eff_max_score, max_significance
         return bdt_eff_max_score, max_score
 
+    def get_pt_hist(self, pt_bins):
+        counts_rec, _ = np.histogram(self.df_data.query("y > 0.5")['pt'], len(pt_bins)-1, range=[pt_bins[0],pt_bins[len(pt_bins)-1]])
+        hist_rec = ROOT.TH1D('hist_rec', ';#it{p}_{T} (GeV/c);counts', len(pt_bins)-1, pt_bins[0], pt_bins[len(pt_bins)-1])
+
+        for index in range(0, len(pt_bins)-1):
+            if counts_rec[index]==0:
+                counts_rec[index] = 1
+            hist_rec.SetBinContent(index + 1, counts_rec[index])
+            hist_rec.SetBinError(index + 1, math.sqrt(counts_rec[index]))
+        return hist_rec
 
 def load_mcsigma(cent_class, pt_range, ct_range, mode, split=''):
     info_string = f'_{cent_class[0]}{cent_class[1]}_{pt_range[0]}{pt_range[1]}_{ct_range[0]}{ct_range[1]}{split}'
