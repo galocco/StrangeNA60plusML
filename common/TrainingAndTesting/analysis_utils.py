@@ -2,7 +2,7 @@ import math
 import os
 from concurrent.futures import ThreadPoolExecutor
 from math import floor, log10
-
+import warnings
 import aghast
 import numpy as np
 import pandas as pd
@@ -11,26 +11,34 @@ import uproot
 import xgboost as xgb
 from hipe4ml.model_handler import ModelHandler
 from ROOT import TF1, TH1D, TH2D, TH3D, TCanvas, TPaveStats, TPaveText, gStyle
+from sklearn.utils import shuffle
+# avoid pandas warning
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
-
-def get_skimmed_large_data(data_path, cent_classes, pt_bins, ct_bins, training_columns, application_columns, mode, split=''):
+def get_skimmed_large_data(multiplicity, bratio, eff, sig_path, bkg_path, event_path, cent_classes, pt_bins, ct_bins, training_columns, application_columns, mode, split='', suffix=''):
     print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
     print ('\nStarting BDT appplication on large data')
 
     if mode == 3:
-        handlers_path = os.environ['HYPERML_MODELS_3'] + '/handlers'
-        efficiencies_path = os.environ['HYPERML_EFFICIENCIES_3']
+        handlers_path = "../Models/3Body/handlers"
+        efficiencies_path = "../Results/3Body/Efficiencies"
 
     if mode == 2:
-        handlers_path = os.environ['HYPERML_MODELS_2'] + '/handlers'
-        efficiencies_path = os.environ['HYPERML_EFFICIENCIES_2']
+        handlers_path = "../Models/2Body/handlers"
+        efficiencies_path = "../Results/2Body/Efficiencies"
 
+    background_file = ROOT.TFile(event_path)
+    hist_ev = background_file.Get('hNevents')
+    n_ev = hist_ev.GetBinContent(1)
+    nsig = int(multiplicity*eff*n_ev*bratio)
+    background_file.Close()
     executor = ThreadPoolExecutor()
-    iterator = uproot.pandas.iterate(data_path, 'DataTable', executor=executor, reportfile=True)
+    bkg_iterator = uproot.pandas.iterate(bkg_path, 'ntcand', executor=executor, reportfile=True)
 
-    df_applied = pd.DataFrame()
+    sig_df_applied = pd.DataFrame()
+    bkg_df_applied = pd.DataFrame()
 
-    for current_file, data in iterator:
+    for current_file, data in bkg_iterator:
         rename_df_columns(data)
     
         print('current file: {}'.format(current_file))
@@ -41,8 +49,43 @@ def get_skimmed_large_data(data_path, cent_classes, pt_bins, ct_bins, training_c
                 for ctbin in zip(ct_bins[:-1], ct_bins[1:]):
                     info_string = '_{}{}_{}{}_{}{}'.format(cclass[0], cclass[1], ptbin[0], ptbin[1], ctbin[0], ctbin[1])
 
-                    filename_handler = handlers_path + '/model_handler' + info_string + split + '.pkl'
-                    filename_efficiencies = efficiencies_path + '/Eff_Score' + info_string + split + '.npy'
+                    filename_handler = handlers_path + '/model_handler_' +suffix+ info_string + split + '.pkl'
+                    filename_efficiencies = efficiencies_path + '/Eff_Score_' +suffix+ info_string + split + '.npy'
+
+                    model_handler = ModelHandler()
+                    model_handler.load_model_handler(filename_handler)
+
+                    eff_score_array = np.load(filename_efficiencies)
+                    tsd = eff_score_array[1][-1]
+
+                    data_range = f'{ctbin[0]}<ct<{ctbin[1]} and {ptbin[0]}<pt<{ptbin[1]} and {cclass[0]}<=centrality<{cclass[1]}'
+
+                    df_tmp = data.query(data_range)
+                    df_tmp.insert(0, 'score', model_handler.predict(df_tmp[training_columns]))
+                    df_tmp.loc[:,'y'] = 0
+                    df_tmp = df_tmp.query('score>@tsd')
+                    df_tmp = df_tmp[application_columns] #df_tmp.loc[:, application_columns]
+
+                    bkg_df_applied = bkg_df_applied.append(df_tmp, ignore_index=True, sort=False)
+
+    print(bkg_df_applied.info(memory_usage='deep'))
+
+    executor = ThreadPoolExecutor()
+    sig_iterator = uproot.pandas.iterate(sig_path, 'ntcand', executor=executor, reportfile=True)
+
+    for current_file, data in sig_iterator:
+        rename_df_columns(data)
+    
+        print('current file: {}'.format(current_file))
+        print ('start entry chunk: {}, stop entry chunk: {}'.format(data.index[0], data.index[-1]))
+        
+        for cclass in cent_classes:
+            for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
+                for ctbin in zip(ct_bins[:-1], ct_bins[1:]):
+                    info_string = '_{}{}_{}{}_{}{}'.format(cclass[0], cclass[1], ptbin[0], ptbin[1], ctbin[0], ctbin[1])
+
+                    filename_handler = handlers_path + '/model_handler_' +suffix+ info_string + split + '.pkl'
+                    filename_efficiencies = efficiencies_path + '/Eff_Score_' +suffix+ info_string + split + '.npy'
 
                     model_handler = ModelHandler()
                     model_handler.load_model_handler(filename_handler)
@@ -55,13 +98,15 @@ def get_skimmed_large_data(data_path, cent_classes, pt_bins, ct_bins, training_c
                     df_tmp = data.query(data_range)
                     df_tmp.insert(0, 'score', model_handler.predict(df_tmp[training_columns]))
 
+                    df_tmp.loc[:,'y'] = 1
                     df_tmp = df_tmp.query('score>@tsd')
-                    df_tmp = df_tmp.loc[:, application_columns]
+                    df_tmp = df_tmp[application_columns]
 
-                    df_applied = df_applied.append(df_tmp, ignore_index=True, sort=False)
-
-    print(df_applied.info(memory_usage='deep'))
-    return df_applied
+                    sig_df_applied = sig_df_applied.append(df_tmp, ignore_index=True, sort=False)
+    print(sig_df_applied.info(memory_usage='deep'))
+    sig_df_applied = shuffle(sig_df_applied)
+    sig_df_applied = sig_df_applied.head(nsig)
+    return pd.concat([sig_df_applied,bkg_df_applied])
     
 def expected_signal_counts(bw, multiplicity, branching_ratio, pt_range, eff, nevents):
     signal = multiplicity * sum(nevents)* branching_ratio  * bw.Integral(pt_range[0], pt_range[1], 1e-8) / bw.Integral(0, 10, 1e-8)
@@ -275,8 +320,7 @@ def fit_hist(
     string = 'Pb-Pb #sqrt{s_{NN}} = '+f'{Eint} GeV, centrality {cent_class[0]}-{cent_class[1]}%'
     pinfo2.AddText(string)
 
-    string = '%i #leq #it{ct} < %i cm, %i #leq #it{p}_{T} < %i GeV/#it{c} ' % (
-        ct_range[0], ct_range[1], pt_range[0], pt_range[1])
+    string = f'{ct_range[0],}'+' #leq #it{ct} < '+f'{ct_range[1]} cm, {pt_range[0]}'+' #leq #it{p}_{T} < '+f'{pt_range[1]}'+' GeV/#it{c} '
     pinfo2.AddText(string)
 
     string = f'Significance ({nsigma:.0f}#sigma) {signif:.1f} #pm {errsignif:.1f} '
@@ -313,9 +357,9 @@ def fit_hist(
 
 def load_mcsigma(cent_class, pt_range, ct_range, mode, split=''):
     info_string = f'_{cent_class[0]}{cent_class[1]}_{pt_range[0]}{pt_range[1]}_{ct_range[0]}{ct_range[1]}{split}'
-    sigma_path = os.environ['HYPERML_UTILS_{}'.format(mode)] + '/FixedSigma'
+    sig_path = os.environ['HYPERML_UTILS_{}'.format(mode)] + '/FixedSigma'
 
-    file_name = f'{sigma_path}/sigma_array{info_string}.npy'
+    file_name = f'{sig_path}/sigma_array{info_string}.npy'
 
     return np.load(file_name, allow_pickle=True)
 

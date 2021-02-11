@@ -7,6 +7,7 @@ MULTIPLICITY: 2.55
 BRATIO: 0.489
 T: 0.244
 EFF: 0.528
+SIGMA: 0.005
 
 CENTRALITY_CLASS: 
   - [0, 5]
@@ -15,7 +16,7 @@ PT_BINS: [0, 10]
 
 BKG_MODELS: ['expo', 'pol1', 'pol2']
 
-BDT_EFFICIENCY: [0.20, 1., 0.01] ##min, max ,step
+BDT_EFFICIENCY: [0.10, 0.28, 0.01] ##min, max ,step
 
 MC_PATH: ../Data/PHI_E40/fntSig_PHI_E40_TS.root
 BKG_PATH: ../Data/PHI_E40/fntBkg_PHI_E40_TS.root
@@ -65,3 +66,4 @@ TRAINING_COLUMNS:
   - d01
   - d02
   - ptMin
+  - cts

@@ -65,6 +65,8 @@ BKG_MODELS = params['BKG_MODELS']
 EFF_MIN, EFF_MAX, EFF_STEP = params['BDT_EFFICIENCY']
 FIX_EFF_ARRAY = np.arange(EFF_MIN, EFF_MAX, EFF_STEP)
 
+LARGE_DATA = params['LARGE_DATA']
+LOAD_LARGE_DATA = params['LOAD_LARGE_DATA']
 
 TRAIN = args.train
 OPTIMIZE = args.optimize
@@ -107,7 +109,7 @@ if TRAIN:
                     # data[0]=train_set, data[1]=y_train, data[2]=test_set, data[3]=y_test
                     data = ml_analysis.prepare_dataframe(COLUMNS, cent_class=cclass, ct_range=ctbin, pt_range=ptbin)
 
-                    input_model = xgb.XGBClassifier()
+                    input_model = xgb.XGBClassifier(verbosity = 0)
                     model_handler = ModelHandler(input_model)
                     
                     model_handler.set_model_params(MODEL_PARAMS)
@@ -165,7 +167,18 @@ if APPLICATION:
         sigscan_results = {}    
 
     for split in SPLIT_LIST:
-        ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split)
+
+        if LARGE_DATA:
+            if LOAD_LARGE_DATA:
+                df_skimmed = pd.read_parquet(os.path.dirname(data_sig_path) + f'/{FILE_PREFIX}skimmed_df.parquet.gzip')
+            else:
+                df_skimmed = au.get_skimmed_large_data(MULTIPLICITY, BRATIO, EFF, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, PT_BINS, CT_BINS, COLUMNS, application_columns, N_BODY, split, FILE_PREFIX)
+                df_skimmed.to_parquet(os.path.dirname(data_sig_path) + f'/{FILE_PREFIX}skimmed_df.parquet.gzip', compression='gzip')
+
+            ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split, df_skimmed)
+
+        else:
+            ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split)
         
         for cclass in CENT_CLASSES:
             # create output structure
@@ -189,9 +202,13 @@ if APPLICATION:
 
                     presel_eff = ml_application.get_preselection_efficiency(ptbin_index, ctbin_index)
                     eff_score_array, model_handler = ml_application.load_ML_analysis(cclass, ptbin, ctbin, split, FILE_PREFIX)
-                    #print("va")
-                    df_applied = ml_application.apply_BDT_to_data(model_handler, cclass, ptbin, ctbin, model_handler.get_training_columns(), application_columns)
-                    #print("non va")
+
+                    if LARGE_DATA:
+                        df_applied = ml_application.get_data_slice(cclass, ptbin, ctbin, application_columns)
+                    else: 
+                        df_applied = ml_application.apply_BDT_to_data(model_handler, cclass, ptbin, ctbin, model_handler.get_training_columns(), application_columns)
+
+                    print("signal:",len(df_applied.query("y > 0.5").index))
 
                     pt_spectrum = TF1("fpt","x*exp(-TMath::Sqrt(x**2+[0]**2)/[1])",0,100)
                     pt_spectrum.SetParameter(0,mass)
@@ -226,11 +243,11 @@ if APPLICATION:
                     for eff, tsd in zip(pd.unique(eff_score_array[0][::-1]), pd.unique(eff_score_array[1][::-1])):
                         sub_dir_histos.cd()
 
-                        if eff == sigscan_eff:
-                            df_sign = df_sign.append(df_applied.query('score>@tsd'), ignore_index=True, sort=False)
+                        #if eff == sigscan_eff and SIGNIFICANCE_SCAN:
+                        #    df_sign = df_sign.append(df_applied.query('score>@tsd'), ignore_index=True, sort=False)
 
                         
-                        mass_array = np.array(df_applied.query('score>@tsd')['m'].values, dtype=np.float64)
+                        mass_array = np.array(df_applied.query('score>@tsd and m > @mass*0.96 and m < @mass*1.04')['m'].values, dtype=np.float64)
 
                         counts = np.histogram(mass_array, bins=mass_bins, range=[mass*0.96, mass*1.04])
 

@@ -226,14 +226,17 @@ class ModelApplication:
         hist_ev = background_file.Get('hNevents')
         n_ev = hist_ev.GetBinContent(1)
         nsig = int(self.multiplicity*self.eff*n_ev*self.branching_ratio)
-        print("nsig: ",nsig)
-        df_sig = uproot.open(data_sig_filename)["ntcand"].pandas.df(entrystop=nsig).query("cosp > 0.999 or cosp < -0.999")
-        df_bkg = uproot.open(data_bkg_filename)["ntcand"].pandas.df().query("cosp > 0.999 or cosp < -0.999")
-        df_sig['y'] = 1
-        df_bkg['y'] = 0
-        self.df_data = pd.concat([df_sig, df_bkg])
-        #self.df_data = df_sig
-        #self.df_data = skimmed_data if isinstance(skimmed_data, pd.DataFrame) else uproot.open(data_filename)['DataTable'].pandas.df()
+        print("nsig: ",nsig)        
+
+        if isinstance(skimmed_data, pd.DataFrame):
+            self.df_data = skimmed_data
+
+        if skimmed_data is 0:    
+            df_sig = uproot.open(data_sig_filename)["ntcand"].pandas.df(entrystop=nsig)
+            df_bkg = uproot.open(data_bkg_filename)["ntcand"].pandas.df()
+            df_sig['y'] = 1
+            df_bkg['y'] = 0
+            self.df_data = pd.concat([df_sig, df_bkg])
         
 
 
