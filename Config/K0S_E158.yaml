@@ -12,7 +12,7 @@ SIGMA: 0.002
 CENTRALITY_CLASS: 
   - [0, 5]
 CT_BINS: [0, 100]
-PT_BINS: [0, 10]
+PT_BINS: [0,0.5,1,1.5,2.]
 
 BKG_MODELS: ['expo', 'pol1', 'pol2']
 
@@ -24,6 +24,8 @@ DATA_SIG_PATH: ../Data/K0S_E158/fntSig_K0s_E158_Data.root
 DATA_BKG_PATH: ../Data/K0S_E158/fntBkg_K0s_E158_Data.root
 EVENT_PATH: ../Data/K0S_E158/Bkg-histos_K0s_E158_Data.root
 
+LARGE_DATA: True
+LOAD_LARGE_DATA: False
 
 XGBOOST_PARAMS:
   # general parameters

@@ -23,6 +23,8 @@ gROOT.SetBatch()
 
 ###############################################################################
 parser = argparse.ArgumentParser()
+parser.add_argument('-c', '--customized', help='Run with customized bdt efficiencies', action='store_true')
+parser.add_argument('-split', '--split', help='Run with matter and anti-matter splitted', action='store_true')
 parser.add_argument('config', help='Path to the YAML configuration file')
 args = parser.parse_args()
 
@@ -59,6 +61,14 @@ BKG_MODELS = params['BKG_MODELS']
 EFF_MIN, EFF_MAX, EFF_STEP = params['BDT_EFFICIENCY']
 FIX_EFF_ARRAY = np.arange(EFF_MIN, EFF_MAX, EFF_STEP)
 
+SPLIT_MODE = args.split
+
+if SPLIT_MODE:
+    SPLIT_LIST = ['_matter', '_antimatter']
+else:
+    SPLIT_LIST = ['']
+
+CUSTOM = args.custom
 
 ###############################################################################
 # define paths for loading data
@@ -75,7 +85,13 @@ inDirName = f'{CENT_CLASSES[0][0]}-{CENT_CLASSES[0][1]}'
 input_file = TFile(file_name)
 h2BDTEff = input_file.Get(f'{inDirName}/BDTeff')
 h1BDTEff = h2BDTEff.ProjectionX("bdteff", 1, h2BDTEff.GetNbinsY()+1)
-best_sig_eff = np.round(np.array(h1BDTEff)[1:-1], 2)
+if CUSTOM:
+    print("insert custom bdt efficiencies:")
+    best_sig_eff = []
+    for index in range(0,len(PT_BINS)):
+        best_sig_eff.append()
+else:
+    best_sig_eff = np.round(np.array(h1BDTEff)[1:-1], 2)
 n_bkgpars = 3
 nsigma = 3
 

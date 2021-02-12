@@ -26,7 +26,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-t', '--train', help='Do the training', action='store_true')
 parser.add_argument('-o', '--optimize', help='Run the optimization', action='store_true')
 parser.add_argument('-a', '--application', help='Apply ML predictions on data', action='store_true')
-parser.add_argument('-s', '--significance', help='Run the significance optimisation studies', action='store_true')
+parser.add_argument('-c', '--custom', help='Run the custom significance optimisation studies', action='store_true')
 parser.add_argument('-split', '--split', help='Run with matter and anti-matter splitted', action='store_true')
 
 parser.add_argument('config', help='Path to the YAML configuration file')
@@ -71,7 +71,7 @@ LOAD_LARGE_DATA = params['LOAD_LARGE_DATA']
 TRAIN = args.train
 OPTIMIZE = args.optimize
 APPLICATION = args.application
-SIGNIFICANCE_SCAN = args.significance
+CUSTOM_SCAN = args.custom
 SPLIT_MODE = args.split
 
 if SPLIT_MODE:
@@ -163,8 +163,7 @@ if APPLICATION:
     else:
         application_columns = ['score', 'm', 'ct', 'pt', 'centrality','y']
 
-    if SIGNIFICANCE_SCAN:
-        sigscan_results = {}    
+    sigscan_results = {}    
 
     for split in SPLIT_LIST:
 
@@ -213,39 +212,35 @@ if APPLICATION:
                     pt_spectrum = TF1("fpt","x*exp(-TMath::Sqrt(x**2+[0]**2)/[1])",0,100)
                     pt_spectrum.SetParameter(0,mass)
                     pt_spectrum.SetParameter(1,T)
-                    if SIGNIFICANCE_SCAN:
-                        sigscan_eff, sigscan_tsd = ml_application.significance_scan(df_applied, presel_eff, eff_score_array, cclass, ptbin, ctbin, pt_spectrum, split, mass_bins, suffix=FILE_PREFIX, sigma_mass = SIGMA)
-                        eff_score_array = np.append(eff_score_array, [[sigscan_eff], [sigscan_tsd]], axis=1)
 
-                        sigscan_results[f'ct{ctbin[0]}{ctbin[1]}pt{ptbin[0]}{ptbin[1]}{split}'] = [sigscan_eff, sigscan_tsd]
+                    sigscan_eff, sigscan_tsd = ml_application.significance_scan(df_applied, presel_eff, eff_score_array, cclass, ptbin, ctbin, pt_spectrum, split, mass_bins, suffix=FILE_PREFIX, sigma_mass = SIGMA, custom=CUSTOM_SCAN)
+                    eff_score_array = np.append(eff_score_array, [[sigscan_eff], [sigscan_tsd]], axis=1)
 
-                        pt_bins = [0,0.5,1,1.5,2.,2.5,3]
-                        hist_rec = ml_application.get_pt_hist(pt_bins)
-                        if len(PT_BINS) == 2:
-                            counts_eff, _ = np.histogram(df_applied.query("y > 0.5 and score > @sigscan_tsd")['pt'], len(pt_bins)-1, range=[pt_bins[0],pt_bins[len(pt_bins)-1]])
-                            hist_eff = TH1D('hist_eff', ';#it{p}_{T} (GeV/c);BDT efficiency', len(pt_bins)-1, pt_bins[0], pt_bins[len(pt_bins)-1])
+                    sigscan_results[f'ct{ctbin[0]}{ctbin[1]}pt{ptbin[0]}{ptbin[1]}{split}'] = [sigscan_eff, sigscan_tsd]
 
-                            for index in range(0, len(pt_bins)-1):
-                                eff = counts_eff[index]/hist_rec.GetBinContent(index+1)
-                                if eff>1:
-                                    eff = 1
-                                hist_eff.SetBinContent(index + 1, eff)
-                                hist_eff.SetBinError(index + 1, math.sqrt(eff*(1-eff)/hist_rec.GetBinContent(index+1)))
+                    pt_bins = [0,0.5,1,1.5,2.,2.5,3]
+                    hist_rec = ml_application.get_pt_hist(pt_bins)
+                    if len(PT_BINS) == 2:
+                        counts_eff, _ = np.histogram(df_applied.query("y > 0.5 and score > @sigscan_tsd")['pt'], len(pt_bins)-1, range=[pt_bins[0],pt_bins[len(pt_bins)-1]])
+                        hist_eff = TH1D('hist_eff', ';#it{p}_{T} (GeV/c);BDT efficiency', len(pt_bins)-1, pt_bins[0], pt_bins[len(pt_bins)-1])
 
-                            cv = TCanvas("cv","cv")
-                            hist_eff.Draw()
-                            cv.SaveAs("eff_"+FILE_PREFIX+"_pt.png")
-                            cv.SaveAs("eff_"+FILE_PREFIX+"_pt.pdf")
+                        for index in range(0, len(pt_bins)-1):
+                            eff = counts_eff[index]/hist_rec.GetBinContent(index+1)
+                            if eff>1:
+                                eff = 1
+                            hist_eff.SetBinContent(index + 1, eff)
+                            hist_eff.SetBinError(index + 1, math.sqrt(eff*(1-eff)/hist_rec.GetBinContent(index+1)))
+
+                        cv = TCanvas("cv","cv")
+                        hist_eff.Draw()
+                        cv.SaveAs("eff_"+FILE_PREFIX+"_pt.png")
+                        cv.SaveAs("eff_"+FILE_PREFIX+"_pt.pdf")
 
                     # define subdir for saving invariant mass histograms
                     sub_dir_histos = cent_dir_histos.mkdir(f'ct_{ctbin[0]}{ctbin[1]}') if 'ct' in FILE_PREFIX else cent_dir_histos.mkdir(f'pt_{ptbin[0]}{ptbin[1]}')
 
                     for eff, tsd in zip(pd.unique(eff_score_array[0][::-1]), pd.unique(eff_score_array[1][::-1])):
                         sub_dir_histos.cd()
-
-                        #if eff == sigscan_eff and SIGNIFICANCE_SCAN:
-                        #    df_sign = df_sign.append(df_applied.query('score>@tsd'), ignore_index=True, sort=False)
-
                         
                         mass_array = np.array(df_applied.query('score>@tsd and m > @mass*0.96 and m < @mass*1.04')['m'].values, dtype=np.float64)
 
@@ -261,15 +256,9 @@ if APPLICATION:
             cent_dir_histos.cd()
             th2_efficiency.Write()
 
-    try:
-        sigscan_results = np.asarray(sigscan_results)
-        filename_sigscan = results_dir + f'/Efficiencies/{FILE_PREFIX}_sigscan.npy'
-        np.save(filename_sigscan, sigscan_results)
-
-    except:
-        print('No sigscan, no sigscan results!')
-
-    #df_sign.to_parquet(os.path.dirname(data_path) + '/selected_df.parquet.gzip', compression='gzip')
+    sigscan_results = np.asarray(sigscan_results)
+    filename_sigscan = results_dir + f'/Efficiencies/{FILE_PREFIX}_sigscan.npy'
+    np.save(filename_sigscan, sigscan_results)
     print (f'--- ML application time: {((time.time() - app_time) / 60):.2f} minutes ---')
     
     results_histos_file.Close()

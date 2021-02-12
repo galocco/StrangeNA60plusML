@@ -60,6 +60,8 @@ HYPERPARAMS_RANGE = params['HYPERPARAMS_RANGE']
 EFF_MIN, EFF_MAX, EFF_STEP = params['BDT_EFFICIENCY']
 FIX_EFF_ARRAY = np.arange(EFF_MIN, EFF_MAX, EFF_STEP)
 
+LARGE_DATA = params['LARGE_DATA']
+
 SPLIT_MODE = args.split
 
 if SPLIT_MODE:
@@ -95,12 +97,20 @@ histos = []
 mass = TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
 
 for split in SPLIT_LIST:
-    if split== '_antimatter':
-        df_LS = uproot.open(data_bkg_path)["ntcand"].pandas.df().query("ArmenterosAlpha<0")[COLUMNS+['m']]
-    elif split == '_matter':
-        df_LS = uproot.open(data_bkg_path)["ntcand"].pandas.df().query("ArmenterosAlpha>0")[COLUMNS+['m']]
+    if LARGE_DATA:
+        if split== '_antimatter':
+            df_LS = uproot.open(data_bkg_path)["ntcand"].pandas.df(entrystop=5000000).query("ArmenterosAlpha<0")[COLUMNS+['m']]
+        elif split == '_matter':
+            df_LS = uproot.open(data_bkg_path)["ntcand"].pandas.df(entrystop=5000000).query("ArmenterosAlpha>0")[COLUMNS+['m']]
+        else:
+            df_LS = uproot.open(data_bkg_path)["ntcand"].pandas.df(entrystop=5000000)[COLUMNS+['m']]
     else:
-        df_LS = uproot.open(data_bkg_path)["ntcand"].pandas.df()[COLUMNS+['m']]
+        if split== '_antimatter':
+            df_LS = uproot.open(data_bkg_path)["ntcand"].pandas.df().query("ArmenterosAlpha<0")[COLUMNS+['m']]
+        elif split == '_matter':
+            df_LS = uproot.open(data_bkg_path)["ntcand"].pandas.df().query("ArmenterosAlpha>0")[COLUMNS+['m']]
+        else:
+            df_LS = uproot.open(data_bkg_path)["ntcand"].pandas.df()[COLUMNS+['m']]
         
     if 'ct' in params['FILE_PREFIX']:
         BINS = params['CT_BINS']

@@ -24,6 +24,8 @@ DATA_SIG_PATH: ../Data/K0S_E40/fntSig_K0s_E40_Data.root
 DATA_BKG_PATH: ../Data/K0S_E40/fntBkg_K0s_E40_Data.root
 EVENT_PATH: ../Data/K0S_E40/Bkg-histos_K0s_E40_Data.root
 
+LARGE_DATA: True
+LOAD_LARGE_DATA: False
 
 XGBOOST_PARAMS:
   # general parameters
