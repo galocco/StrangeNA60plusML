@@ -7,7 +7,7 @@ from array import array
 
 import numpy as np
 import yaml
-
+import math
 import analysis_utils as au
 import plot_utils as pu
 import pandas as pd
@@ -50,6 +50,9 @@ PT_BINS = params['PT_BINS']
 CT_BINS = params['CT_BINS']
 COLUMNS = params['TRAINING_COLUMNS']
 
+LARGE_DATA = params['LARGE_DATA']
+LOAD_LARGE_DATA = params['LOAD_LARGE_DATA']
+
 SPLIT_MODE = args.split
 
 if SPLIT_MODE:
@@ -75,29 +78,36 @@ start_time = time.time()                          # for performances evaluation
 file_name = results_dir + f'/{FILE_PREFIX}_std_results.root'
 results_file = TFile(file_name, 'recreate')
 
-file_name = results_dir + f'/{FILE_PREFIX}_mass_res.root'
-shift_file = TFile(file_name, 'read')
-
-standard_selection = 'cosp > 0.999999 and dist > 0.3'
-application_columns = ['cosp', 'dist', 'dca', 'rapidity', 'd0prod', 'd01', 'd02', 'ptMin']
-
+standard_selection = '(cosp>0.99999 or cosp<-0.99999) and pt>1.'
+application_columns = ['pt','m','ct','centrality','score','rapidity','cosp']
 mass = TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
 for split in SPLIT_LIST:
 
-    ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split)
-    #get the histogram with the mass shift
-    shift_hist = shift_file.Get("fit_mean"+split)
+    if LARGE_DATA:
+        if LOAD_LARGE_DATA:
+            df_skimmed = pd.read_parquet(os.path.dirname(data_sig_path) + f'/{FILE_PREFIX}skimmed_df.parquet.gzip')
+        else:
+            df_skimmed = au.get_skimmed_large_data(MULTIPLICITY, BRATIO, EFF, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, PT_BINS, CT_BINS, COLUMNS, application_columns, N_BODY, split, FILE_PREFIX)
+            df_skimmed.to_parquet(os.path.dirname(data_sig_path) + f'/{FILE_PREFIX}skimmed_df.parquet.gzip', compression='gzip')
+
+        ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split, df_skimmed)
+
+    else:
+        ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split)
+    
     #initialize the histogram with the mass pol0 fit
     iBin = 0
     for cclass in CENT_CLASSES:
         cent_dir = results_file.mkdir(f'{cclass[0]}-{cclass[1]}{split}')
         df_applied = ml_application.df_data.query(standard_selection)
+        print("len: ",len(df_applied.index))
         for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
             for ctbin in zip(CT_BINS[:-1], CT_BINS[1:]):
                 mass_bins = 40
                 sub_dir = cent_dir.mkdir(f'ct_{ctbin[0]}{ctbin[1]}') if 'ct' in FILE_PREFIX else cent_dir.mkdir(f'pt_{ptbin[0]}{ptbin[1]}')
                 sub_dir.cd()
                 mass_array = np.array(df_applied.query("ct<@ctbin[1] and ct>@ctbin[0] and pt<@ptbin[1] and pt>@ptbin[0]")['m'].values, dtype=np.float64)
+                print(mass_array)
                 counts, _ = np.histogram(mass_array, bins=mass_bins, range=[mass*0.97, mass*1.03])
                 h1_minv = au.h1_invmass_ov(counts, cclass, ptbin, ctbin, hist_range = [mass*0.97, mass*1.03])
 

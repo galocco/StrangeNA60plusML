@@ -47,6 +47,7 @@ FILE_PREFIX = params['FILE_PREFIX']
 MULTIPLICITY = params['MULTIPLICITY']
 BRATIO = params['BRATIO']
 EINT = params['EINT']
+EFF = params['EFF']
 
 CENT_CLASSES = params['CENTRALITY_CLASS']
 CT_BINS = params['CT_BINS']
@@ -121,8 +122,7 @@ for split in SPLIT_LIST:
     ml_analysis = TrainingAnalysis(PDG_CODE, N_BODY, signal_path, bkg_path, split)
                     
     application_columns = ['score', 'm', 'ct', 'pt', 'centrality','ArmenterosAlpha']
-    ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, N_BODY, data_sig_path, data_bkg_path, CENT_CLASSES, split)
-    
+    ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split, False)
 
     shift_bin = 1
     eff_index=0

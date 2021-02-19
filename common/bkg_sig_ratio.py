@@ -89,7 +89,7 @@ if CUSTOM:
     print("insert custom bdt efficiencies:")
     best_sig_eff = []
     for index in range(0,len(PT_BINS)):
-        best_sig_eff.append()
+        best_sig_eff.append(input())
 else:
     best_sig_eff = np.round(np.array(h1BDTEff)[1:-1], 2)
 n_bkgpars = 3

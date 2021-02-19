@@ -27,6 +27,7 @@ parser.add_argument('-t', '--train', help='Do the training', action='store_true'
 parser.add_argument('-o', '--optimize', help='Run the optimization', action='store_true')
 parser.add_argument('-a', '--application', help='Apply ML predictions on data', action='store_true')
 parser.add_argument('-c', '--custom', help='Run the custom significance optimisation studies', action='store_true')
+parser.add_argument('-f', '--full', help='Run with the full simulation', action='store_true')
 parser.add_argument('-split', '--split', help='Run with matter and anti-matter splitted', action='store_true')
 
 parser.add_argument('config', help='Path to the YAML configuration file')
@@ -73,6 +74,7 @@ OPTIMIZE = args.optimize
 APPLICATION = args.application
 CUSTOM_SCAN = args.custom
 SPLIT_MODE = args.split
+FULL_SIM = args.full
 
 if SPLIT_MODE:
     SPLIT_LIST = ['_matter','_antimatter']
@@ -82,10 +84,18 @@ else:
 ###############################################################################
 # define paths for loading data
 signal_path = os.path.expandvars(params['MC_PATH'])
-bkg_path = os.path.expandvars(params['BKG_PATH'])
-data_sig_path = os.path.expandvars(params['DATA_SIG_PATH'])
+if FULL_SIM:
+    bkg_path = os.path.expandvars(params['BKG_PATH'])
+else:
+    bkg_path = os.path.expandvars(params['BKG_PATH'])
 data_bkg_path = os.path.expandvars(params['DATA_BKG_PATH'])
 event_path = os.path.expandvars(params['EVENT_PATH'])
+if FULL_SIM:
+    data_sig_path = os.path.expandvars(params['DATA_PATH'])
+    event_path = os.path.expandvars(params['EVENT_PATH_FULL'])
+else:
+    data_sig_path = os.path.expandvars(params['DATA_SIG_PATH'])
+    event_path = os.path.expandvars(params['EVENT_PATH'])
 results_dir = os.environ[f'HYPERML_RESULTS_{N_BODY}']
 
 ###############################################################################
@@ -93,7 +103,7 @@ start_time = time.time()                          # for performances evaluation
 mass = TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
 if TRAIN:
     for split in SPLIT_LIST:
-        ml_analysis = TrainingAnalysis(PDG_CODE, N_BODY, signal_path, bkg_path, split, entrystop=1000000)
+        ml_analysis = TrainingAnalysis(PDG_CODE, N_BODY, signal_path, bkg_path, split, FULL_SIM, entrystop=1000000)
         print(f'--- analysis initialized in {((time.time() - start_time) / 60):.2f} minutes ---\n')
 
         for cclass in CENT_CLASSES:
@@ -171,13 +181,16 @@ if APPLICATION:
             if LOAD_LARGE_DATA:
                 df_skimmed = pd.read_parquet(os.path.dirname(data_sig_path) + f'/{FILE_PREFIX}skimmed_df.parquet.gzip')
             else:
-                df_skimmed = au.get_skimmed_large_data(MULTIPLICITY, BRATIO, EFF, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, PT_BINS, CT_BINS, COLUMNS, application_columns, N_BODY, split, FILE_PREFIX)
-                df_skimmed.to_parquet(os.path.dirname(data_sig_path) + f'/{FILE_PREFIX}skimmed_df.parquet.gzip', compression='gzip')
+                if FULL_SIM:
+                    df_skimmed = au.get_skimmed_large_data_full(data_sig_path, CENT_CLASSES, PT_BINS, CT_BINS, COLUMNS, application_columns, N_BODY, split, FILE_PREFIX)
+                else:
+                    df_skimmed = au.get_skimmed_large_data(MULTIPLICITY, BRATIO, EFF, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, PT_BINS, CT_BINS, COLUMNS, application_columns, N_BODY, split, FILE_PREFIX)
+                    df_skimmed.to_parquet(os.path.dirname(data_sig_path) + f'/{FILE_PREFIX}skimmed_df.parquet.gzip', compression='gzip')
 
-            ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split, df_skimmed)
+            ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split, FULL_SIM, df_skimmed)
 
         else:
-            ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split)
+            ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split, FULL_SIM)
         
         for cclass in CENT_CLASSES:
             # create output structure
