@@ -23,7 +23,7 @@ gROOT.SetBatch()
 
 ###############################################################################
 parser = argparse.ArgumentParser()
-parser.add_argument('-c', '--customized', help='Run with customized bdt efficiencies', action='store_true')
+parser.add_argument('-c', '--custom', help='Run with customized bdt efficiencies', action='store_true')
 parser.add_argument('-split', '--split', help='Run with matter and anti-matter splitted', action='store_true')
 parser.add_argument('config', help='Path to the YAML configuration file')
 args = parser.parse_args()

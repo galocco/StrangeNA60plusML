@@ -15,7 +15,8 @@ import yaml
 from analysis_classes import ModelApplication, TrainingAnalysis
 from hipe4ml import analysis_utils, plot_utils
 from hipe4ml.model_handler import ModelHandler
-from ROOT import TFile, gROOT, TF1, TDatabasePDG, TH1D, TCanvas
+from ROOT import TFile, gROOT, TF1, TDatabasePDG, TH1D, TCanvas, gStyle
+from scipy import stats
 
 # avoid pandas warning
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -28,6 +29,7 @@ parser.add_argument('-o', '--optimize', help='Run the optimization', action='sto
 parser.add_argument('-a', '--application', help='Apply ML predictions on data', action='store_true')
 parser.add_argument('-c', '--custom', help='Run the custom significance optimisation studies', action='store_true')
 parser.add_argument('-f', '--full', help='Run with the full simulation', action='store_true')
+parser.add_argument('-s', '--significance', help='Run the significance optimisation studies', action='store_true')
 parser.add_argument('-split', '--split', help='Run with matter and anti-matter splitted', action='store_true')
 
 parser.add_argument('config', help='Path to the YAML configuration file')
@@ -55,7 +57,6 @@ SIGMA = params['SIGMA']
 CENT_CLASSES = params['CENTRALITY_CLASS']
 PT_BINS = params['PT_BINS']
 CT_BINS = params['CT_BINS']
-
 COLUMNS = params['TRAINING_COLUMNS']
 MODEL_PARAMS = params['XGBOOST_PARAMS']
 HYPERPARAMS = params['HYPERPARAMS']
@@ -69,13 +70,15 @@ FIX_EFF_ARRAY = np.arange(EFF_MIN, EFF_MAX, EFF_STEP)
 LARGE_DATA = params['LARGE_DATA']
 LOAD_LARGE_DATA = params['LOAD_LARGE_DATA']
 
+PRESELECTION = params['PRESELECTION']
+
 TRAIN = args.train
 OPTIMIZE = args.optimize
 APPLICATION = args.application
 CUSTOM_SCAN = args.custom
 SPLIT_MODE = args.split
 FULL_SIM = args.full
-
+SIGNIFICANCE_SCAN = args.significance
 if SPLIT_MODE:
     SPLIT_LIST = ['_matter','_antimatter']
 else:
@@ -88,14 +91,6 @@ if FULL_SIM:
     bkg_path = os.path.expandvars(params['BKG_PATH'])
 else:
     bkg_path = os.path.expandvars(params['BKG_PATH'])
-data_bkg_path = os.path.expandvars(params['DATA_BKG_PATH'])
-event_path = os.path.expandvars(params['EVENT_PATH'])
-if FULL_SIM:
-    data_sig_path = os.path.expandvars(params['DATA_PATH'])
-    event_path = os.path.expandvars(params['EVENT_PATH_FULL'])
-else:
-    data_sig_path = os.path.expandvars(params['DATA_SIG_PATH'])
-    event_path = os.path.expandvars(params['EVENT_PATH'])
 results_dir = os.environ[f'HYPERML_RESULTS_{N_BODY}']
 
 ###############################################################################
@@ -103,7 +98,7 @@ start_time = time.time()                          # for performances evaluation
 mass = TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
 if TRAIN:
     for split in SPLIT_LIST:
-        ml_analysis = TrainingAnalysis(PDG_CODE, N_BODY, signal_path, bkg_path, split, FULL_SIM, entrystop=1000000)
+        ml_analysis = TrainingAnalysis(PDG_CODE, N_BODY, signal_path, bkg_path, split, FULL_SIM, entrystop=5000000, preselection=PRESELECTION)
         print(f'--- analysis initialized in {((time.time() - start_time) / 60):.2f} minutes ---\n')
 
         for cclass in CENT_CLASSES:
@@ -136,6 +131,11 @@ if TRAIN:
 
                     y_pred = model_handler.predict(data[2])
                     data[2].insert(0, 'score', y_pred)
+                    y_pred2 = model_handler.predict(data[0])
+                    data[0].insert(0, 'score', y_pred2)
+                    d,p = stats.ks_2samp(data[0]['score'],data[2]['score'])
+                    print("Kolmogorov-Smirnov test:")
+                    print("statistic: ",d," p-value: ",p)
 
                     eff, tsd = analysis_utils.bdt_efficiency_array(data[3], y_pred, n_points=1000)
                     score_from_eff_array = analysis_utils.score_from_efficiency_array(data[3], y_pred, FIX_EFF_ARRAY)
@@ -154,7 +154,7 @@ if TRAIN:
                     corr_plot[0].savefig(f'../Figures/2Body/plot_corr_Sig_{FILE_PREFIX}.pdf')
                     corr_plot[1].savefig(f'../Figures/2Body/plot_corr_Bkg_{FILE_PREFIX}.pdf')
 
-                    ml_analysis.save_ML_analysis(model_handler, fixed_eff_array, cent_class=cclass,pt_range=ptbin, ct_range=ctbin, split=split, suffix=FILE_PREFIX)
+                    ml_analysis.save_ML_analysis(model_handler, fixed_eff_array, cent_class=cclass,pt_range=ptbin, ct_range=ctbin, training_columns=COLUMNS, split=split, suffix=FILE_PREFIX)
                     ml_analysis.save_ML_plots(model_handler, data, [eff, tsd],cent_class=cclass, pt_range=ptbin, ct_range=ctbin, split=split, suffix=FILE_PREFIX)
 
         del ml_analysis
@@ -165,115 +165,107 @@ if TRAIN:
 if APPLICATION:
     app_time = time.time()
 
-    file_name = results_dir + f'/{FILE_PREFIX}_results.root'
-    results_histos_file = TFile(file_name, 'recreate')
+    for index in range(0,len(params['EVENT_PATH']) if FULL_SIM else len(params['EVENT_PATH'])):
 
-    if (N_BODY==3):
-        application_columns = ['score', 'm', 'ct', 'pt', 'centrality','y']
-    else:
-        application_columns = ['score', 'm', 'ct', 'pt', 'centrality','y']
-
-    sigscan_results = {}    
-
-    for split in SPLIT_LIST:
-
-        if LARGE_DATA:
-            if LOAD_LARGE_DATA:
-                df_skimmed = pd.read_parquet(os.path.dirname(data_sig_path) + f'/{FILE_PREFIX}skimmed_df.parquet.gzip')
-            else:
-                if FULL_SIM:
-                    df_skimmed = au.get_skimmed_large_data_full(data_sig_path, CENT_CLASSES, PT_BINS, CT_BINS, COLUMNS, application_columns, N_BODY, split, FILE_PREFIX)
-                else:
-                    df_skimmed = au.get_skimmed_large_data(MULTIPLICITY, BRATIO, EFF, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, PT_BINS, CT_BINS, COLUMNS, application_columns, N_BODY, split, FILE_PREFIX)
-                    df_skimmed.to_parquet(os.path.dirname(data_sig_path) + f'/{FILE_PREFIX}skimmed_df.parquet.gzip', compression='gzip')
-
-            ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split, FULL_SIM, df_skimmed)
-
+        data_bkg_path = os.path.expandvars(params['DATA_BKG_PATH'][index])
+        if FULL_SIM:
+            data_sig_path = os.path.expandvars(params['DATA_PATH'][index])
+            event_path = os.path.expandvars(params['EVENT_PATH_FULL'][index])
         else:
-            ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split, FULL_SIM)
+            data_sig_path = os.path.expandvars(params['DATA_SIG_PATH'][index])
+            event_path = os.path.expandvars(params['EVENT_PATH'][index])
+
+        if (len(params['EVENT_PATH'])==1 and not FULL_SIM) or (len(params['EVENT_PATH'])==1 and FULL_SIM):
+            file_name = results_dir + f'/{FILE_PREFIX}_results.root'
+        else:
+            file_name = results_dir + f'/{FILE_PREFIX}_results_{index}.root'
+        results_histos_file = TFile(file_name, 'recreate')
+
+        application_columns = ['score', 'm', 'ct', 'pt', 'centrality', 'y']
+
+        sigscan_results = {}    
+
+        for split in SPLIT_LIST:
+
+            if LARGE_DATA:
+                if LOAD_LARGE_DATA:
+                    df_skimmed = pd.read_parquet(os.path.dirname(data_sig_path) + f'/{FILE_PREFIX}skimmed_df.parquet.gzip')
+                else:
+                    if FULL_SIM:
+                        df_skimmed = au.get_skimmed_large_data_full(data_sig_path, CENT_CLASSES, PT_BINS, CT_BINS, COLUMNS, application_columns, N_BODY, split, FILE_PREFIX, PRESELECTION)
+                    else:
+                        df_skimmed = au.get_skimmed_large_data(MULTIPLICITY, BRATIO, EFF, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, PT_BINS, CT_BINS, COLUMNS, application_columns, N_BODY, split, FILE_PREFIX, PRESELECTION)
+                        df_skimmed.to_parquet(os.path.dirname(data_sig_path) + f'/{FILE_PREFIX}skimmed_df.parquet.gzip', compression='gzip')
+
+                ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split, FULL_SIM, PRESELECTION, df_skimmed)
+
+            else:
+                ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split, FULL_SIM, PRESELECTION)
+            
+            for cclass in CENT_CLASSES:
+                # create output structure
+                cent_dir_histos = results_histos_file.mkdir(f'{cclass[0]}-{cclass[1]}{split}')
+
+                th2_efficiency = ml_application.load_preselection_efficiency(cclass, split, FILE_PREFIX)
+
+                df_sign = pd.DataFrame()
+
+                for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
+                    ptbin_index = ml_application.presel_histo.GetXaxis().FindBin(0.5 * (ptbin[0] + ptbin[1]))
+
+                    for ctbin in zip(CT_BINS[:-1], CT_BINS[1:]):
+                        ctbin_index = ml_application.presel_histo.GetYaxis().FindBin(0.5 * (ctbin[0] + ctbin[1]))
+
+                        print('\n==================================================')
+                        print('centrality:', cclass, ' ct:', ctbin, ' pT:', ptbin, split)
+                        print('Application and signal extraction ...', end='\r')
+
+                        mass_bins = 40
+
+                        presel_eff = ml_application.get_preselection_efficiency(ptbin_index, ctbin_index)
+                        eff_score_array, model_handler = ml_application.load_ML_analysis(cclass, ptbin, ctbin, split, FILE_PREFIX)
+
+                        if LARGE_DATA:
+                            df_applied = ml_application.get_data_slice(cclass, ptbin, ctbin, application_columns)
+                        else: 
+                            df_applied = ml_application.apply_BDT_to_data(model_handler, cclass, ptbin, ctbin, model_handler.get_training_columns(), application_columns)
+
+                        if SIGNIFICANCE_SCAN:
+                            pt_spectrum = TF1("fpt","x*exp(-TMath::Sqrt(x**2+[0]**2)/[1])",0,100)
+                            pt_spectrum.SetParameter(0,mass)
+                            pt_spectrum.SetParameter(1,T)
+
+                            sigscan_eff, sigscan_tsd = ml_application.significance_scan(df_applied, presel_eff, eff_score_array, cclass, ptbin, ctbin, pt_spectrum, split, mass_bins, suffix=FILE_PREFIX, sigma_mass = SIGMA, custom=CUSTOM_SCAN)
+                            eff_score_array = np.append(eff_score_array, [[sigscan_eff], [sigscan_tsd]], axis=1)
+
+                            sigscan_results[f'ct{ctbin[0]}{ctbin[1]}pt{ptbin[0]}{ptbin[1]}{split}'] = [sigscan_eff, sigscan_tsd]
+
+                        # define subdir for saving invariant mass histograms
+                        sub_dir_histos = cent_dir_histos.mkdir(f'ct_{ctbin[0]}{ctbin[1]}') if 'ct' in FILE_PREFIX else cent_dir_histos.mkdir(f'pt_{ptbin[0]}{ptbin[1]}')
+
+                        for eff, tsd in zip(pd.unique(eff_score_array[0][::-1]), pd.unique(eff_score_array[1][::-1])):
+                            sub_dir_histos.cd()
+                            
+                            mass_array = np.array(df_applied.query('score>@tsd and m > @mass*0.96 and m < @mass*1.04')['m'].values, dtype=np.float64)
+
+                            counts = np.histogram(mass_array, bins=mass_bins, range=[mass*0.96, mass*1.04])
+
+                            histo_name = f'eff{eff:.2f}'
+                            
+                            h1_minv = au.h1_invmass(counts, cclass, ptbin, ctbin, name=histo_name)
+                            h1_minv.Write()
+                                    
+                        print('Application and signal extraction: Done!\n')
+
+                cent_dir_histos.cd()
+                th2_efficiency.Write()
+
+        if SIGNIFICANCE_SCAN:
+            sigscan_results = np.asarray(sigscan_results)
+            filename_sigscan = results_dir + f'/Efficiencies/{FILE_PREFIX}_sigscan.npy'
+            np.save(filename_sigscan, sigscan_results)
+        print (f'--- ML application time: {((time.time() - app_time) / 60):.2f} minutes ---')
         
-        for cclass in CENT_CLASSES:
-            # create output structure
-            cent_dir_histos = results_histos_file.mkdir(f'{cclass[0]}-{cclass[1]}{split}')
-
-            th2_efficiency = ml_application.load_preselection_efficiency(cclass, split, FILE_PREFIX)
-
-            df_sign = pd.DataFrame()
-
-            for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
-                ptbin_index = ml_application.presel_histo.GetXaxis().FindBin(0.5 * (ptbin[0] + ptbin[1]))
-
-                for ctbin in zip(CT_BINS[:-1], CT_BINS[1:]):
-                    ctbin_index = ml_application.presel_histo.GetYaxis().FindBin(0.5 * (ctbin[0] + ctbin[1]))
-
-                    print('\n==================================================')
-                    print('centrality:', cclass, ' ct:', ctbin, ' pT:', ptbin, split)
-                    print('Application and signal extraction ...', end='\r')
-
-                    mass_bins = 40
-
-                    presel_eff = ml_application.get_preselection_efficiency(ptbin_index, ctbin_index)
-                    eff_score_array, model_handler = ml_application.load_ML_analysis(cclass, ptbin, ctbin, split, FILE_PREFIX)
-
-                    if LARGE_DATA:
-                        df_applied = ml_application.get_data_slice(cclass, ptbin, ctbin, application_columns)
-                    else: 
-                        df_applied = ml_application.apply_BDT_to_data(model_handler, cclass, ptbin, ctbin, model_handler.get_training_columns(), application_columns)
-
-                    print("signal:",len(df_applied.query("y > 0.5").index))
-
-                    pt_spectrum = TF1("fpt","x*exp(-TMath::Sqrt(x**2+[0]**2)/[1])",0,100)
-                    pt_spectrum.SetParameter(0,mass)
-                    pt_spectrum.SetParameter(1,T)
-
-                    sigscan_eff, sigscan_tsd = ml_application.significance_scan(df_applied, presel_eff, eff_score_array, cclass, ptbin, ctbin, pt_spectrum, split, mass_bins, suffix=FILE_PREFIX, sigma_mass = SIGMA, custom=CUSTOM_SCAN)
-                    eff_score_array = np.append(eff_score_array, [[sigscan_eff], [sigscan_tsd]], axis=1)
-
-                    sigscan_results[f'ct{ctbin[0]}{ctbin[1]}pt{ptbin[0]}{ptbin[1]}{split}'] = [sigscan_eff, sigscan_tsd]
-
-                    pt_bins = [0,0.5,1,1.5,2.,2.5,3]
-                    hist_rec = ml_application.get_pt_hist(pt_bins)
-                    if len(PT_BINS) == 2:
-                        counts_eff, _ = np.histogram(df_applied.query("y > 0.5 and score > @sigscan_tsd")['pt'], len(pt_bins)-1, range=[pt_bins[0],pt_bins[len(pt_bins)-1]])
-                        hist_eff = TH1D('hist_eff', ';#it{p}_{T} (GeV/c);BDT efficiency', len(pt_bins)-1, pt_bins[0], pt_bins[len(pt_bins)-1])
-
-                        for index in range(0, len(pt_bins)-1):
-                            eff = counts_eff[index]/hist_rec.GetBinContent(index+1)
-                            if eff>1:
-                                eff = 1
-                            hist_eff.SetBinContent(index + 1, eff)
-                            hist_eff.SetBinError(index + 1, math.sqrt(eff*(1-eff)/hist_rec.GetBinContent(index+1)))
-
-                        cv = TCanvas("cv","cv")
-                        hist_eff.Draw()
-                        cv.SaveAs("eff_"+FILE_PREFIX+"_pt.png")
-                        cv.SaveAs("eff_"+FILE_PREFIX+"_pt.pdf")
-
-                    # define subdir for saving invariant mass histograms
-                    sub_dir_histos = cent_dir_histos.mkdir(f'ct_{ctbin[0]}{ctbin[1]}') if 'ct' in FILE_PREFIX else cent_dir_histos.mkdir(f'pt_{ptbin[0]}{ptbin[1]}')
-
-                    for eff, tsd in zip(pd.unique(eff_score_array[0][::-1]), pd.unique(eff_score_array[1][::-1])):
-                        sub_dir_histos.cd()
-                        
-                        mass_array = np.array(df_applied.query('score>@tsd and m > @mass*0.96 and m < @mass*1.04')['m'].values, dtype=np.float64)
-
-                        counts = np.histogram(mass_array, bins=mass_bins, range=[mass*0.96, mass*1.04])
-
-                        histo_name = f'eff{eff:.2f}'
-                        
-                        h1_minv = au.h1_invmass(counts, cclass, ptbin, ctbin, name=histo_name)
-                        h1_minv.Write()
-                                
-                    print('Application and signal extraction: Done!\n')
-
-            cent_dir_histos.cd()
-            th2_efficiency.Write()
-
-    sigscan_results = np.asarray(sigscan_results)
-    filename_sigscan = results_dir + f'/Efficiencies/{FILE_PREFIX}_sigscan.npy'
-    np.save(filename_sigscan, sigscan_results)
-    print (f'--- ML application time: {((time.time() - app_time) / 60):.2f} minutes ---')
-    
-    results_histos_file.Close()
+        results_histos_file.Close()
 
     print(f'--- analysis time: {((time.time() - start_time) / 60):.2f} minutes ---')

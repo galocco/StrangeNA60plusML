@@ -10,12 +10,87 @@ import ROOT
 import uproot
 import xgboost as xgb
 from hipe4ml.model_handler import ModelHandler
-from ROOT import TF1, TH1D, TH2D, TH3D, TCanvas, TPaveStats, TPaveText, gStyle
+from ROOT import TF1, TH1D, TH2D, TH3D, TCanvas, TPaveStats, TPaveText, gStyle, TDatabasePDG
+import re
+import xml.etree.cElementTree as ET
 from sklearn.utils import shuffle
 # avoid pandas warning
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-def get_skimmed_large_data(multiplicity, bratio, eff, sig_path, bkg_path, event_path, cent_classes, pt_bins, ct_bins, training_columns, application_columns, mode, split='', suffix=''):
+def build_tree(xgtree, base_xml_element, var_indices):
+    regex_float_pattern = r'[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?'
+    parent_element_dict = {'0':base_xml_element}
+    pos_dict = {'0':'s'}
+    for line in xgtree.split('\n'):
+        if not line: continue
+        if ':leaf=' in line:
+            #leaf node
+            result = re.match(r'(\t*)(\d+):leaf=({0})$'.format(regex_float_pattern), line)
+            if not result:
+                print(line)
+            depth = result.group(1).count('\t')
+            inode = result.group(2)
+            res = result.group(3)
+            node_elementTree = ET.SubElement(parent_element_dict[inode], "Node", pos=str(pos_dict[inode]),
+                                             depth=str(depth), NCoef="0", IVar="-1", Cut="0.0e+00", cType="1", res=str(res), rms="0.0e+00", purity="0.0e+00", nType="-99")
+        else:
+            #\t\t3:[var_topcand_mass<138.19] yes=7,no=8,missing=7
+            result = re.match(r'(\t*)([0-9]+):\[(?P<var>.+)<(?P<cut>{0})\]\syes=(?P<yes>\d+),no=(?P<no>\d+)'.format(regex_float_pattern),line)
+            if not result:
+                print(line)
+            depth = result.group(1).count('\t')
+            inode = result.group(2)
+            var = result.group('var')
+            cut = result.group('cut')
+            lnode = result.group('yes')
+            rnode = result.group('no')
+            pos_dict[lnode] = 'l'
+            pos_dict[rnode] = 'r'
+            node_elementTree = ET.SubElement(parent_element_dict[inode], "Node", pos=str(pos_dict[inode]),
+                                             depth=str(depth), NCoef="0", IVar=str(var_indices[var]), Cut=str(cut),
+                                             cType="1", res="0.0e+00", rms="0.0e+00", purity="0.0e+00", nType="0")
+            parent_element_dict[lnode] = node_elementTree
+            parent_element_dict[rnode] = node_elementTree
+            
+def convert_model(model, input_variables, output_xml):
+    NTrees = len(model)
+    var_list = input_variables
+    var_indices = {}
+    
+    # <MethodSetup>
+    MethodSetup = ET.Element("MethodSetup", Method="BDT::BDT")
+
+    # <Variables>
+    Variables = ET.SubElement(MethodSetup, "Variables", NVar=str(len(var_list)))
+    for ind, val in enumerate(var_list):
+        name = val[0]
+        var_type = val[1]
+        var_indices[name] = ind
+        Variable = ET.SubElement(Variables, "Variable", VarIndex=str(ind), Type=val[1], 
+            Expression=name, Label=name, Title=name, Unit="", Internal=name, 
+            Min="0.0e+00", Max="0.0e+00")
+
+    # <GeneralInfo>
+    GeneralInfo = ET.SubElement(MethodSetup, "GeneralInfo")
+    Info_Creator = ET.SubElement(GeneralInfo, "Info", name="Creator", value="xgboost2TMVA")
+    Info_AnalysisType = ET.SubElement(GeneralInfo, "Info", name="AnalysisType", value="Classification")
+
+    # <Options>
+    Options = ET.SubElement(MethodSetup, "Options")
+    Option_NodePurityLimit = ET.SubElement(Options, "Option", name="NodePurityLimit", modified="No").text = "5.00e-01"
+    Option_BoostType = ET.SubElement(Options, "Option", name="BoostType", modified="Yes").text = "Grad"
+    
+    # <Weights>
+    Weights = ET.SubElement(MethodSetup, "Weights", NTrees=str(NTrees), AnalysisType="1")
+    
+    for itree in range(NTrees):
+        BinaryTree = ET.SubElement(Weights, "BinaryTree", type="DecisionTree", boostWeight="1.0e+00", itree=str(itree))
+        build_tree(model[itree], BinaryTree, var_indices)
+        
+    tree = ET.ElementTree(MethodSetup)
+    tree.write(output_xml)
+
+def get_skimmed_large_data(multiplicity, bratio, eff, sig_path, bkg_path, event_path, cent_classes, pt_bins, ct_bins, training_columns, application_columns, mode, split='', suffix='', preselection=''):
     print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
     print ('\nStarting BDT appplication on large data')
 
@@ -33,15 +108,13 @@ def get_skimmed_large_data(multiplicity, bratio, eff, sig_path, bkg_path, event_
     nsig = int(multiplicity*eff*n_ev*bratio)
     background_file.Close()
     executor = ThreadPoolExecutor()
-    bkg_iterator = uproot.pandas.iterate(bkg_path, 'ntcand', executor=executor, reportfile=True)
-
+    bkg_tree_name = bkg_path + ":/ntcand"
+    bkg_iterator = uproot.iterate(bkg_tree_name, executor=executor, library="pd")
     sig_df_applied = pd.DataFrame()
     bkg_df_applied = pd.DataFrame()
 
-    for current_file, data in bkg_iterator:
+    for data in bkg_iterator:
         rename_df_columns(data)
-    
-        print('current file: {}'.format(current_file))
         print ('start entry chunk: {}, stop entry chunk: {}'.format(data.index[0], data.index[-1]))
         
         for cclass in cent_classes:
@@ -61,22 +134,21 @@ def get_skimmed_large_data(multiplicity, bratio, eff, sig_path, bkg_path, event_
                     data_range = f'{ctbin[0]}<ct<{ctbin[1]} and {ptbin[0]}<pt<{ptbin[1]} and {cclass[0]}<=centrality<{cclass[1]}'
 
                     df_tmp = data.query(data_range)
-                    df_tmp.insert(0, 'score', model_handler.predict(df_tmp[training_columns]))
-                    df_tmp.loc[:,'y'] = 0
-                    df_tmp = df_tmp.query('score>@tsd')
-                    df_tmp = df_tmp[application_columns] #df_tmp.loc[:, application_columns]
+                    df_tmp.loc[:,'score'] = model_handler.predict(df_tmp[training_columns])
+                    df_tmp = df_tmp.query('score>@tsd and '+preselection)
+                    df_tmp['y'] = 0
+                    df_tmp = df_tmp.loc[:, application_columns]
 
                     bkg_df_applied = bkg_df_applied.append(df_tmp, ignore_index=True, sort=False)
 
     print(bkg_df_applied.info(memory_usage='deep'))
 
     executor = ThreadPoolExecutor()
-    sig_iterator = uproot.pandas.iterate(sig_path, 'ntcand', executor=executor, reportfile=True)
+    sig_tree_name = sig_path + ":/ntcand"
+    sig_iterator = uproot.iterate(sig_tree_name, executor=executor, library="pd")
 
-    for current_file, data in sig_iterator:
+    for data in sig_iterator:
         rename_df_columns(data)
-    
-        print('current file: {}'.format(current_file))
         print ('start entry chunk: {}, stop entry chunk: {}'.format(data.index[0], data.index[-1]))
         
         for cclass in cent_classes:
@@ -96,20 +168,70 @@ def get_skimmed_large_data(multiplicity, bratio, eff, sig_path, bkg_path, event_
                     data_range = f'{ctbin[0]}<ct<{ctbin[1]} and {ptbin[0]}<pt<{ptbin[1]} and {cclass[0]}<=centrality<{cclass[1]}'
 
                     df_tmp = data.query(data_range)
-                    df_tmp.insert(0, 'score', model_handler.predict(df_tmp[training_columns]))
-
-                    df_tmp.loc[:,'y'] = 1
-                    df_tmp = df_tmp.query('score>@tsd')
-                    df_tmp = df_tmp[application_columns]
+                    #df_tmp.insert(0, 'score', model_handler.predict(df_tmp[training_columns]))
+                    df_tmp.loc[:,'score'] = model_handler.predict(df_tmp[training_columns])
+                    df_tmp = df_tmp.query('score>@tsd and '+preselection)
+                    df_tmp['y'] = 1
+                    df_tmp = df_tmp.loc[:, application_columns]
 
                     sig_df_applied = sig_df_applied.append(df_tmp, ignore_index=True, sort=False)
     print(sig_df_applied.info(memory_usage='deep'))
     sig_df_applied = shuffle(sig_df_applied)
     sig_df_applied = sig_df_applied.head(nsig)
     return pd.concat([sig_df_applied,bkg_df_applied])
-    
+
+def get_skimmed_large_data_full(data_path, cent_classes, pt_bins, ct_bins, training_columns, application_columns, mode, split='', suffix='', preselection=''):
+    print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
+    print ('\nStarting BDT appplication on large data')
+
+    if mode == 3:
+        handlers_path = "../Models/3Body/handlers"
+        efficiencies_path = "../Results/3Body/Efficiencies"
+
+    if mode == 2:
+        handlers_path = "../Models/2Body/handlers"
+        efficiencies_path = "../Results/2Body/Efficiencies"
+
+    executor = ThreadPoolExecutor()
+    data_tree_name = data_path + ":/ntcand"
+    iterator = uproot.iterate(data_tree_name, executor=executor, library='pd')
+
+    df_applied = pd.DataFrame()
+
+    for data in iterator:
+        print ('start entry chunk: {}, stop entry chunk: {}'.format(data.index[0], data.index[-1]))
+        
+        for cclass in cent_classes:
+            for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
+                for ctbin in zip(ct_bins[:-1], ct_bins[1:]):
+                    info_string = '_{}{}_{}{}_{}{}'.format(cclass[0], cclass[1], ptbin[0], ptbin[1], ctbin[0], ctbin[1])
+
+                    filename_handler = handlers_path + '/model_handler_' +suffix+ info_string + split + '.pkl'
+                    filename_efficiencies = efficiencies_path + '/Eff_Score_' +suffix+ info_string + split + '.npy'
+
+                    model_handler = ModelHandler()
+                    model_handler.load_model_handler(filename_handler)
+
+                    eff_score_array = np.load(filename_efficiencies)
+                    tsd = eff_score_array[1][-1]
+
+                    data_range = f'{ctbin[0]}<ct<{ctbin[1]} and {ptbin[0]}<pt<{ptbin[1]} and {cclass[0]}<=centrality<{cclass[1]}'
+
+                    df_tmp = data.query(data_range)
+                    df_tmp = data.query(preselection)
+                    df_tmp.insert(0, 'score', model_handler.predict(df_tmp[training_columns]))
+                    df_tmp = df_tmp.query('score>@tsd')
+                    df_tmp.rename(columns={"true": "y"}, inplace=True)
+                    df_tmp = df_tmp[application_columns] #df_tmp.loc[:, application_columns]
+
+                    df_applied = df_applied.append(df_tmp, ignore_index=True, sort=False)
+
+    print(df_applied.info(memory_usage='deep'))
+
+    return df_applied
+
 def expected_signal_counts(bw, multiplicity, branching_ratio, pt_range, eff, nevents):
-    signal = multiplicity * sum(nevents)* branching_ratio  * bw.Integral(pt_range[0], pt_range[1], 1e-8) / bw.Integral(0, 10, 1e-8)
+    signal = multiplicity * nevents* branching_ratio  * bw.Integral(pt_range[0], pt_range[1], 1e-8) / bw.Integral(0, 10, 1e-8)
     return int(round(signal * eff))
 
 
@@ -195,7 +317,10 @@ def get_ctbin_index(th2, ctbin):
 
 
 def fit_hist(
-        histo, cent_class, pt_range, ct_range, mass, nsigma=3, model="pol2", fixsigma=-1, sigma_limits=None, mode=3, split ='', Eint = 17.3):
+        histo, cent_class, pt_range, ct_range, mass, nsigma=3, model="pol2", fixsigma=-1, sigma_limits=None, mode=3, split ='', Eint=17.3, peak_mode=True):
+    
+    gauss =True #mass != TDatabasePDG.Instance().GetParticle(333).Mass()
+    
     hist_range = [mass*0.97,mass*1.03]
     # canvas for plotting the invariant mass distribution
     cv = TCanvas(f'cv_{histo.GetName()}')
@@ -208,8 +333,11 @@ def fit_hist(
     else:
         print(f'Unsupported model {model}')
 
-    # define the fit function bkg_model + gauss
-    fit_tpl = TF1('fitTpl', f'{model}(0)+gausn({n_bkgpars})', 0, 5)
+    # define the fit function bkg_model + gauss/voigt
+    if gauss:
+        fit_tpl = TF1('fitTpl', f'{model}(0)+gausn({n_bkgpars})', 0, 5)
+    else:
+        fit_tpl = TF1('fitTpl', f'{model}(0)+Voigt(x-[{n_bkgpars+1}],[{n_bkgpars+2}],[{n_bkgpars+3}])*[{n_bkgpars}]', 0, 5)
 
     # redefine parameter names for the bkg_model
     for i in range(n_bkgpars):
@@ -219,21 +347,34 @@ def fit_hist(
     fit_tpl.SetParName(n_bkgpars, 'N_{sig}')
     fit_tpl.SetParName(n_bkgpars + 1, '#mu')
     fit_tpl.SetParName(n_bkgpars + 2, '#sigma')
-    # define parameter values and limits
+    if not gauss:
+        fit_tpl.SetParName(n_bkgpars + 3, '#Gamma')
+
     max_hist_value = histo.GetMaximum()
     hist_bkg_eval = (histo.GetBinContent(1)+histo.GetBinContent(histo.GetNbinsX()))/2.
     if hist_bkg_eval < 5:
         hist_bkg_eval = 5
+    
+    #if model=='pol2':
+    #    fit_tpl.SetParameter(0, -5400/2)
+    #    fit_tpl.SetParameter(1, 29)#94.76)
+    #    fit_tpl.SetParameter(2, 5575/2)
 
     fit_tpl.SetParameter(n_bkgpars, max_hist_value-hist_bkg_eval)
     fit_tpl.SetParLimits(n_bkgpars, 0, max_hist_value+3*hist_bkg_eval)
     fit_tpl.SetParameter(n_bkgpars + 1, mass)
-    fit_tpl.SetParLimits(n_bkgpars + 1, mass-0.01, mass+0.01)
-    fit_tpl.SetParameter(n_bkgpars + 2, 0.004)
-    fit_tpl.SetParLimits(n_bkgpars + 2, 0.0005, 0.008)
+    fit_tpl.SetParLimits(n_bkgpars + 1, mass-0.005, mass+0.005)
+    fit_tpl.SetParameter(n_bkgpars + 2, 0.0035)
+    fit_tpl.SetParLimits(n_bkgpars + 2, 0.002, 0.006)
+    if not gauss:
+        fit_tpl.FixParameter(n_bkgpars + 3, 0.00426)
 
     # define signal and bkg_model TF1 separately
-    sigTpl = TF1('fitTpl', 'gausn(0)', 0, 5)
+    if gauss:
+        sigTpl = TF1('fitTpl','gausn(0)', 0, 5)
+    else:
+        sigTpl = TF1('fitTpl','TMath::Voigt(x-[1],[2],[3])*[0]', 0, 5)
+
     bkg_tpl = TF1('fitTpl', f'{model}(0)', 0, 5)
 
     # plotting stuff for fit_tpl
@@ -256,8 +397,8 @@ def fit_hist(
         fit_tpl.FixParameter(n_bkgpars + 2, fixsigma)
     # otherwise set sigma limits reasonably
     else:
-        fit_tpl.SetParameter(n_bkgpars + 2, 0.002)
-        fit_tpl.SetParLimits(n_bkgpars + 2, 0.001, 0.003)
+        fit_tpl.SetParameter(n_bkgpars + 2, 0.0025)
+        fit_tpl.SetParLimits(n_bkgpars + 2, 0.0005, 0.0035)
 
     ########################################
     # plotting the fits
@@ -271,7 +412,6 @@ def fit_hist(
     histo.SetTitle(ax_titles)
     histo.SetMaximum(1.5 * histo.GetMaximum())
     histo.Fit(fit_tpl, "QRL", "", hist_range[0], hist_range[1])
-    histo.Fit(fit_tpl, "QRL", "", hist_range[0], hist_range[1])
     histo.SetDrawOption("e")
     histo.GetXaxis().SetRangeUser(hist_range[0], hist_range[1])
     # represent the bkg_model separately
@@ -283,6 +423,8 @@ def fit_hist(
     sigTpl.SetParameter(0, fit_tpl.GetParameter(n_bkgpars))
     sigTpl.SetParameter(1, fit_tpl.GetParameter(n_bkgpars+1))
     sigTpl.SetParameter(2, fit_tpl.GetParameter(n_bkgpars+2))
+    if not gauss:
+        sigTpl.SetParameter(3, fit_tpl.GetParameter(n_bkgpars+3))
     sigTpl.SetLineColor(600)
     # sigTpl.Draw("same")
 
@@ -291,10 +433,21 @@ def fit_hist(
     muErr = fit_tpl.GetParError(n_bkgpars+1)
     sigma = fit_tpl.GetParameter(n_bkgpars+2)
     sigmaErr = fit_tpl.GetParError(n_bkgpars+2)
-    signal = fit_tpl.GetParameter(n_bkgpars) / histo.GetBinWidth(1)
-    errsignal = fit_tpl.GetParError(n_bkgpars) / histo.GetBinWidth(1)
     bkg = bkg_tpl.Integral(mu - nsigma * sigma, mu +
                            nsigma * sigma) / histo.GetBinWidth(1)
+    if peak_mode:
+        signal = fit_tpl.GetParameter(n_bkgpars) / histo.GetBinWidth(1)
+        errsignal = fit_tpl.GetParError(n_bkgpars) / histo.GetBinWidth(1)
+    else:
+        signal = 0
+        bin_min = histo.GetXaxis().FindBin(mu - nsigma * sigma)
+        bin_max = histo.GetXaxis().FindBin(mu + nsigma * sigma)
+
+        for bin in range(bin_min,bin_max+1):
+            signal += histo.GetBinContent(bin)
+        signal -= bkg
+        errsignal = math.sqrt(signal+bkg)
+        
 
     if bkg > 0:
         errbkg = math.sqrt(bkg)
@@ -320,7 +473,7 @@ def fit_hist(
     string = 'Pb-Pb #sqrt{s_{NN}} = '+f'{Eint} GeV, centrality {cent_class[0]}-{cent_class[1]}%'
     pinfo2.AddText(string)
 
-    string = f'{ct_range[0],}'+' #leq #it{ct} < '+f'{ct_range[1]} cm, {pt_range[0]}'+' #leq #it{p}_{T} < '+f'{pt_range[1]}'+' GeV/#it{c} '
+    string = f'{ct_range[0],}'+' #leq #it{ct} < '+f'{ct_range[1]} cm, {pt_range[0]:.3f}'+' #leq #it{p}_{T} < '+f'{pt_range[1]:.3f}'+' GeV/#it{c} '
     pinfo2.AddText(string)
 
     string = f'Significance ({nsigma:.0f}#sigma) {signif:.1f} #pm {errsignif:.1f} '
@@ -515,3 +668,9 @@ def unbinned_mass_fit(data, eff, bkg_model, output_dir, cent_class, pt_range, ct
     frame.Write(f'frame_model_{bkg_model}')
     hyp_mass.Write(f'hyp_mass_model{bkg_model}')
     width.Write(f'width_model{bkg_model}')
+
+def pt_array_to_mt_m0_array(pt_array, mass):
+    mt_array = []
+    for pt_item in pt_array:
+        mt_array.append(math.sqrt(pt_item**2+mass**2)-mass)
+    return mt_array

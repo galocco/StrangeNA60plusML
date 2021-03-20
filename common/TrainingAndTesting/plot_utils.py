@@ -327,3 +327,10 @@ def get_sNN(e_nucleon):
     else:
         print("energy not available")
         return 0
+
+def get_decimal(error):
+    decimal = 0
+    while error < 1:
+        error *= 10
+        decimal += 1
+    return decimal

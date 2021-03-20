@@ -1,5 +1,5 @@
 NBODY: 2
-FILE_PREFIX: 'K0S_E40_analysis'
+FILE_PREFIX: 'K0S_L5_E40_analysis'
 
 PDG: 310
 EINT: 40
@@ -12,20 +12,22 @@ SIGMA: 0.002
 CENTRALITY_CLASS: 
   - [0, 5]
 CT_BINS: [0, 100]
-PT_BINS: [0, 10]
+PT_BINS: [0, 2.]
 
 BKG_MODELS: ['expo', 'pol1', 'pol2']
 
 BDT_EFFICIENCY: [0.20, 1., 0.01] ##min, max ,step
 
-MC_PATH: ../Data/K0S_L5_E40/fntSig_K0s_E40_TS.root
-BKG_PATH: ../Data/K0S_L5_E40/fntBkg_K0s_E40_TS.root
+MC_PATH: ../Data/K0S_L5_E40/fntSig_K0s_L5_E40_TS.root
+BKG_PATH: ../Data/K0S_L5_E40/fntBkg_K0s_L5_E40_TS.root
 MC_PATH_FULL: ../Data/K0S_L5_E40/fntBkg_K0s_Full_TS.root
-DATA_SIG_PATH: ../Data/K0S_L5_E40/fntSig_K0s_E40_Data.root
-DATA_BKG_PATH: ../Data/K0S_L5_E40/fntBkg_K0s_E40_Data.root
+DATA_SIG_PATH: ../Data/K0S_L5_E40/fntSig_K0s_L5_E40_Data.root
+DATA_BKG_PATH: ../Data/K0S_L5_E40/fntBkg_K0s_L5_E40_Data.root
 DATA_PATH: ../Data/K0S_L5_E40/fntBkg_K0s_Full_Data.root
-EVENT_PATH: ../Data/K0S_L5_E40/Bkg-histos_K0s_E40_Data.root
+EVENT_PATH: ../Data/K0S_L5_E40/Bkg-histos_K0s_L5_E40_Data.root
 EVENT_PATH_FULL: ../Data/K0S_L5_E40/Bkg-histos_K0s_Full_Data.root
+
+PRESELECTION: cosp > 0.999
 
 LARGE_DATA: True
 LOAD_LARGE_DATA: False

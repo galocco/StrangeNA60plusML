@@ -19,7 +19,7 @@ import plot_utils as pu
 
 class TrainingAnalysis:
 
-    def __init__(self, pdg_code, mode, mc_file_name, bkg_file_name, split = '', entrystop=10000000):
+    def __init__(self, pdg_code, mode, mc_file_name, bkg_file_name, split = '', full_sim = False, entrystop=10000000, preselection=''):
         self.mode = mode
         self.mass = ROOT.TDatabasePDG.Instance().GetParticle(pdg_code).Mass()
         self.lifetime = ROOT.TDatabasePDG.Instance().GetParticle(pdg_code).Lifetime()*1e+12 #lifetime in ps
@@ -29,26 +29,50 @@ class TrainingAnalysis:
         print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
         print('\nStarting BDT training and testing ')
         print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
-
-        if self.mode == 3:
-            self.df_signal = uproot.open(mc_file_name)['ntcand'].pandas.df()
-            self.df_generated = uproot.open(mc_file_name)['ntgen'].pandas.df()
-            self.df_bkg = uproot.open(bkg_file_name)['ntcand'].pandas.df(entrystop=entrystop)
+        
+        if full_sim:
+            if self.mode == 3:
+                self.df_signal = uproot.open(mc_file_name)['ntcand'].arrays(library='pd').query(preselection)
+                preselection = ' and '+preselection
+                self.df_generated = uproot.open(mc_file_name)['ntgen'].arrays(library='pd')
+                self.df_bkg = uproot.open(bkg_file_name)['ntcand'].arrays(library='pd',entry_stop=entrystop).query("true < 0.5"+preselection)
+                    
+            if self.mode == 2:
+                self.df_signal = uproot.open(mc_file_name)['ntcand'].arrays(library='pd').query(preselection)
+                preselection = ' and '+preselection
+                self.df_generated = uproot.open(mc_file_name)['ntgen'].arrays(library='pd')
+                self.df_bkg = uproot.open(bkg_file_name)['ntcand'].arrays(library='pd',entry_stop=entrystop).query("true < 0.5"+preselection)
                 
-        if self.mode == 2:
-            self.df_signal = uproot.open(mc_file_name)['ntcand'].pandas.df()
-            self.df_generated = uproot.open(mc_file_name)['ntgen'].pandas.df()
-            self.df_bkg = uproot.open(bkg_file_name)['ntcand'].pandas.df(entrystop=entrystop)
+            if split == '_antimatter':
+                self.df_bkg = self.df_bkg.query('ArmenterosAlpha < 0 and true < 0.5')
+                self.df_signal = self.df_signal.query('ArmenterosAlpha < 0')
+                self.df_generated = self.df_generated.query('matter < 0.5')
 
-        if split == '_antimatter':
-            self.df_bkg = self.df_bkg.query('ArmenterosAlpha < 0')
-            self.df_signal = self.df_signal.query('ArmenterosAlpha < 0')
-            self.df_generated = self.df_generated.query('matter < 0.5')
+            if split == '_matter':
+                self.df_bkg = self.df_bkg.query('ArmenterosAlpha > 0 and true < 0.5')
+                self.df_signal = self.df_signal.query('ArmenterosAlpha > 0')
+                self.df_generated = self.df_generated.query('matter > 0.5')
+        
+        else:
+            if self.mode == 3:
+                self.df_signal = uproot.open(mc_file_name)['ntcand'].arrays(library='pd').query(preselection)
+                self.df_generated = uproot.open(mc_file_name)['ntgen'].arrays(library='pd').query(preselection)
+                self.df_bkg = uproot.open(bkg_file_name)['ntcand'].arrays(library='pd',entry_stop=entrystop)
+                    
+            if self.mode == 2:
+                self.df_signal = uproot.open(mc_file_name)['ntcand'].arrays(library='pd').query(preselection)
+                self.df_generated = uproot.open(mc_file_name)['ntgen'].arrays(library='pd')
+                self.df_bkg = uproot.open(bkg_file_name)['ntcand'].arrays(library='pd',entry_stop=entrystop).query(preselection)
 
-        if split == '_matter':
-            self.df_bkg = self.df_bkg.query('ArmenterosAlpha > 0')
-            self.df_signal = self.df_signal.query('ArmenterosAlpha > 0')
-            self.df_generated = self.df_generated.query('matter > 0.5')
+            if split == '_antimatter':
+                self.df_bkg = self.df_bkg.query('ArmenterosAlpha < 0')
+                self.df_signal = self.df_signal.query('ArmenterosAlpha < 0')
+                self.df_generated = self.df_generated.query('matter < 0.5')
+
+            if split == '_matter':
+                self.df_bkg = self.df_bkg.query('ArmenterosAlpha > 0')
+                self.df_signal = self.df_signal.query('ArmenterosAlpha > 0')
+                self.df_generated = self.df_generated.query('matter > 0.5')
 
         self.df_signal['y'] = 1
         self.df_bkg['y'] = 0
@@ -149,7 +173,7 @@ class TrainingAnalysis:
         np.save(filename_sigma, np.array(sigma_dict))
         np.save(filename_sigma_error, np.array(sigma_error_dict))
 
-    def save_ML_analysis(self, model_handler, eff_score_array, cent_class, pt_range, ct_range, split='', suffix=''):
+    def save_ML_analysis(self, model_handler, eff_score_array, cent_class, pt_range, ct_range, training_columns, split='', suffix=''):
         info_string = f'_{cent_class[0]}{cent_class[1]}_{pt_range[0]}{pt_range[1]}_{ct_range[0]}{ct_range[1]}{split}'
 
         models_path = os.environ['HYPERML_MODELS_{}'.format(self.mode)]+'/models'
@@ -162,13 +186,19 @@ class TrainingAnalysis:
         if not os.path.exists(handlers_path):
             os.makedirs(handlers_path)
 
-        filename_handler = handlers_path + '/model_handler_'+suffix + info_string + '.pkl'
-        filename_model = models_path + '/BDT' + info_string + '.model'
+        filename_handler = handlers_path + '/model_handler_' + suffix + info_string + '.pkl'
+        filename_model = models_path + '/BDT' + suffix + info_string + '.model'
+        filename_model_tmva = models_path + '/BDT' + suffix + info_string + '.xml'
         filename_efficiencies = efficiencies_path + '/Eff_Score_'+suffix + info_string + '.npy'
-
+        
         model_handler.dump_model_handler(filename_handler)
         model_handler.dump_original_model(filename_model, xgb_format=True)
-
+        dump = model_handler.model.get_booster().get_dump()
+        
+        variables = []
+        for column in training_columns: 
+            variables.append((column,'F'))
+        au.convert_model(dump,variables,filename_model_tmva)
         np.save(filename_efficiencies, eff_score_array)
 
         print('ML analysis results saved.\n')
@@ -205,7 +235,7 @@ class TrainingAnalysis:
 
 class ModelApplication:
 
-    def __init__(self, pdg_code, multiplicity, branching_ratio, eff, mode, data_sig_filename, data_bkg_filename, event_filename, cent_classes, split, skimmed_data=0):
+    def __init__(self, pdg_code, multiplicity, branching_ratio, eff, mode, data_sig_filename, data_bkg_filename, event_filename, cent_classes, split, full_sim, preselection = "",skimmed_data=0):
 
         print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
         print('\nStarting BDT appplication and signal extraction')
@@ -220,32 +250,36 @@ class ModelApplication:
         self.eff = eff
         print("lifetime: ",self.lifetime)
         print("mass: ",self.mass)
-        self.n_events = []
 
         background_file = ROOT.TFile(event_filename)
         hist_ev = background_file.Get('hNevents')
-        n_ev = hist_ev.GetBinContent(1)
-        nsig = int(self.multiplicity*self.eff*n_ev*self.branching_ratio)
+        self.n_events = hist_ev.GetBinContent(1)
+        background_file.Close()
+        nsig = int(self.multiplicity*self.eff*self.n_events*self.branching_ratio)
         print("nsig: ",nsig)        
 
         if isinstance(skimmed_data, pd.DataFrame):
             self.df_data = skimmed_data
-
+        
         if skimmed_data is 0:    
-            df_sig = uproot.open(data_sig_filename)["ntcand"].pandas.df(entrystop=nsig)
-            df_bkg = uproot.open(data_bkg_filename)["ntcand"].pandas.df()
-            df_sig['y'] = 1
-            df_bkg['y'] = 0
-            self.df_data = pd.concat([df_sig, df_bkg])
+            if full_sim:
+                self.df_data = uproot.open(data_sig_filename)["ntcand"].arrays(library='pd').query(preselection)
+                self.df_data.rename(columns={"true": "y"}, inplace=True)
+            else:
+                df_sig = uproot.open(data_sig_filename)["ntcand"].arrays(library='pd').query(preselection)
+                df_bkg = uproot.open(data_bkg_filename)["ntcand"].arrays(library='pd').query(preselection)
+                df_sig['y'] = 1
+                df_bkg['y'] = 0
+                self.df_data = pd.concat([df_sig, df_bkg])
         
 
 
         self.hist_centrality = uproot.open(event_filename)['hCentrality']
 
-        for cent in cent_classes:
-            self.n_events.append(sum(self.hist_centrality[cent[0] + 1:cent[1]]))
+        #for cent in cent_classes:
+        #    self.n_events.append(sum(self.hist_centrality[cent[0]:cent[1]-1]))
 
-        print('\nNumber of events: ', int(sum(self.hist_centrality[:])))
+        print('\nNumber of events: ', self.n_events)
 
         if split == '_antimatter':
             self.df_data = self.df_data.query('ArmenterosAlpha < 0')
@@ -339,12 +373,12 @@ class ModelApplication:
             bins_side = bin_centers[side_map]
             counts_side = counts[side_map]
 
-            h, residuals, _, _, _ = np.polyfit(bins_side, counts_side, 2, full=True)
+            h, residuals, _, _, _ = np.polyfit(bins_side, counts_side, 3, full=True)
             y = np.polyval(h, bins_side)
 
             exp_signal_ctint = au.expected_signal_counts(
                 pt_spectrum, self.multiplicity, self.branching_ratio, pt_range, pre_selection_efficiency * bdt_efficiency[index],
-                self.hist_centrality)
+                self.n_events)
 
             if split != '':
                 exp_signal_ctint = 0.5 * exp_signal_ctint
@@ -368,7 +402,7 @@ class ModelApplication:
                 significance.append(sig * bdt_efficiency[index])
                 significance_error.append(sig_error * bdt_efficiency[index])
 
-        nevents = sum(self.hist_centrality[cent_class[0]+1:cent_class[1]])
+        #self.nevents = sum(self.hist_centrality[cent_class[0]+1:cent_class[1]])
 
         max_index = np.argmax(significance)
         max_score = threshold_space[max_index]
@@ -376,7 +410,7 @@ class ModelApplication:
         data_range_array = [ct_range[0], ct_range[1], pt_range[0], pt_range[1], cent_class[0], cent_class[1]]
         pu.plot_significance_scan(
             max_index, significance, significance_error, expected_signal, df_bkg, threshold_space,
-            data_range_array, nevents, self.mode, split, mass_bins, self.mass, hist_range, custom, suffix, sigma_mass)
+            data_range_array, self.n_events, self.mode, split, mass_bins, self.mass, hist_range, custom, suffix, sigma_mass)
 
         bdt_eff_max_score = bdt_efficiency[max_index]
 

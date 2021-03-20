@@ -21,6 +21,8 @@ gROOT.SetBatch()
 parser = argparse.ArgumentParser()
 parser.add_argument('config', help='Path to the YAML configuration file')
 parser.add_argument('-split', '--split', help='Run with matter and anti-matter splitted', action='store_true')
+parser.add_argument('-m', '--merged', help='Run on the merged histograms', action='store_true')
+parser.add_argument('-p', '--peak', help='Take signal from the gaussian fit', action='store_true')
 args = parser.parse_args()
 
 with open(os.path.expandvars(args.config), 'r') as stream:
@@ -49,6 +51,8 @@ FIX_EFF_ARRAY = np.arange(EFF_MIN, EFF_MAX, EFF_STEP)
 BKG_MODELS = params['BKG_MODELS']
 
 SPLIT_MODE = args.split
+PEAK_MODE = args.peak
+MERGED = args.merged
 
 if SPLIT_MODE:
     SPLIT_LIST = ['_matter', '_antimatter']
@@ -61,7 +65,7 @@ LABELS = [f'{x:.2f}_{y}' for x in FIX_EFF_ARRAY for y in BKG_MODELS]
 # define paths for loading results
 results_dir = os.environ['HYPERML_RESULTS_{}'.format(N_BODY)]
 
-input_file_name = results_dir + f'/{FILE_PREFIX}_results.root'
+input_file_name = results_dir + f'/{FILE_PREFIX}_results_merged.root' if MERGED else results_dir + f'/{FILE_PREFIX}_results.root'
 input_file = TFile(input_file_name, 'read')
 
 output_file_name = results_dir + f'/{FILE_PREFIX}_results_fit.root'
@@ -120,7 +124,7 @@ for split in SPLIT_LIST:
                         hist.SetDirectory(0)
 
                         if key == input_subdir.GetListOfKeys()[0] and bkgmodel=="pol2":
-                            rawcounts, err_rawcounts, significance, err_significance, mu, mu_err, sigma, sigma_err = au.fit_hist(hist, cclass, ptbin, ctbin, mass, model=bkgmodel, mode=N_BODY, Eint=EINT)
+                            rawcounts, err_rawcounts, significance, err_significance, mu, mu_err, sigma, sigma_err = au.fit_hist(hist, cclass, ptbin, ctbin, mass, model=bkgmodel, mode=N_BODY, Eint=EINT, peak_mode=PEAK_MODE)
                             mean_fit.append(mu)
                             mean_fit_error.append(mu_err)
                             sigma_fit.append(sigma)

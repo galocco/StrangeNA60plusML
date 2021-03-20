@@ -2,8 +2,7 @@
 
 [ -z "$ALICE_PHYSICS" ] && echo "AliPhysics environment required! Load it before sourcing this." && return
 
-HYPERML_DATA="$PWD/Trees"
-HYPERML_TABLES="$PWD/Tables"
+HYPERML_DATA="$PWD/Data"
 HYPERML_FIGURES="$PWD/Figures"
 HYPERML_RESULTS="$PWD/Results"
 HYPERML_MODELS="$PWD/Models"
@@ -32,29 +31,23 @@ fi
 
 if [ $BODY_2 -eq 1 ]; then    
       export HYPERML_DATA_2="$HYPERML_DATA/2Body"
-      export HYPERML_TABLES_2="$HYPERML_TABLES/2Body"
       export HYPERML_FIGURES_2="$HYPERML_FIGURES/2Body"
       export HYPERML_MODELS_2="$HYPERML_MODELS/2Body"
-      export HYPERML_UTILS_2="$HYPERML_UTILS/2Body"
       export HYPERML_RESULTS_2="$HYPERML_RESULTS/2Body"
       export HYPERML_EFFICIENCIES_2="$HYPERML_RESULTS_2/Efficiencies"
 
       [ ! -d "$HYPERML_DATA_2" ] && mkdir -p $HYPERML_DATA_2
-      [ ! -d "$HYPERML_TABLES_2" ] && mkdir -p $HYPERML_TABLES_2
       [ ! -d "$HYPERML_FIGURES_2" ] && mkdir -p $HYPERML_FIGURES_2
       [ ! -d "$HYPERML_MODELS_2" ] && mkdir -p $HYPERML_MODELS_2
       [ ! -d "$HYPERML_EFFICIENCIES_2" ] && mkdir -p $HYPERML_EFFICIENCIES_2
       [ ! -d "$HYPERML_RESULTS_2" ] && mkdir -p $HYPERML_RESULTS_2
-      [ ! -d "$HYPERML_UTILS_2" ] && mkdir -p $HYPERML_UTILS_2
 fi
 
 if [ $BODY_3 -eq 1 ]; then    
       export HYPERML_DATA_3="$HYPERML_DATA/3Body"
-      export HYPERML_TABLES_3="$HYPERML_TABLES/3Body"
       export HYPERML_FIGURES_3="$HYPERML_FIGURES/3Body"
       export HYPERML_MODELS_3="$HYPERML_MODELS/3Body"
       export HYPERML_EFFICIENCIES_3="$HYPERML_EFFICIENCIES/3Body"
-      export HYPERML_UTILS_3="$HYPERML_UTILS/3Body"
       export HYPERML_RESULTS_3="$HYPERML_RESULTS/3Body"
       export HYPERML_EFFICIENCIES_3="$HYPERML_RESULTS_3/Efficiencies"
 fi
