@@ -30,7 +30,7 @@ EVENT_PATH_FULL: ['../Data/K0S_L10_E158/Bkg-histos_K0s_Full_L10_E158_Data.root']
 PRESELECTION: cosp > 0.99
 
 LARGE_DATA: True
-LOAD_LARGE_DATA: False
+GAUSS: False
 
 XGBOOST_PARAMS:
   # general parameters

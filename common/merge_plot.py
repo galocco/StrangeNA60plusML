@@ -44,10 +44,10 @@ FIX_EFF_ARRAY = np.arange(EFF_MIN, EFF_MAX, EFF_STEP)
 results_dir = os.environ['HYPERML_RESULTS_{}'.format(N_BODY)]
 input_file_list = []
 for index in range(0,len(DATA_LIST)):
-    input_file_name = results_dir + f'/{FILE_PREFIX}_results_{index}'+'.root'
+    input_file_name = results_dir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_results_{index}'+'.root'
     input_file_list.append(TFile(input_file_name, 'read'))
 
-output_file_name = results_dir + f'/{FILE_PREFIX}_results_merged.root'
+output_file_name = results_dir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_results_merged.root'
 output_file = TFile(output_file_name, 'recreate')
 
 

@@ -33,15 +33,15 @@ class TrainingAnalysis:
         if full_sim:
             if self.mode == 3:
                 self.df_signal = uproot.open(mc_file_name)['ntcand'].arrays(library='pd').query(preselection)
-                preselection = ' and '+preselection
+                preselection = ' and ' + preselection
                 self.df_generated = uproot.open(mc_file_name)['ntgen'].arrays(library='pd')
-                self.df_bkg = uproot.open(bkg_file_name)['ntcand'].arrays(library='pd',entry_stop=entrystop).query("true < 0.5"+preselection)
+                self.df_bkg = uproot.open(bkg_file_name)['ntcand'].arrays(library='pd',entry_stop=entrystop).query("true < 0.5" + preselection)
                     
             if self.mode == 2:
                 self.df_signal = uproot.open(mc_file_name)['ntcand'].arrays(library='pd').query(preselection)
-                preselection = ' and '+preselection
+                preselection = ' and ' + preselection
                 self.df_generated = uproot.open(mc_file_name)['ntgen'].arrays(library='pd')
-                self.df_bkg = uproot.open(bkg_file_name)['ntcand'].arrays(library='pd',entry_stop=entrystop).query("true < 0.5"+preselection)
+                self.df_bkg = uproot.open(bkg_file_name)['ntcand'].arrays(library='pd',entry_stop=entrystop).query("true < 0.5" + preselection)
                 
             if split == '_antimatter':
                 self.df_bkg = self.df_bkg.query('ArmenterosAlpha < 0 and true < 0.5')

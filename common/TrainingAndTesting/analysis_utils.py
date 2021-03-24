@@ -119,7 +119,7 @@ def get_skimmed_large_data(multiplicity, bratio, eff, sig_path, bkg_path, event_
         
         for cclass in cent_classes:
             for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
-                for ctbin in zip(ct_bins[:-1], ct_bins[1:]):
+                for ctbin in zip(ct_bins[:-1], ct_bins[1:]):   
                     info_string = '_{}{}_{}{}_{}{}'.format(cclass[0], cclass[1], ptbin[0], ptbin[1], ctbin[0], ctbin[1])
 
                     filename_handler = handlers_path + '/model_handler_' +suffix+ info_string + split + '.pkl'
@@ -133,13 +133,12 @@ def get_skimmed_large_data(multiplicity, bratio, eff, sig_path, bkg_path, event_
 
                     data_range = f'{ctbin[0]}<ct<{ctbin[1]} and {ptbin[0]}<pt<{ptbin[1]} and {cclass[0]}<=centrality<{cclass[1]}'
 
-                    df_tmp = data.query(data_range)
-                    df_tmp.loc[:,'score'] = model_handler.predict(df_tmp[training_columns])
-                    df_tmp = df_tmp.query('score>@tsd and '+preselection)
-                    df_tmp['y'] = 0
-                    df_tmp = df_tmp.loc[:, application_columns]
-
-                    bkg_df_applied = bkg_df_applied.append(df_tmp, ignore_index=True, sort=False)
+                    df_tmp = data.query(data_range)       
+                    df_tmp.insert(0, 'score', model_handler.predict(df_tmp[training_columns]))       
+                    df_tmp = df_tmp.query('score>@tsd and '+preselection)  
+                    df_tmp.insert(0, 'y', 0)     
+                    df_tmp = df_tmp[application_columns]    
+                    bkg_df_applied = bkg_df_applied.append(df_tmp, ignore_index=True, sort=False)  
 
     print(bkg_df_applied.info(memory_usage='deep'))
 
@@ -168,11 +167,10 @@ def get_skimmed_large_data(multiplicity, bratio, eff, sig_path, bkg_path, event_
                     data_range = f'{ctbin[0]}<ct<{ctbin[1]} and {ptbin[0]}<pt<{ptbin[1]} and {cclass[0]}<=centrality<{cclass[1]}'
 
                     df_tmp = data.query(data_range)
-                    #df_tmp.insert(0, 'score', model_handler.predict(df_tmp[training_columns]))
-                    df_tmp.loc[:,'score'] = model_handler.predict(df_tmp[training_columns])
+                    df_tmp.insert(0, 'score', model_handler.predict(df_tmp[training_columns]))
                     df_tmp = df_tmp.query('score>@tsd and '+preselection)
-                    df_tmp['y'] = 1
-                    df_tmp = df_tmp.loc[:, application_columns]
+                    df_tmp.insert(0, 'y', 1)     
+                    df_tmp = df_tmp[application_columns]
 
                     sig_df_applied = sig_df_applied.append(df_tmp, ignore_index=True, sort=False)
     print(sig_df_applied.info(memory_usage='deep'))
@@ -221,7 +219,7 @@ def get_skimmed_large_data_full(data_path, cent_classes, pt_bins, ct_bins, train
                     df_tmp = data.query(preselection)
                     df_tmp.insert(0, 'score', model_handler.predict(df_tmp[training_columns]))
                     df_tmp = df_tmp.query('score>@tsd')
-                    df_tmp.rename(columns={"true": "y"}, inplace=True)
+                    df_tmp.insert(0, 'y', df_tmp['true'])
                     df_tmp = df_tmp[application_columns] #df_tmp.loc[:, application_columns]
 
                     df_applied = df_applied.append(df_tmp, ignore_index=True, sort=False)
@@ -317,9 +315,9 @@ def get_ctbin_index(th2, ctbin):
 
 
 def fit_hist(
-        histo, cent_class, pt_range, ct_range, mass, nsigma=3, model="pol2", fixsigma=-1, sigma_limits=None, mode=3, split ='', Eint=17.3, peak_mode=True):
+        histo, cent_class, pt_range, ct_range, mass, nsigma=3, model="pol2", fixsigma=-1, sigma_limits=None, mode=3, split ='', Eint=17.3, peak_mode=True, gauss=True):
     
-    gauss =True #mass != TDatabasePDG.Instance().GetParticle(333).Mass()
+    #mass != TDatabasePDG.Instance().GetParticle(333).Mass()
     
     hist_range = [mass*0.97,mass*1.03]
     # canvas for plotting the invariant mass distribution
@@ -337,7 +335,7 @@ def fit_hist(
     if gauss:
         fit_tpl = TF1('fitTpl', f'{model}(0)+gausn({n_bkgpars})', 0, 5)
     else:
-        fit_tpl = TF1('fitTpl', f'{model}(0)+Voigt(x-[{n_bkgpars+1}],[{n_bkgpars+2}],[{n_bkgpars+3}])*[{n_bkgpars}]', 0, 5)
+        fit_tpl = TF1('fitTpl', f'{model}(0)+TMath::Voigt(x-[{n_bkgpars+1}],[{n_bkgpars+2}],[{n_bkgpars+3}])*[{n_bkgpars}]', 0, 5)
 
     # redefine parameter names for the bkg_model
     for i in range(n_bkgpars):
@@ -365,9 +363,10 @@ def fit_hist(
     fit_tpl.SetParameter(n_bkgpars + 1, mass)
     fit_tpl.SetParLimits(n_bkgpars + 1, mass-0.005, mass+0.005)
     fit_tpl.SetParameter(n_bkgpars + 2, 0.0035)
-    fit_tpl.SetParLimits(n_bkgpars + 2, 0.002, 0.006)
+    fit_tpl.SetParLimits(n_bkgpars + 2, 0.001, 0.006)
     if not gauss:
-        fit_tpl.FixParameter(n_bkgpars + 3, 0.00426)
+        fit_tpl.SetParameter(n_bkgpars + 3, 0.00426)
+        fit_tpl.SetParLimits(n_bkgpars + 3, 0.000001, 0.005)
 
     # define signal and bkg_model TF1 separately
     if gauss:

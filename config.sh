@@ -10,8 +10,6 @@ HYPERML_CODE="$PWD"
 HYPERML_COMMON="$HYPERML_CODE/common"
 
 export PYTHONPATH="${PYTHONPATH}:$HYPERML_COMMON/TrainingAndTesting:$HYPERML_COMMON/Utils"
-export HYPERML_UTILS="$PWD/Utils"
-
 BODY_2=0
 BODY_3=0
 
@@ -26,8 +24,6 @@ fi
 if [ "$1" == "3" ] || [ "$1" == "3body" ] || [ "$1" == "3Body" ]; then
       BODY_3=1
 fi
-
-[ ! -d $HYPERML_UTILS ] && mkdir -p $HYPERML_UTILS
 
 if [ $BODY_2 -eq 1 ]; then    
       export HYPERML_DATA_2="$HYPERML_DATA/2Body"

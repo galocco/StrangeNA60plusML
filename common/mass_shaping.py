@@ -44,7 +44,6 @@ with open(os.path.expandvars(args.config), 'r') as stream:
 N_BODY = params['NBODY']
 PDG_CODE = params['PDG']
 FILE_PREFIX = params['FILE_PREFIX']
-FILE_PREFIX = params['FILE_PREFIX']
 MULTIPLICITY = params['MULTIPLICITY']
 BRATIO = params['BRATIO']
 EINT = params['EINT']
@@ -61,7 +60,6 @@ HYPERPARAMS_RANGE = params['HYPERPARAMS_RANGE']
 PRESELECTION = params['PRESELECTION']
 EFF_MIN, EFF_MAX, EFF_STEP = params['BDT_EFFICIENCY']
 FIX_EFF_ARRAY = np.arange(EFF_MIN, EFF_MAX, EFF_STEP)
-
 LARGE_DATA = params['LARGE_DATA']
 FULL_SIM = args.full
 SPLIT_MODE = args.split
@@ -92,10 +90,10 @@ handlers_path = '../Models/2Body/handlers'
 ###############################################################################
 
 resultsSysDir = os.environ['HYPERML_RESULTS_{}'.format(params['NBODY'])]
-file_name =  '../Results/2Body/' + params['FILE_PREFIX'] + '_mass_shaping.root'
+file_name =  '../Results/2Body/' + FILE_PREFIX + '/' + FILE_PREFIX + '_mass_shaping.root'
 results_file = TFile(file_name,"recreate")
 
-file_name = '../Results/2Body/' + params['FILE_PREFIX'] + '_results_fit.root'
+file_name = '../Results/2Body/' + FILE_PREFIX + '/' + FILE_PREFIX + '_results_fit.root'
 eff_file = TFile(file_name, 'read')
 
 results_file.cd()
@@ -145,24 +143,29 @@ for split in SPLIT_LIST:
                 # define subdir for saving invariant mass histograms
                 sub_dir_histos = cent_dir_histos.mkdir(f'pt_{ptbin[0]}{ptbin[1]}')
                 sub_dir_histos.cd()
+                sig_dir_histos = sub_dir_histos.mkdir('sig')
+                bkg_dir_histos = sub_dir_histos.mkdir('bkg')
+
                 for eff, tsd in zip(pd.unique(eff_score_array[0][::-1]), pd.unique(eff_score_array[1][::-1])):
                     #after selection
                     mass_array = np.array(df_applied.query('score>@tsd and y<0.5')['m'].values, dtype=np.float64)
-                    counts, roba = np.histogram(mass_array, bins=mass_bins, range=[mass*0.97, mass*1.03])
+                    counts, bin = np.histogram(mass_array, bins=mass_bins, range=[mass*0.97, mass*1.03])
                     
+                    bkg_dir_histos.cd()
                     histo_name = f"eff{eff:.2f}"+split
-                    h1_sel = au.h1_invmass_ov(counts, cclass, ptbin, ctbin, hist_range=[mass*0.97, mass*1.03], bins=mass_bins, name=histo_name)
-                    h1_sel.SetTitle(";m (GeV/#it{c}^{2});counts")
-                    h1_sel.SetName(h1_sel.GetName()+"_bkg")
-                    h1_sel.Write()
+                    hbkg_sel = au.h1_invmass_ov(counts, cclass, ptbin, ctbin, hist_range=[mass*0.97, mass*1.03], bins=mass_bins, name=histo_name)
+                    hbkg_sel.SetTitle(";m (GeV/#it{c}^{2});counts")
+                    hbkg_sel.SetName(hbkg_sel.GetName()+"_bkg")
+                    hbkg_sel.Write()
 
                     mass_array = np.array(df_applied.query('score>@tsd and y>0.5')['m'].values, dtype=np.float64)
-                    counts, roba = np.histogram(mass_array, bins=mass_bins, range=[mass*0.97, mass*1.03])
+                    counts, bin = np.histogram(mass_array, bins=mass_bins, range=[mass*0.97, mass*1.03])
                     
+                    sig_dir_histos.cd()
                     histo_name = f"eff{eff:.2f}"+split
-                    h1_sel = au.h1_invmass_ov(counts, cclass, ptbin, ctbin, hist_range=[mass*0.97, mass*1.03], bins=mass_bins, name=histo_name)
-                    h1_sel.SetTitle(";m (GeV/#it{c}^{2});counts")
-                    h1_sel.SetName(h1_sel.GetName()+"_sig")
-                    h1_sel.Write()
+                    hsig_sel = au.h1_invmass_ov(counts, cclass, ptbin, ctbin, hist_range=[mass*0.97, mass*1.03], bins=mass_bins, name=histo_name)
+                    hsig_sel.SetTitle(";m (GeV/#it{c}^{2});counts")
+                    hsig_sel.SetName(hsig_sel.GetName()+"_sig")
+                    hsig_sel.Write()
                 
 results_file.Close()

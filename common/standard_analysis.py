@@ -46,6 +46,7 @@ EINT = pu.get_sNN(params['EINT'])
 T = params['T']
 EFF = params['EFF']
 SIGMA = params['SIGMA']
+GAUSS = params['GAUSS']
 
 CENT_CLASSES = params['CENTRALITY_CLASS']
 PT_BINS = params['PT_BINS']
@@ -53,7 +54,6 @@ CT_BINS = params['CT_BINS']
 COLUMNS = params['TRAINING_COLUMNS']
 
 LARGE_DATA = params['LARGE_DATA']
-LOAD_LARGE_DATA = params['LOAD_LARGE_DATA']
 PRESELECTION = params['PRESELECTION']
 SPLIT_MODE = args.split
 
@@ -92,7 +92,7 @@ resultsSysDir = os.environ['HYPERML_RESULTS_{}'.format(params['NBODY'])]
 file_name = results_dir + f'/{FILE_PREFIX}_std_results.root'
 results_file = TFile(file_name, 'recreate')
 
-file_name = resultsSysDir + '/' + FILE_PREFIX + '_results.root'
+file_name = resultsSysDir + '/' + FILE_PREFIX + '/' + FILE_PREFIX + '_results.root'
 eff_file = TFile(file_name, 'read')
 
 standard_selection = 'y > 0.5'
@@ -108,14 +108,10 @@ cv = ROOT.TCanvas("cv","cv")
 for split in SPLIT_LIST:
 
     if LARGE_DATA:
-        if LOAD_LARGE_DATA:
-            df_skimmed = pd.read_parquet(os.path.dirname(data_sig_path) + f'/{FILE_PREFIX}skimmed_df.parquet.gzip')
+        if FULL_SIM:
+            df_skimmed = au.get_skimmed_large_data_full(data_sig_path, CENT_CLASSES, PT_BINS, CT_BINS, COLUMNS, application_columns, N_BODY, split, FILE_PREFIX, PRESELECTION)
         else:
-            if FULL_SIM:
-                df_skimmed = au.get_skimmed_large_data_full(data_sig_path, CENT_CLASSES, PT_BINS, CT_BINS, COLUMNS, application_columns, N_BODY, split, FILE_PREFIX, PRESELECTION)
-            else:
-                df_skimmed = au.get_skimmed_large_data(MULTIPLICITY, BRATIO, EFF, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, PT_BINS, CT_BINS, COLUMNS, application_columns, N_BODY, split, FILE_PREFIX, PRESELECTION)
-                df_skimmed.to_parquet(os.path.dirname(data_sig_path) + f'/{FILE_PREFIX}skimmed_df.parquet.gzip', compression='gzip')
+            df_skimmed = au.get_skimmed_large_data(MULTIPLICITY, BRATIO, EFF, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, PT_BINS, CT_BINS, COLUMNS, application_columns, N_BODY, split, FILE_PREFIX, PRESELECTION)
 
         ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split, FULL_SIM, PRESELECTION, df_skimmed)
 
@@ -176,8 +172,8 @@ for split in SPLIT_LIST:
                     # create dirs for models
                     fit_dir = sub_dir.mkdir(bkgmodel)
                     fit_dir.cd()
-                    rawcounts, err_rawcounts, significance, err_significance, mu, mu_err, _, _ = au.fit_hist(h1_minv, cclass, ptbin, ctbin, mass, model=bkgmodel, mode=N_BODY, split=split, Eint = 17.3, peak_mode=PEAK_MODE)
-                    rawcounts = sum(counts)
+                    rawcounts, err_rawcounts, significance, err_significance, mu, mu_err, _, _ = au.fit_hist(h1_minv, cclass, ptbin, ctbin, mass, model=bkgmodel, mode=N_BODY, split=split, Eint = EINT, peak_mode=PEAK_MODE, gauss=GAUSS)
+                    rawcounts = sum(counts),
                     err_rawcounts = math.sqrt(rawcounts)
                     mt_spectra_counts_list[BKG_MODELS.index(bkgmodel)].SetBinContent(iBin , rawcounts / h1PreselEff.GetBinContent(iBin) / h1PreselEff.GetBinWidth(iBin) / hist_eff.GetBinContent(iBin) / (ptbin[0]+ptbin[1]) / 2 / n_ev)
                     mt_spectra_counts_list[BKG_MODELS.index(bkgmodel)].SetBinError(iBin, err_rawcounts / h1PreselEff.GetBinContent(iBin) / h1PreselEff.GetBinWidth(iBin) / hist_eff.GetBinContent(iBin) / (ptbin[0]+ptbin[1]) / 2 / n_ev)

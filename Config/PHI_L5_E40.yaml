@@ -20,14 +20,17 @@ BDT_EFFICIENCY: [0.01, 1.00, 0.01] ##min, max ,step
 
 MC_PATH: ../Data/PHI_L5_E40/fntSig_PHI_L5_E40_TS.root
 BKG_PATH: ../Data/PHI_L5_E40/fntBkg_PHI_L5_E40_TS.root
-DATA_SIG_PATH: ../Data/PHI_L5_E40/fntSig_PHI_L5_E40_Data.root
-DATA_BKG_PATH: ../Data/PHI_L5_E40/fntBkg_PHI_L5_E40_Data.root
-EVENT_PATH: ../Data/PHI_L5_E40/Bkg-histos_PHI_L5_E40_Data.root
+MC_PATH_FULL: ../Data/PHI_L5_E40/fntBkg_PHI_Full_L5_E40_TS.root
+DATA_SIG_PATH: ['../Data/PHI_L5_E40/fntSig_PHI_L5_E40_Data.root']
+DATA_BKG_PATH: ['../Data/PHI_L5_E40/fntBkg_PHI_L5_E40_Data.root']
+DATA_PATH: ['../Data/PHI_L5_E40/fntBkg_PHI_Full_L5_E40_Data.root']
+EVENT_PATH: ['../Data/PHI_L5_E40/Bkg-histos_PHI_L5_E40_Data.root']
+EVENT_PATH_FULL: ['../Data/PHI_L5_E40/Bkg-histos_PHI_Full_L5_E40_Data.root']
 
 PRESELECTION: pt<2.5
 
 LARGE_DATA: True
-LOAD_LARGE_DATA: False
+GAUSS: False
 
 XGBOOST_PARAMS:
   # general parameters

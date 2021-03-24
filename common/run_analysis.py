@@ -15,7 +15,7 @@ import yaml
 from analysis_classes import ModelApplication, TrainingAnalysis
 from hipe4ml import analysis_utils, plot_utils
 from hipe4ml.model_handler import ModelHandler
-from ROOT import TFile, gROOT, TF1, TDatabasePDG, TH1D, TCanvas, gStyle
+from ROOT import TFile, gROOT, TF1, TDatabasePDG, TH1D, TCanvas, gStyle, gSystem
 from scipy import stats
 
 # avoid pandas warning
@@ -68,7 +68,6 @@ EFF_MIN, EFF_MAX, EFF_STEP = params['BDT_EFFICIENCY']
 FIX_EFF_ARRAY = np.arange(EFF_MIN, EFF_MAX, EFF_STEP)
 
 LARGE_DATA = params['LARGE_DATA']
-LOAD_LARGE_DATA = params['LOAD_LARGE_DATA']
 
 PRESELECTION = params['PRESELECTION']
 
@@ -90,8 +89,10 @@ signal_path = os.path.expandvars(params['MC_PATH'])
 if FULL_SIM:
     bkg_path = os.path.expandvars(params['BKG_PATH'])
 else:
-    bkg_path = os.path.expandvars(params['BKG_PATH'])
-results_dir = os.environ[f'HYPERML_RESULTS_{N_BODY}']
+    bkg_path = os.path.expandvars(params['MC_PATH_FULL'])
+    
+results_dir = os.environ[f'HYPERML_RESULTS_{N_BODY}']+"/"+FILE_PREFIX
+gSystem.Exec('mkdir '+results_dir)
 
 ###############################################################################
 start_time = time.time()                          # for performances evaluation
@@ -188,14 +189,10 @@ if APPLICATION:
         for split in SPLIT_LIST:
 
             if LARGE_DATA:
-                if LOAD_LARGE_DATA:
-                    df_skimmed = pd.read_parquet(os.path.dirname(data_sig_path) + f'/{FILE_PREFIX}skimmed_df.parquet.gzip')
+                if FULL_SIM:
+                    df_skimmed = au.get_skimmed_large_data_full(data_sig_path, CENT_CLASSES, PT_BINS, CT_BINS, COLUMNS, application_columns, N_BODY, split, FILE_PREFIX, PRESELECTION)
                 else:
-                    if FULL_SIM:
-                        df_skimmed = au.get_skimmed_large_data_full(data_sig_path, CENT_CLASSES, PT_BINS, CT_BINS, COLUMNS, application_columns, N_BODY, split, FILE_PREFIX, PRESELECTION)
-                    else:
-                        df_skimmed = au.get_skimmed_large_data(MULTIPLICITY, BRATIO, EFF, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, PT_BINS, CT_BINS, COLUMNS, application_columns, N_BODY, split, FILE_PREFIX, PRESELECTION)
-                        df_skimmed.to_parquet(os.path.dirname(data_sig_path) + f'/{FILE_PREFIX}skimmed_df.parquet.gzip', compression='gzip')
+                    df_skimmed = au.get_skimmed_large_data(MULTIPLICITY, BRATIO, EFF, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, PT_BINS, CT_BINS, COLUMNS, application_columns, N_BODY, split, FILE_PREFIX, PRESELECTION)
 
                 ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split, FULL_SIM, PRESELECTION, df_skimmed)
 
@@ -260,10 +257,10 @@ if APPLICATION:
                 cent_dir_histos.cd()
                 th2_efficiency.Write()
 
-        if SIGNIFICANCE_SCAN:
-            sigscan_results = np.asarray(sigscan_results)
-            filename_sigscan = results_dir + f'/Efficiencies/{FILE_PREFIX}_sigscan.npy'
-            np.save(filename_sigscan, sigscan_results)
+        #if SIGNIFICANCE_SCAN:
+        #    sigscan_results = np.asarray(sigscan_results)
+        #    filename_sigscan = results_dir + f'/Efficiencies/{FILE_PREFIX}_sigscan.npy'
+        #    np.save(filename_sigscan, sigscan_results)
         print (f'--- ML application time: {((time.time() - app_time) / 60):.2f} minutes ---')
         
         results_histos_file.Close()

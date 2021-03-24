@@ -20,14 +20,17 @@ BDT_EFFICIENCY: [0.01, 1.0, 0.01] ##min, max ,step
 
 MC_PATH: ../Data/PHI_L5_E158/fntSig_PHI_L5_E158_TS.root
 BKG_PATH: ../Data/PHI_L5_E158/fntBkg_PHI_L5_E158_TS.root
-DATA_SIG_PATH: ../Data/PHI_L5_E158/fntSig_PHI_L5_E158_Data.root
-DATA_BKG_PATH: ../Data/PHI_L5_E158/fntBkg_PHI_L5_E158_Data.root
-EVENT_PATH: ../Data/PHI_L5_E158/Bkg-histos_PHI_L5_E158_Data.root
+MC_PATH_FULL: ../Data/PHI_L5_E158/fntBkg_PHI_Full_L5_E158_TS.root
+DATA_SIG_PATH: ['../Data/PHI_L5_E158/fntSig_PHI_L5_E158_Data.root']
+DATA_BKG_PATH: ['../Data/PHI_L5_E158/fntBkg_PHI_L5_E158_Data.root']
+DATA_PATH: ['../Data/PHI_L5_E158/fntBkg_PHI_Full_L5_E158_Data.root']
+EVENT_PATH: ['../Data/PHI_L5_E158/Bkg-histos_PHI_L5_E158_Data.root']
+EVENT_PATH_FULL: ['../Data/PHI_L5_E158/Bkg-histos_PHI_Full_L5_E158_Data.root']
 
 PRESELECTION: (cosp > 0.999 or cosp < -0.999) and pt < 2.5 and dca < 0.07
 
 LARGE_DATA: True
-LOAD_LARGE_DATA: False
+GAUSS: False
 
 XGBOOST_PARAMS:
   # general parameters

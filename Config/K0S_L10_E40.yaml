@@ -21,16 +21,16 @@ BDT_EFFICIENCY: [0.20, 1.00, 0.01] ##min, max ,step
 MC_PATH: ../Data/K0S_L10_E40/fntSig_K0s_L10_E40_TS.root
 BKG_PATH: ../Data/K0S_L10_E40/fntBkg_K0s_L10_E40_TS.root
 MC_PATH_FULL: ../Data/K0S_L10_E40/fntBkg_K0s_Full_L10_E40_TS.root
-DATA_SIG_PATH: ../Data/K0S_L10_E40/fntSig_K0s_L10_E40_Data.root
-DATA_BKG_PATH: ../Data/K0S_L10_E40/fntBkg_K0s_L10_E40_Data.root
-DATA_PATH: ../Data/K0S_L10_E40/fntBkg_K0s_Full_L10_E40.root
-EVENT_PATH: ../Data/K0S_L10_E40/Bkg-histos_K0s_L10_E40_Data.root
-EVENT_PATH_FULL: ../Data/K0S_L10_E40/Bkg-histos_K0s_Full_L10_E40.root
+DATA_SIG_PATH: ['../Data/K0S_L10_E40/fntSig_K0s_L10_E40_Data.root']
+DATA_BKG_PATH: ['../Data/K0S_L10_E40/fntBkg_K0s_L10_E40_Data.root']
+DATA_PATH: ['../Data/K0S_L10_E40/fntBkg_K0s_Full_L10_E40.root']
+EVENT_PATH: ['../Data/K0S_L10_E40/Bkg-histos_K0s_L10_E40_Data.root']
+EVENT_PATH_FULL: ['../Data/K0S_L10_E40/Bkg-histos_K0s_Full_L10_E40.root']
 
 PRESELECTION: cosp > 0.999
 
 LARGE_DATA: True
-LOAD_LARGE_DATA: False
+GAUSS: False
 
 XGBOOST_PARAMS:
   # general parameters

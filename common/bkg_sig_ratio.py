@@ -96,7 +96,7 @@ n_bkgpars = 3
 nsigma = 3
 
 binning = array('d',PT_BINS)
-output_file = TFile(f"../Results/2Body/{FILE_PREFIX}_signal_results.root","RECREATE")
+output_file = TFile(results_dir + '/' + FILE_PREFIX + '/' + FILE_PREFIX+'_signal_results.root',"RECREATE")
 for model in BKG_MODELS:
     if 'pol' in str(model):
         n_bkgpars = int(model[3]) + 1

@@ -96,10 +96,10 @@ resultsSysDir = os.environ['HYPERML_RESULTS_{}'.format(params['NBODY'])]
 var = 'm_{T}'
 unit = 'GeV'
 
-file_name = resultsSysDir + '/' + FILE_PREFIX + '_dist.root'
+file_name = resultsSysDir + '/' + FILE_PREFIX + '/' + FILE_PREFIX + '_dist.root'
 distribution = TFile(file_name, 'recreate')
 
-file_name = resultsSysDir + '/' + FILE_PREFIX + '_results_fit.root'
+file_name = resultsSysDir + '/' + FILE_PREFIX + '/' + FILE_PREFIX + '_results_fit.root'
 results_file = TFile(file_name, 'read')
 
 bkgModels = params['BKG_MODELS'] if 'BKG_MODELS' in params else ['mt_distr']
