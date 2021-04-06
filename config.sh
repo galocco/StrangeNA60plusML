@@ -7,7 +7,7 @@ HYPERML_FIGURES="$PWD/Figures"
 HYPERML_RESULTS="$PWD/Results"
 HYPERML_MODELS="$PWD/Models"
 HYPERML_CODE="$PWD"
-HYPERML_COMMON="$HYPERML_CODE/analysis"
+HYPERML_COMMON="$HYPERML_CODE/common"
 
 export PYTHONPATH="${PYTHONPATH}:$HYPERML_COMMON/TrainingAndTesting:$HYPERML_COMMON/Utils"
 BODY_2=0
@@ -37,18 +37,48 @@ if [ $BODY_2 -eq 1 ]; then
       [ ! -d "$HYPERML_MODELS_2" ] && mkdir -p $HYPERML_MODELS_2
       [ ! -d "$HYPERML_EFFICIENCIES_2" ] && mkdir -p $HYPERML_EFFICIENCIES_2
       [ ! -d "$HYPERML_RESULTS_2" ] && mkdir -p $HYPERML_RESULTS_2
-      [ ! -d "$HYPERML_DATA/PHI_L5_E40" ] && mkdir -p "$HYPERML_DATA/PHI_L5_E40"
-      wget -O "$HYPERML_DATA/PHI_L5_E40/fntSig_PHI_L5_E40_TS.root" 'https://cernbox.cern.ch/index.php/s/oJjpifInvOcIln7/download'
-      wget -O "$HYPERML_DATA/PHI_L5_E40/fntSig_PHI_L5_E40_Data.root" 'https://cernbox.cern.ch/index.php/s/ZlHGUXP297T70n3/download'
-      wget -O "$HYPERML_DATA/PHI_L5_E40/Signal_histos_PHI_L5_E40_TS.root"' https://cernbox.cern.ch/index.php/s/2B3ZawQsSFpkK1j/download'
-      wget -O "$HYPERML_DATA/PHI_L5_E40/Signal_histos_PHI_L5_E40_Data.root" 'https://cernbox.cern.ch/index.php/s/oiCjoL1eS7ZtsN1/download'
-      wget -O "$HYPERML_DATA/PHI_L5_E40/DecayHistos_PHI_L5_E40_TS.root" 'https://cernbox.cern.ch/index.php/s/bgfeyBS8rk9Wewm/download'
-      wget -O "$HYPERML_DATA/PHI_L5_E40/DecayHistos_PHI_L5_E40_Data.root" 'https://cernbox.cern.ch/index.php/s/ESSXFqxlmDqY6qh/download'
-      wget -O "$HYPERML_DATA/PHI_L5_E40/Bkg-histos_PHI_Full_L5_E40_TS.root" 'https://cernbox.cern.ch/index.php/s/DtzAasabpgcg6Oq/download'
-      wget -O "$HYPERML_DATA/PHI_L5_E40/Bkg-histos_PHI_Full_L5_E40_Data.root" 'https://cernbox.cern.ch/index.php/s/ke0XAaK6guqtCWq/download'
-      wget -O "$HYPERML_DATA/PHI_L5_E40/fntBkg_PHI_Full_L5_E40_TS.root" 'https://cernbox.cern.ch/index.php/s/q5nNAPLcDcBeSIg/download'
-      wget -O "$HYPERML_DATA/PHI_L5_E40/fntBkg_PHI_Full_L5_E40_Data.root" 'https://cernbox.cern.ch/index.php/s/q5nNAPLcDcBeSIg/download'
-
+      #download the data from cernbox
+      [ ! -d "$HYPERML_DATA/PHI_L5_E40_test" ] && mkdir -p "$HYPERML_DATA/PHI_L5_E40_test"
+      if [ ! -f "$HYPERML_DATA/PHI_L5_E40_test/fntSig_PHI_L5_E40_TS.root" ]; then
+            wget -q -O "$HYPERML_DATA/PHI_L5_E40_test/fntSig_PHI_L5_E40_TS.root" 'https://cernbox.cern.ch/index.php/s/oJjpifInvOcIln7/download'
+            echo "$HYPERML_DATA/PHI_L5_E40_test/fntSig_PHI_L5_E40_TS.root" downloaded
+      fi
+      if [ ! -f "$HYPERML_DATA/PHI_L5_E40_test/fntSig_PHI_L5_E40_Data.root" ]; then
+            wget -q -O "$HYPERML_DATA/PHI_L5_E40_test/fntSig_PHI_L5_E40_Data.root" 'https://cernbox.cern.ch/index.php/s/ZlHGUXP297T70n3/download'
+            echo "$HYPERML_DATA/PHI_L5_E40_test/fntSig_PHI_L5_E40_Data.root" downloaded
+      fi
+      if [ ! -f "$HYPERML_DATA/PHI_L5_E40_test/Signal_histos_PHI_L5_E40_TS.root" ]; then
+            wget -q -O "$HYPERML_DATA/PHI_L5_E40_test/Signal_histos_PHI_L5_E40_TS.root"' https://cernbox.cern.ch/index.php/s/2B3ZawQsSFpkK1j/download'
+            echo "$HYPERML_DATA/PHI_L5_E40_test/Signal_histos_PHI_L5_E40_TS.root" downloaded
+      fi
+      if [ ! -f "$HYPERML_DATA/PHI_L5_E40_test/Signal_histos_PHI_L5_E40_Data.root" ]; then
+            wget -q -O "$HYPERML_DATA/PHI_L5_E40_test/Signal_histos_PHI_L5_E40_Data.root" 'https://cernbox.cern.ch/index.php/s/oiCjoL1eS7ZtsN1/download'
+            echo "$HYPERML_DATA/PHI_L5_E40_test/Signal_histos_PHI_L5_E40_Data.root" downloaded
+      fi
+      if [ ! -f "$HYPERML_DATA/PHI_L5_E40_test/DecayHistos_PHI_L5_E40_TS.root" ]; then
+            wget -q -O "$HYPERML_DATA/PHI_L5_E40_test/DecayHistos_PHI_L5_E40_TS.root" 'https://cernbox.cern.ch/index.php/s/bgfeyBS8rk9Wewm/download'
+            echo "$HYPERML_DATA/PHI_L5_E40_test/DecayHistos_PHI_L5_E40_TS.root" downloaded
+      fi
+      if [ ! -f "$HYPERML_DATA/PHI_L5_E40_test/DecayHistos_PHI_L5_E40_Data.root" ]; then
+            wget -q -O "$HYPERML_DATA/PHI_L5_E40_test/DecayHistos_PHI_L5_E40_Data.root" 'https://cernbox.cern.ch/index.php/s/ESSXFqxlmDqY6qh/download'
+            echo "$HYPERML_DATA/PHI_L5_E40_test/DecayHistos_PHI_L5_E40_Data.root" downloaded
+      fi
+      if [ ! -f "$HYPERML_DATA/PHI_L5_E40_test/Bkg-histos_PHI_L5_E40_TS.root" ]; then
+            wget -q -O "$HYPERML_DATA/PHI_L5_E40_test/Bkg-histos_PHI_Full_L5_E40_TS.root" 'https://cernbox.cern.ch/index.php/s/DtzAasabpgcg6Oq/download'
+            echo "$HYPERML_DATA/PHI_L5_E40_test/Bkg-histos_PHI_Full_L5_E40_TS.root" downloaded
+      fi
+      if [ ! -f "$HYPERML_DATA/PHI_L5_E40_test/Bkg-histos_PHI_L5_E40_Data.root" ]; then
+            wget -q -O "$HYPERML_DATA/PHI_L5_E40_test/Bkg-histos_PHI_Full_L5_E40_Data.root" 'https://cernbox.cern.ch/index.php/s/ke0XAaK6guqtCWq/download'
+            echo "$HYPERML_DATA/PHI_L5_E40_test/Bkg-histos_PHI_Full_L5_E40_Data.root" downloaded
+      fi
+      if [ ! -f "$HYPERML_DATA/PHI_L5_E40_test/fntBkg_PHI_L5_E40_TS.root" ]; then
+            wget -q -O "$HYPERML_DATA/PHI_L5_E40_test/fntBkg_PHI_Full_L5_E40_TS.root" 'https://cernbox.cern.ch/index.php/s/q5nNAPLcDcBeSIg/download'
+            echo "$HYPERML_DATA/PHI_L5_E40_test/fntBkg_PHI_Full_L5_E40_TS.root" downloaded
+      fi
+      if [ ! -f "$HYPERML_DATA/PHI_L5_E40_test/fntBkg_PHI_L5_E40_Data.root" ]; then
+            wget -q -O "$HYPERML_DATA/PHI_L5_E40_test/fntBkg_PHI_Full_L5_E40_Data.root" 'https://cernbox.cern.ch/index.php/s/q5nNAPLcDcBeSIg/download'
+            echo "$HYPERML_DATA/PHI_L5_E40_test/fntBkg_PHI_Full_L5_E40_Data.root" downloaded
+      fi
 fi
 
 if [ $BODY_3 -eq 1 ]; then    
