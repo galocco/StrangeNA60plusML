@@ -15,7 +15,7 @@ from sklearn.model_selection import train_test_split
 import math
 import analysis_utils as au
 import plot_utils as pu
-
+from array import array
 
 class TrainingAnalysis:
 
@@ -38,7 +38,8 @@ class TrainingAnalysis:
                 self.df_bkg = uproot.open(bkg_file_name)['ntcand'].arrays(library='pd',entry_stop=entrystop).query("true < 0.5" + preselection)
                     
             if self.mode == 2:
-                self.df_signal = uproot.open(mc_file_name)['ntcand'].arrays(library='pd').query(preselection)
+                self.df_signal = uproot.open(bkg_file_name)['ntcand'].arrays(library='pd').query(preselection)
+                #self.df_signal = uproot.open(bkg_file_name)['ntcand'].arrays(library='pd',entry_stop=entrystop).query("true > 0.5 and " + preselection)
                 preselection = ' and ' + preselection
                 self.df_generated = uproot.open(mc_file_name)['ntgen'].arrays(library='pd')
                 self.df_bkg = uproot.open(bkg_file_name)['ntcand'].arrays(library='pd',entry_stop=entrystop).query("true < 0.5" + preselection)
@@ -77,30 +78,24 @@ class TrainingAnalysis:
         self.df_signal['y'] = 1
         self.df_bkg['y'] = 0
 
-    def preselection_efficiency(self, cent_class, ct_bins, pt_bins, split, save=True, suffix=''):
-        cent_cut = f'{cent_class[0]}<=centrality<={cent_class[1]}'
-
-        if (len(ct_bins)>2):
-            cut  =  f'{pt_bins[0]}<=pt<={pt_bins[1]}'
-        else:
-            cut  =  f'{ct_bins[0]}<=ct<={ct_bins[1]}'            
+    def preselection_efficiency(self, pt_bins, split, save=True, suffix=''):
+        cut  =  f'{pt_bins[0]}<=pt<={pt_bins[1]}'         
             
-        pres_histo = au.h2_preselection_efficiency(pt_bins, ct_bins)
-        gen_histo = au.h2_generated(pt_bins, ct_bins)
+        pres_histo = au.h1_preselection_efficiency(pt_bins)
+        gen_histo = au.h1_generated(pt_bins)
 
-        for pt, ct in self.df_signal.query(cent_cut + " and " + cut)[['pt', 'ct']].to_records(index=False):
-            pres_histo.Fill(pt,ct)
+        for pt in self.df_signal.query(cut)['pt']:#.to_records(index=False)
+            pres_histo.Fill(pt)
         
-        cols = ['gPt', 'gCt'] if "gPt" in list(self.df_generated.columns) else ['pt', 'ct']
-        for pt, ct in self.df_generated.query(cent_cut)[cols].to_records(index=False):
-            gen_histo.Fill(pt,ct)
+        for pt in self.df_generated['pt']:#.to_records(index=False)
+            gen_histo.Fill(pt)
 
         pres_histo.Divide(gen_histo)
 
         if save:
             path = os.environ['HYPERML_EFFICIENCIES_{}'.format(self.mode)]
 
-            filename = path + f'/PreselEff_cent{cent_class[0]}{cent_class[1]}{split}{suffix}.root'
+            filename = path + f'/PreselEff{split}{suffix}.root'
             t_file = ROOT.TFile(filename, 'recreate')
             
             pres_histo.Write()
@@ -108,8 +103,8 @@ class TrainingAnalysis:
 
         return pres_histo
 
-    def prepare_dataframe(self, training_columns, cent_class, pt_range, ct_range, test_size=0.5):
-        data_range = f'{ct_range[0]}<ct<{ct_range[1]} and {pt_range[0]}<pt<{pt_range[1]}'#' and {cent_class[0]}<=centrality<{cent_class[1]}'
+    def prepare_dataframe(self, training_columns, pt_range, test_size=0.5):
+        data_range = f'{pt_range[0]}<pt<{pt_range[1]}'#' and {cent_class[0]}<=centrality<{cent_class[1]}'
 
         sig = self.df_signal.query(data_range)
         bkg = self.df_bkg.query(data_range)
@@ -126,55 +121,8 @@ class TrainingAnalysis:
 
         return [train_set, y_train, test_set, y_test]
 
-    def MC_sigma_array(self, data, eff_score_array, cent_class, pt_range, ct_range, split=''):
-        info_string = f'_{cent_class[0]}{cent_class[1]}_{pt_range[0]}{pt_range[1]}_{ct_range[0]}{ct_range[1]}{split}'
-
-        sigma_path = os.environ['HYPERML_UTILS_{}'.format(self.mode)] + '/FixedSigma'
-
-        if not os.path.exists(sigma_path):
-            os.makedirs(sigma_path)
-
-        filename_sigma = sigma_path + '/sigma_array' + info_string + '.npy'
-        filename_sigma_error = sigma_path + '/sigma_array_error' + info_string + '.npy'
-        filename_mean = sigma_path + '/mean_array' + info_string + '.npy'
-        filename_mean_error = sigma_path + '/mean_array_error' + info_string + '.npy'
-
-        mean_dict = {}
-        mean_error_dict ={}
-        sigma_dict = {}
-        sigma_error_dict ={}
-
-        data[2]['score'] = data[2]['score'].astype(float)
-
-        mass_bins = 40 if ct_range[1] < 16 else 36
-
-        for eff, cut in zip(eff_score_array[0], eff_score_array[1]):
-            counts = np.histogram(data[2][data[3].astype(bool)].query(f'score>{cut}')['m'], bins=mass_bins)
-
-            histo_minv = au.h1_invmass(counts, cent_class, pt_range, ct_range)
-
-            histo_minv.Fit('gaus', 'Q')
-
-            mean = histo_minv.GetFunction('gaus').GetParameter(1)
-            mean_error = histo_minv.GetFunction('gaus').GetParError(1)
-            sigma = histo_minv.GetFunction('gaus').GetParameter(2)
-            sigma_error = histo_minv.GetFunction('gaus').GetParError(2)
-            sigma = au.round_to_error(sigma, sigma_error)
-
-            del histo_minv
-
-            mean_dict[f'{eff:.2f}'] = mean
-            mean_error_dict[f'{eff:.2f}'] = mean_error
-            sigma_dict[f'{eff:.2f}'] = sigma
-            sigma_error_dict[f'{eff:.2f}'] = sigma_error
-        
-        np.save(filename_mean, np.array(mean_dict))
-        np.save(filename_mean_error, np.array(mean_error_dict))
-        np.save(filename_sigma, np.array(sigma_dict))
-        np.save(filename_sigma_error, np.array(sigma_error_dict))
-
-    def save_ML_analysis(self, model_handler, eff_score_array, cent_class, pt_range, ct_range, training_columns, split='', suffix=''):
-        info_string = f'_{cent_class[0]}{cent_class[1]}_{pt_range[0]}{pt_range[1]}_{ct_range[0]}{ct_range[1]}{split}'
+    def save_ML_analysis(self, model_handler, eff_score_array, pt_range, training_columns, split='', suffix=''):
+        info_string = f'_{pt_range[0]}{pt_range[1]}{split}'
 
         models_path = os.environ['HYPERML_MODELS_{}'.format(self.mode)]+'/models'
         handlers_path = os.environ['HYPERML_MODELS_{}'.format(self.mode)]+'/handlers'
@@ -203,9 +151,9 @@ class TrainingAnalysis:
 
         print('ML analysis results saved.\n')
 
-    def save_ML_plots(self, model_handler, data, eff_score_array, cent_class, pt_range, ct_range, split='', suffix=''):
+    def save_ML_plots(self, model_handler, data, eff_score_array, pt_range, split='', suffix=''):
         fig_path = os.environ['HYPERML_FIGURES_{}'.format(self.mode)]
-        info_string = f'_{cent_class[0]}{cent_class[1]}_{pt_range[0]}{pt_range[1]}_{ct_range[0]}{ct_range[1]}{split}'
+        info_string = f'_{pt_range[0]}{pt_range[1]}{split}'
 
         bdt_score_dir = fig_path + '/TrainTest'
         bdt_eff_dir = fig_path + '/Efficiency'
@@ -235,7 +183,7 @@ class TrainingAnalysis:
 
 class ModelApplication:
 
-    def __init__(self, pdg_code, multiplicity, branching_ratio, eff, mode, data_sig_filename, data_bkg_filename, event_filename, cent_classes, split, full_sim, preselection = "",skimmed_data=0):
+    def __init__(self, pdg_code, multiplicity, branching_ratio, eff, mode, data_sig_filename, data_bkg_filename, event_filename, split, full_sim, preselection = "",hsparse=0):
 
         print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
         print('\nStarting BDT appplication and signal extraction')
@@ -251,49 +199,20 @@ class ModelApplication:
         print("lifetime: ",self.lifetime)
         print("mass: ",self.mass)
 
-        background_file = ROOT.TFile(event_filename)
+        background_file = ROOT.TFile(event_filename,"read")
         hist_ev = background_file.Get('hNevents')
         self.n_events = hist_ev.GetBinContent(1)
         background_file.Close()
         nsig = int(self.multiplicity*self.eff*self.n_events*self.branching_ratio)
         print("nsig: ",nsig)        
-
-        if isinstance(skimmed_data, pd.DataFrame):
-            self.df_data = skimmed_data
-        
-        if skimmed_data is 0:    
-            if full_sim:
-                self.df_data = uproot.open(data_sig_filename)["ntcand"].arrays(library='pd').query(preselection)
-                self.df_data.rename(columns={"true": "y"}, inplace=True)
-            else:
-                df_sig = uproot.open(data_sig_filename)["ntcand"].arrays(library='pd').query(preselection)
-                df_bkg = uproot.open(data_bkg_filename)["ntcand"].arrays(library='pd').query(preselection)
-                df_sig['y'] = 1
-                df_bkg['y'] = 0
-                self.df_data = pd.concat([df_sig, df_bkg])
-        
-
-
-        self.hist_centrality = uproot.open(event_filename)['hCentrality']
-
-        #for cent in cent_classes:
-        #    self.n_events.append(sum(self.hist_centrality[cent[0]:cent[1]-1]))
-
+        self.hnsparse = hsparse
         print('\nNumber of events: ', self.n_events)
-
-        if split == '_antimatter':
-            self.df_data = self.df_data.query('ArmenterosAlpha < 0')
-            print(f'\nNumber of anti-hyper-candidates: {len(self.df_data)}')
-
-        if split == '_matter':
-            self.df_data = self.df_data.query('ArmenterosAlpha > 0')
-            print(f'Number of hyper-candidates: {len(self.df_data)}')
 
         print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
 
-    def load_preselection_efficiency(self, cent_class, split, suffix = ''):
+    def load_preselection_efficiency(self, split, suffix = ''):
         efficiencies_path = os.environ['HYPERML_EFFICIENCIES_{}'.format(self.mode)]
-        filename_efficiencies = efficiencies_path + f'/PreselEff_cent{cent_class[0]}{cent_class[1]}{split}{suffix}.root'
+        filename_efficiencies = efficiencies_path + f'/PreselEff{split}{suffix}.root'
 
         tfile = ROOT.TFile(filename_efficiencies)
 
@@ -302,9 +221,9 @@ class ModelApplication:
 
         return self.presel_histo
 
-    def load_ML_analysis(self, cent_class, pt_range, ct_range, split='', suffix=''):
+    def load_ML_analysis(self, pt_range, split='', suffix=''):
 
-        info_string = f'_{cent_class[0]}{cent_class[1]}_{pt_range[0]}{pt_range[1]}_{ct_range[0]}{ct_range[1]}{split}'
+        info_string = f'_{pt_range[0]}{pt_range[1]}{split}'
 
         handlers_path = os.environ['HYPERML_MODELS_{}'.format(self.mode)] + '/handlers'
         efficiencies_path = os.environ['HYPERML_EFFICIENCIES_{}'.format(self.mode)]
@@ -319,41 +238,22 @@ class ModelApplication:
 
         return eff_score_array, model_handler
 
-    def get_preselection_efficiency(self, ptbin_index, ctbin_index):
-        return self.presel_histo.GetBinContent(ptbin_index, ctbin_index)
+    def get_preselection_efficiency(self, ptbin_index):
+        return self.presel_histo.GetBinContent(ptbin_index)
 
-    def load_sigma_array(self, cent_class, pt_range, ct_range, split=''):
+    def load_sigma_array(self, pt_range, split=''):
 
-        info_string = '_{}{}_{}{}_{}{}{}'.format(cent_class[0], cent_class[1], pt_range[0],
-                                                 pt_range[1], ct_range[0], ct_range[1], split)
-        sigma_path = os.environ['HYPERML_UTILS_{}'.format(
-            self.mode)]+'/FixedSigma'
+        info_string = '_{}{}{}'.format(pt_range[0], pt_range[1], split)
+        sigma_path = os.environ['HYPERML_UTILS_{}'.format(self.mode)]+'/FixedSigma'
         filename_sigma = sigma_path + "/sigma_array" + info_string + '.npy'
         return np.load(filename_sigma)
 
-    def apply_BDT_to_data(self, model_handler, cent_class, pt_range, ct_range, training_columns, application_columns):
-        print('\nApplying BDT to data: ...')
-
-        data_range = f'{ct_range[0]}<ct<{ct_range[1]} and {pt_range[0]}<pt<{pt_range[1]} and {cent_class[0]}<=centrality<{cent_class[1]}'
-        df_applied = self.df_data.query(data_range)
-
-        df_applied.insert(0, 'score', model_handler.predict(df_applied[training_columns]))
-        df_applied = df_applied[application_columns]
-
-        print('Application: Done!')
-
-        return df_applied
-
-    def get_data_slice(self, cent_class, pt_range, ct_range, application_columns):
-        data_range = f'{ct_range[0]}<ct<{ct_range[1]} and {pt_range[0]}<pt<{pt_range[1]} and {cent_class[0]}<=centrality<{cent_class[1]}'
-
-        return self.df_data.query(data_range)[application_columns]
-
-    def significance_scan(self, df_bkg, pre_selection_efficiency, eff_score_array, cent_class, pt_range, ct_range, pt_spectrum, split='', mass_bins=40, custom = False, suffix = '', sigma_mass = 2):
+    def significance_scan(self, pre_selection_efficiency, eff_score_array, pt_range, pt_spectrum, split='', mass_bins=40, custom = False, suffix = '', sigma_mass = 2):
         print('\nSignificance scan: ...')
 
         hist_range = [self.mass*0.97, self.mass*1.03]
-
+        peak_range = [self.mass-3*sigma_mass, self.mass+3*sigma_mass]
+        
         bdt_efficiency = eff_score_array[0]
         threshold_space = eff_score_array[1]
 
@@ -362,32 +262,25 @@ class ModelApplication:
         significance_error = []
         significance_custom = []
         significance_custom_error = []
-
+        
         for index, tsd in enumerate(threshold_space):
-            df_selected = df_bkg.query('score>@tsd')
+            histo_name = f'score{tsd:.2f}'
+            h1_minv = au.h1_from_sparse(self.hnsparse, pt_range, tsd, name=histo_name)
+            fit_tpl = ROOT.TF1('fitTpl', 'pol3(0)', hist_range[0], hist_range[1])
+            peak_bins = [h1_minv.GetXaxis().FindBin(peak_range[0]), h1_minv.GetXaxis().FindBin(peak_range[1])]
+            for bin in range(peak_bins[0], peak_bins[1]+1):
+                h1_minv.SetBinContent(bin, 0)
 
-            counts, bins = np.histogram(df_selected['m'], bins=mass_bins, range=hist_range)
-            bin_centers = 0.5 * (bins[1:] + bins[:-1])
-            side_map = (bin_centers < self.mass-3*sigma_mass) + (bin_centers > self.mass+3*sigma_mass)
-            mass_map = np.logical_not(side_map)
-            bins_side = bin_centers[side_map]
-            counts_side = counts[side_map]
+            h1_minv.Fit(fit_tpl, "QRL", "")
 
-            h, residuals, _, _, _ = np.polyfit(bins_side, counts_side, 3, full=True)
-            y = np.polyval(h, bins_side)
-
-            exp_signal_ctint = au.expected_signal_counts(
+            exp_signal = au.expected_signal_counts(
                 pt_spectrum, self.multiplicity, self.branching_ratio, pt_range, pre_selection_efficiency * bdt_efficiency[index],
                 self.n_events)
 
             if split != '':
-                exp_signal_ctint = 0.5 * exp_signal_ctint
+                exp_signal = 0.5 * exp_signal            
 
-            ctrange_correction = au.expo(ct_range[0], self.lifetime)-au.expo(ct_range[1], self.lifetime)
-
-            exp_signal = exp_signal_ctint * ctrange_correction
-            exp_background = sum(np.polyval(h, bin_centers[mass_map]))
-
+            exp_background = fit_tpl.Integral(peak_range[0], peak_range[1])
             expected_signal.append(exp_signal)
 
             if (exp_background < 0):
@@ -400,17 +293,15 @@ class ModelApplication:
                 significance_error.append(sig_error)
             else:
                 significance.append(sig * bdt_efficiency[index])
-                significance_error.append(sig_error * bdt_efficiency[index])
-
-        #self.nevents = sum(self.hist_centrality[cent_class[0]+1:cent_class[1]])
+                significance_error.append(sig_error * bdt_efficiency[index]) 
 
         max_index = np.argmax(significance)
         max_score = threshold_space[max_index]
         max_significance = significance[max_index]
-        data_range_array = [ct_range[0], ct_range[1], pt_range[0], pt_range[1], cent_class[0], cent_class[1]]
-        pu.plot_significance_scan(
-            max_index, significance, significance_error, expected_signal, df_bkg, threshold_space,
-            data_range_array, self.n_events, self.mode, split, mass_bins, self.mass, hist_range, custom, suffix, sigma_mass)
+        data_range_array = [pt_range[0], pt_range[1]]
+        pu.plot_significance_scan_root(
+            max_index, significance, significance_error, expected_signal, self.hnsparse, threshold_space,
+            data_range_array, self.n_events, self.mode, split, self.mass, custom, suffix, sigma_mass)
 
         bdt_eff_max_score = bdt_efficiency[max_index]
 
@@ -418,17 +309,6 @@ class ModelApplication:
 
         # return max_score, bdt_eff_max_score, max_significance
         return bdt_eff_max_score, max_score
-
-    def get_pt_hist(self, pt_bins):
-        counts_rec, _ = np.histogram(self.df_data.query("y > 0.5")['pt'], len(pt_bins)-1, range=[pt_bins[0],pt_bins[len(pt_bins)-1]])
-        hist_rec = ROOT.TH1D('hist_rec', ';#it{p}_{T} (GeV/c);counts', len(pt_bins)-1, pt_bins[0], pt_bins[len(pt_bins)-1])
-
-        for index in range(0, len(pt_bins)-1):
-            if counts_rec[index]==0:
-                counts_rec[index] = 1
-            hist_rec.SetBinContent(index + 1, counts_rec[index])
-            hist_rec.SetBinError(index + 1, math.sqrt(counts_rec[index]))
-        return hist_rec
 
 def load_mcsigma(cent_class, pt_range, ct_range, mode, split=''):
     info_string = f'_{cent_class[0]}{cent_class[1]}_{pt_range[0]}{pt_range[1]}_{ct_range[0]}{ct_range[1]}{split}'

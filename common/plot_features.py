@@ -85,7 +85,8 @@ mass = TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
 df_bkg_full = uproot.open(bkg_path_full)['ntcand'].arrays(library='pd',entry_stop=4000000).query("true < 0.5")
 df_bkg_prompt = uproot.open(bkg_path_prompt)['ntcand'].arrays(library='pd',entry_stop=4000000)
 
-#    df_bkg = uproot.open(bkg_path)['ntcand'].arrays(library='pd',entry_stop=20000000)
+#    df_bkg = uproot.open(bkg_path)['ntcand'].arrays(library='pd',entr
+# y_stop=20000000)
 #    if FULL_SIM:
 #        df_bkg = df_bkg.query("true < 0.5")
         #df_bkg.drop('ct', axis='columns', inplace=True)
@@ -94,9 +95,15 @@ df_sig = uproot.open(signal_path)['ntcand'].arrays(library='pd',entry_stop=40000
     #df_sig.drop('ct', axis='columns', inplace=True)
     #df_sig['ct'] = df_sig.apply(lambda x: x['dist']*mass/(x['pt']*math.sqrt(1+math.sinh(x['rapidity'])**2)), axis=1)
 
-#df_sig['ct_rem'] = df_sig.apply(lambda x: x['dist']*mass/(math.sqrt(x['pt']**2+(x['pt']**2+mass**2)*math.sinh(x['rapidity'])**2)), axis=1)
-#df_bkg_full['ct_rem'] = df_bkg_full.apply(lambda x: x['dist']*mass/(math.sqrt(x['pt']**2+(x['pt']**2+mass**2)*math.sinh(x['rapidity'])**2)), axis=1)
-#df_bkg_prompt['ct_rem'] = df_bkg_prompt.apply(lambda x: x['dist']*mass/(math.sqrt(x['pt']**2+(x['pt']**2+mass**2)*math.sinh(x['rapidity'])**2)), axis=1)
+df_sig.rename(columns={"thetad": "costhetad"}, inplace=True)
+df_bkg_full.rename(columns={"thetad": "costhetad"}, inplace=True)
+df_bkg_prompt.rename(columns={"thetad": "costhetad"}, inplace=True)
+df_sig = df_sig.query("costhetad > -1 and costhetad < 1")
+df_bkg_full = df_bkg_full.query("costhetad > -1 and costhetad < 1")
+df_bkg_prompt = df_bkg_prompt.query("costhetad > -1 and costhetad < 1")
+df_sig['thetad'] = df_sig.apply(lambda x: math.acos(x['costhetad'] if x['costhetad']<1 or x['costhetad']>-1 else -1), axis=1)
+df_bkg_full['thetad'] = df_bkg_full.apply(lambda x: math.acos(x['costhetad'] if x['costhetad']<1 or x['costhetad']>-1 else -1), axis=1)
+df_bkg_prompt['thetad'] = df_bkg_prompt.apply(lambda x: math.acos(x['costhetad'] if x['costhetad']<1 or x['costhetad']>-1 else -1), axis=1)
 
 nbins = 200
 cv = TCanvas("cv","cv")

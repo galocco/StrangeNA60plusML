@@ -9,7 +9,8 @@ import numpy as np
 import pandas as pd
 from scipy.stats import norm
 from sklearn.metrics import confusion_matrix
-
+from array import array
+import analysis_utils as au
 import ROOT
 
 matplotlib.use('pdf')
@@ -57,16 +58,130 @@ def plot_efficiency_significance(mode, tsd, significance, efficiency, data_range
     if not os.path.exists(fig_eff_path):
         os.makedirs(fig_eff_path)
 
-    fig_name = '/sign_eff_ct{}{}_pT{}{}_cen{}{}.pdf'.format(
-        data_range_array[0],
+    fig_name = '/sign_eff_pT{}{}.pdf'.format(
         data_range_array[1],
-        data_range_array[2],
-        data_range_array[3],
-        data_range_array[4],
-        data_range_array[5])
+        data_range_array[2])
     plt.savefig(fig_eff_path + fig_name)
     plt.close()
 
+
+def plot_significance_scan_root(
+        max_index, significance, significance_error, expected_signal, hnsparse, score_list, data_range_array,
+        n_ev, mode, split, mass, custom = False, suffix = '', sigma_mass=0.005):
+
+    if custom:
+        label = 'Significance x Efficiency'
+    else:
+        label = 'Significance'
+
+    raw_yield = expected_signal[max_index]
+    max_score = score_list[max_index]
+
+    peak_range = [mass-3*sigma_mass, mass+3*sigma_mass]
+
+    h1_minv = au.h1_from_sparse(hnsparse, data_range_array, score_list[max_index], name="max_sig")
+    hist_range = [h1_minv.GetXaxis().GetXmin(), h1_minv.GetXaxis().GetXmax()]
+    mass_bins = h1_minv.GetNbinsX()
+
+    bkg_tpl_l = ROOT.TF1('fitBkg_l', 'pol1(0)', hist_range[0], hist_range[1])
+    bkg_tpl_r = ROOT.TF1('fitBkg_r', 'pol1(0)', peak_range[1], hist_range[1])
+    bkg_tpl_l.SetLineColor(ROOT.kGreen+2)
+    bkg_tpl_r.SetLineColor(ROOT.kGreen+2)
+    fit_tpl = ROOT.TF1('fitTpl','pol1(0)+gausn(2)', peak_range[0], peak_range[1])
+    fit_tpl.SetLineColor(ROOT.kOrange+4)
+    peak_bins = [h1_minv.GetXaxis().FindBin(peak_range[0]), h1_minv.GetXaxis().FindBin(peak_range[1])]
+    h1_minv.GetYaxis().SetTitle(f'Events/{1000*((hist_range[1] - hist_range[0])/mass_bins):.1f}'+' MeV/#it{c}^{2}')
+    for bin in range(peak_bins[0], peak_bins[1]+1):
+        h1_minv.SetBinContent(bin, 0)
+    h1_minv.Fit(bkg_tpl_l, "QRL", "", hist_range[0], hist_range[1])
+    bkg_tpl_l.SetRange(hist_range[0], peak_range[0])
+    h1_peak = h1_minv.Clone()
+    h1_peak.SetName("peak")
+    for par in range(2):
+        fit_tpl.SetParameter(par, bkg_tpl_l.GetParameter(par))
+        bkg_tpl_r.SetParameter(par, bkg_tpl_l.GetParameter(par))
+    fit_tpl.SetParameter(2, expected_signal[max_index]*((hist_range[1] - hist_range[0])/mass_bins))
+    fit_tpl.SetParameter(2 + 1, mass)
+    fit_tpl.SetParameter(2 + 2, sigma_mass)
+    cv_inv = ROOT.TCanvas("cv_iv","cv", 1024, 768)
+    cv_inv.cd()
+    ROOT.gStyle.SetOptStat(0)
+    h1_minv.SetTitle(r'%1.f #leq #it{p}_{T} #leq %1.f GeV/#it{c}  Cut Score=%0.2f  Significance=%0.2f  Raw yield=%0.2f' % (
+        data_range_array[0], data_range_array[1], max_score,  significance[max_index], expected_signal[max_index]))
+    h1_peak.SetTitle(r'%1.f #leq #it{p}_{T} #leq %1.f GeV/#it{c}  Cut Score=%0.2f  Significance=%0.2f  Raw yield=%0.2f' % (
+        data_range_array[0], data_range_array[1], max_score,  significance[max_index], expected_signal[max_index]))
+    
+    for bin in range(1, h1_minv.GetNbinsX()+1):
+        if peak_bins[0] <= bin <= peak_bins[1]:
+            h1_peak.SetBinContent(bin, fit_tpl.Eval(h1_minv.GetBinCenter(bin)))
+        else:
+            h1_peak.SetBinContent(bin, 0)
+    
+    h1_minv.SetMarkerColor(ROOT.kBlue)
+    h1_peak.SetMarkerColor(ROOT.kRed)
+    h1_minv.SetMarkerStyle(20)
+    h1_peak.SetMarkerStyle(20)
+    legend = ROOT.TLegend(0.6,0.6,0.9,0.9)
+    legend.AddEntry(bkg_tpl_l,"Background fit","l")
+    legend.AddEntry(fit_tpl,"Signal model (Gauss)","l")
+    legend.AddEntry(h1_minv,"Data","pe")
+    legend.AddEntry(h1_peak,"Pseudo data","pe")
+    h1_peak.Draw("e")
+    h1_minv.Draw("e same")
+    fit_tpl.Draw("same")
+    bkg_tpl_l.Draw("same")
+    bkg_tpl_r.Draw("same")
+    legend.Draw()
+    #significance scan
+    cv_sig = ROOT.TCanvas("cv_sig","cv", 1024, 768)
+    cv_sig.cd()
+    
+    score_binning = array('d', score_list[::-1])
+    score_err_list = []
+    for i in range(len(score_list)):
+        score_err_list.append(0)
+    score_err_binning = array('d', score_err_list)
+    sgn_binning = array('d', significance[::-1])
+    sgn_err_binning = array('d', significance_error[::-1])
+
+    h1_sign = ROOT.TGraphErrors(len(score_list)-1 ,score_binning, sgn_binning, score_err_binning, score_err_binning)
+    h1_sign_err = ROOT.TGraphErrors(len(score_list)-1 ,score_binning, sgn_binning, score_err_binning, sgn_err_binning)
+
+    h1_sign_err.SetTitle(r'%1.f #leq #it{p}_{T} #leq %1.f GeV/#it{c}  Cut Score=%0.2f  Significance=%0.2f  Raw yield=%0.2f' % (
+        data_range_array[0], data_range_array[1], max_score,  significance[max_index], expected_signal[max_index]))
+    h1_sign_err.GetXaxis().SetTitle("score")
+    h1_sign_err.GetXaxis().SetRangeUser(score_list[::-1][0], score_list[::-1][-1])
+    h1_sign_err.GetYaxis().SetTitle(label)
+    h1_sign.SetLineColor(ROOT.kBlue)
+    h1_sign_err.SetLineColor(ROOT.kAzure+8)
+    h1_sign_err.SetFillColor(ROOT.kAzure+8)
+    h1_sign_err.SetMarkerColor(1)
+    h1_sign.SetMarkerColor(1)
+
+
+    h1_sign_err.Draw("AL E4")
+    h1_sign.Draw("L same")
+
+    fig_name = 'Significance_pT{}{}{}_{}.pdf'.format(
+        data_range_array[0],
+        data_range_array[1],
+        split,
+        suffix)
+
+    fig_sig_path = os.environ['HYPERML_FIGURES_{}'.format(
+        mode)]+'/Significance'
+    if not os.path.exists(fig_sig_path):
+        os.makedirs(fig_sig_path)
+
+    cv_sig.SaveAs(fig_sig_path + '/' + fig_name)
+
+    fig_name = 'InvMass_pT{}{}{}_{}.pdf'.format(
+        data_range_array[0],
+        data_range_array[1],
+        split,
+        suffix)
+
+    cv_inv.SaveAs(fig_sig_path + '/' + fig_name)
 
 def plot_significance_scan(
         max_index, significance, significance_error, expected_signal, bkg_df, score_list, data_range_array,
@@ -80,6 +195,7 @@ def plot_significance_scan(
     raw_yield = expected_signal[max_index]
     max_score = score_list[max_index]
 
+    #old
     selected_bkg = bkg_df.query('score>@max_score')
 
     bkg_counts, bins = np.histogram(
@@ -150,8 +266,8 @@ def plot_significance_scan(
 
     sign_score = s / np.sqrt(s + b)
 
-    plt.suptitle(r'%1.f$\leq ct \leq$%1.f %1.f$\leq \rm{p}_{T} \leq$%1.f  Cut Score=%0.2f  Significance=%0.2f  Raw yield=%0.2f' % (
-        data_range_array[0], data_range_array[1], data_range_array[2], data_range_array[3], max_score,  sign_score, raw_yield))
+    plt.suptitle(r'%1.f$\leq \rm{p}_{T} \leq$%1.f  Cut Score=%0.2f  Significance=%0.2f  Raw yield=%0.2f' % (
+        data_range_array[0], data_range_array[1], max_score,  sign_score, raw_yield))
 
     # text = '\n'.join(
     #     r'%1.f GeV/c $ \leq \rm{p}_{T} < $ %1.f GeV/c ' % (data_range_array[0], data_range_array[1]),
@@ -161,13 +277,9 @@ def plot_significance_scan(
 
     # axs[1].text(0.37, 0.95, text, transform=axs[1].transAxes, verticalalignment='top', bbox=props)
 
-    fig_name = 'Significance_ct{}{}_pT{}{}_cen{}{}{}_{}.pdf'.format(
+    fig_name = 'Significance_pT{}{}{}{}.pdf'.format(
         data_range_array[0],
         data_range_array[1],
-        data_range_array[2],
-        data_range_array[3],
-        data_range_array[4],
-        data_range_array[5],
         split,
         suffix)
 
@@ -245,73 +357,6 @@ def plot_confusion_matrix(y_true, df, mode, score,
     plt.close()
 
     return ax
-
-#TODO: change labels and ranges
-def mass_plot_makeup(histo, fit_function, model, ptbin, split):
-    histo.Fit(fit_function)
-
-    fit_function.SetLineColor(kRedC)
-    histo.SetMarkerStyle(20)
-    histo.SetMarkerColor(kBlueC)
-    histo.SetLineColor(kBlueC)
-
-    canvas = ROOT.TCanvas(f'hyp_mass_{model}_{split}')
-            
-    pad_range = [2990.4, 2992.9]
-    label = 'm_{ {}^{3}_{#bar{#Lambda}} #bar{H}}' if split == '_antimatter' else 'm_{ {}^{3}_{#Lambda}H}'
-    frame = ROOT.gPad.DrawFrame(ptbin[0], pad_range[0], ptbin[-1], pad_range[1], ';#it{p}_{T} (GeV/#it{c});' + label + ' [ MeV/#it{c}^{2} ]')
-    frame.GetYaxis().SetTitleSize(22)
-    frame.GetYaxis().SetTitleOffset(1.4)
-     
-    pinfo = ROOT.TPaveText(0.142, 0.620, 0.522, 0.848, 'NDC')
-    pinfo.SetBorderSize(0)
-    pinfo.SetFillStyle(0)
-    pinfo.SetTextAlign(11)
-    pinfo.SetTextFont(43)
-    pinfo.SetTextSize(24)
-
-    string_list = []
-    string_list.append('#bf{ALICE Internal}')
-    string_list.append('Pb-Pb  #sqrt{#it{s}_{NN}} = 5.02 TeV,  0-90%')
-    string_list.append('B_{#Lambda}'+' = {:.3f} #pm {:.3f} '.format(round(fit_function.GetParameter(0), 3), round(fit_function.GetParError(0), 3)) + 'MeV')
-        
-    if fit_function.GetNDF() != 0:
-        string_list.append(f'#chi^{{2}} / NDF = {(fit_function.GetChisquare() / fit_function.GetNDF()):.2f}')
-    for s in string_list:
-        pinfo.AddText(s)
-
-    fit_function.Draw('same')
-    pinfo.Draw('x0same')
-    histo.Draw('ex0same')
-    canvas.Write()
-
-
-def sigma_plot_makeup(histo, model, ptbin, split):
-    histo.SetMarkerStyle(20)
-    histo.SetMarkerColor(kBlueC)
-    histo.SetLineColor(kBlueC)
-
-    canvas = ROOT.TCanvas(f'hyp_width_{model}_{split}')
-            
-    pad_range = [1.15, 2.9]
-    label = '#sigma_{ {}^{3}_{#bar{#Lambda}} #bar{H}}' if split == '_antimatter' else '#sigma_{ {}^{3}_{#Lambda}H}'
-    frame = ROOT.gPad.DrawFrame(ptbin[0], pad_range[0], ptbin[-1], pad_range[1], ';#it{p}_{T} (GeV/#it{c});' + label + ' [ MeV/#it{c}^{2} ]')
-    frame.GetYaxis().SetTitleSize(22)
-    frame.GetYaxis().SetTitleOffset(1.1)
-     
-    pinfo = ROOT.TPaveText(0.141, 0.716, 0.521, 0.848, 'NDC')
-    pinfo.SetBorderSize(0)
-    pinfo.SetFillStyle(0)
-    pinfo.SetTextAlign(11)
-    pinfo.SetTextFont(43)
-    pinfo.SetTextSize(24)
-
-    pinfo.AddText('#bf{ALICE Internal}')
-    pinfo.AddText('Pb-Pb  #sqrt{#it{s}_{NN}} = 5.02 TeV,  0-90%')
-
-    pinfo.Draw('x0same')
-    histo.Draw('ex0same')
-    canvas.Write()
 
 def get_sNN(e_nucleon):
     if e_nucleon == 158:

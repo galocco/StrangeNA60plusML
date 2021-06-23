@@ -68,6 +68,8 @@ TRAINING_COLUMNS:
   - cosp
   - dist
   - dca
-  - rapidity
   - d0prod
+  - d01 
+  - d02
   - ptMin
+  - rapidity

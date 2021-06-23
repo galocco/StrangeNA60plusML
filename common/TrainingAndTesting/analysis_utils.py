@@ -10,10 +10,11 @@ import ROOT
 import uproot
 import xgboost as xgb
 from hipe4ml.model_handler import ModelHandler
-from ROOT import TF1, TH1D, TH2D, TH3D, TCanvas, TPaveStats, TPaveText, gStyle, TDatabasePDG
+from ROOT import TF1, TH1D, TH2D, TH3D, TCanvas, TPaveStats, TPaveText, gStyle, TDatabasePDG, THnSparseD
 import re
 import xml.etree.cElementTree as ET
 from sklearn.utils import shuffle
+from array import array
 # avoid pandas warning
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -90,9 +91,14 @@ def convert_model(model, input_variables, output_xml):
     tree = ET.ElementTree(MethodSetup)
     tree.write(output_xml)
 
-def get_skimmed_large_data(multiplicity, bratio, eff, sig_path, bkg_path, event_path, cent_classes, pt_bins, ct_bins, training_columns, application_columns, mode, split='', suffix='', preselection=''):
+def get_skimmed_large_data(mass, multiplicity, bratio, eff, sig_path, bkg_path, event_path, pt_bins, training_columns, mode, split='', suffix='', preselection='', range=0.04):
     print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
     print ('\nStarting BDT appplication on large data')
+
+    nbins = array('i', [40, 30, 2000])
+    xmin  = array('d', [mass*(1-range), 0., -20])
+    xmax  = array('d', [mass*(1+range), 3.,  20])
+    hsparse = THnSparseD('sparse_m_pt_s', ';mass (GeV/#it{c}^{2});#it{p}_{T} (GeV/#it{c});score;counts', 3, nbins, xmin, xmax)
 
     if mode == 3:
         handlers_path = "../Models/3Body/handlers"
@@ -102,7 +108,7 @@ def get_skimmed_large_data(multiplicity, bratio, eff, sig_path, bkg_path, event_
         handlers_path = "../Models/2Body/handlers"
         efficiencies_path = "../Results/2Body/Efficiencies"
 
-    background_file = ROOT.TFile(event_path)
+    background_file = ROOT.TFile(event_path, "read")
     hist_ev = background_file.Get('hNevents')
     n_ev = hist_ev.GetBinContent(1)
     nsig = int(multiplicity*eff*n_ev*bratio)
@@ -110,77 +116,143 @@ def get_skimmed_large_data(multiplicity, bratio, eff, sig_path, bkg_path, event_
     executor = ThreadPoolExecutor()
     bkg_tree_name = bkg_path + ":/ntcand"
     bkg_iterator = uproot.iterate(bkg_tree_name, executor=executor, library="pd")
-    sig_df_applied = pd.DataFrame()
-    bkg_df_applied = pd.DataFrame()
-
+    
     for data in bkg_iterator:
         rename_df_columns(data)
         print ('start entry chunk: {}, stop entry chunk: {}'.format(data.index[0], data.index[-1]))
         
-        for cclass in cent_classes:
-            for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
-                for ctbin in zip(ct_bins[:-1], ct_bins[1:]):   
-                    info_string = '_{}{}_{}{}_{}{}'.format(cclass[0], cclass[1], ptbin[0], ptbin[1], ctbin[0], ctbin[1])
+        for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
+            info_string = '_{}{}'.format(ptbin[0], ptbin[1])
 
-                    filename_handler = handlers_path + '/model_handler_' +suffix+ info_string + split + '.pkl'
-                    filename_efficiencies = efficiencies_path + '/Eff_Score_' +suffix+ info_string + split + '.npy'
+            filename_handler = handlers_path + '/model_handler_' +suffix+ info_string + split + '.pkl'
+            filename_efficiencies = efficiencies_path + '/Eff_Score_' +suffix+ info_string + split + '.npy'
 
-                    model_handler = ModelHandler()
-                    model_handler.load_model_handler(filename_handler)
+            model_handler = ModelHandler()
+            model_handler.load_model_handler(filename_handler)
 
-                    eff_score_array = np.load(filename_efficiencies)
-                    tsd = eff_score_array[1][-1]
+            eff_score_array = np.load(filename_efficiencies)
+            tsd = eff_score_array[1][-1]
 
-                    data_range = f'{ctbin[0]}<ct<{ctbin[1]} and {ptbin[0]}<pt<{ptbin[1]} and {cclass[0]}<=centrality<{cclass[1]}'
+            data_range = f'{ptbin[0]}<pt<{ptbin[1]}'
 
-                    df_tmp = data.query(data_range)       
-                    df_tmp.insert(0, 'score', model_handler.predict(df_tmp[training_columns]))       
-                    df_tmp = df_tmp.query('score>@tsd and '+preselection)  
-                    df_tmp.insert(0, 'y', 0)     
-                    df_tmp = df_tmp[application_columns]    
-                    bkg_df_applied = bkg_df_applied.append(df_tmp, ignore_index=True, sort=False)  
-
-    print(bkg_df_applied.info(memory_usage='deep'))
-
+            df_tmp = data.query(data_range + 'and ' + preselection)       
+            df_tmp.insert(0, 'score', model_handler.predict(df_tmp[training_columns]))
+            df_tmp = df_tmp.query('score>@tsd')
+            
+            for ind in df_tmp.index:
+                x = array('d', [df_tmp['m'][ind], df_tmp['pt'][ind], df_tmp['score'][ind]])
+                hsparse.Fill(x)
+    
     executor = ThreadPoolExecutor()
     sig_tree_name = sig_path + ":/ntcand"
     sig_iterator = uproot.iterate(sig_tree_name, executor=executor, library="pd")
 
+    counter = 0
     for data in sig_iterator:
         rename_df_columns(data)
         print ('start entry chunk: {}, stop entry chunk: {}'.format(data.index[0], data.index[-1]))
         
-        for cclass in cent_classes:
-            for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
-                for ctbin in zip(ct_bins[:-1], ct_bins[1:]):
-                    info_string = '_{}{}_{}{}_{}{}'.format(cclass[0], cclass[1], ptbin[0], ptbin[1], ctbin[0], ctbin[1])
+        for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
+            info_string = '_{}{}'.format(ptbin[0], ptbin[1])
 
-                    filename_handler = handlers_path + '/model_handler_' +suffix+ info_string + split + '.pkl'
-                    filename_efficiencies = efficiencies_path + '/Eff_Score_' +suffix+ info_string + split + '.npy'
+            filename_handler = handlers_path + '/model_handler_' +suffix+ info_string + split + '.pkl'
+            filename_efficiencies = efficiencies_path + '/Eff_Score_' +suffix+ info_string + split + '.npy'
 
-                    model_handler = ModelHandler()
-                    model_handler.load_model_handler(filename_handler)
+            model_handler = ModelHandler()
+            model_handler.load_model_handler(filename_handler)
 
-                    eff_score_array = np.load(filename_efficiencies)
-                    tsd = eff_score_array[1][-1]
+            eff_score_array = np.load(filename_efficiencies)
+            tsd = eff_score_array[1][-1]
 
-                    data_range = f'{ctbin[0]}<ct<{ctbin[1]} and {ptbin[0]}<pt<{ptbin[1]} and {cclass[0]}<=centrality<{cclass[1]}'
+            data_range = f'{ptbin[0]}<pt<{ptbin[1]}'
 
-                    df_tmp = data.query(data_range)
-                    df_tmp.insert(0, 'score', model_handler.predict(df_tmp[training_columns]))
-                    df_tmp = df_tmp.query('score>@tsd and '+preselection)
-                    df_tmp.insert(0, 'y', 1)     
-                    df_tmp = df_tmp[application_columns]
+            df_tmp = data.query(data_range + ' and ' + preselection)
 
-                    sig_df_applied = sig_df_applied.append(df_tmp, ignore_index=True, sort=False)
-    print(sig_df_applied.info(memory_usage='deep'))
-    sig_df_applied = shuffle(sig_df_applied)
-    sig_df_applied = sig_df_applied.head(nsig)
-    return pd.concat([sig_df_applied,bkg_df_applied])
+            df_tmp.insert(0, 'score', model_handler.predict(df_tmp[training_columns]))
+            df_tmp = df_tmp.query('score>@tsd')
 
-def get_skimmed_large_data_full(data_path, cent_classes, pt_bins, ct_bins, training_columns, application_columns, mode, split='', suffix='', preselection=''):
+            for ind in df_tmp.index:
+                x = array('d', [df_tmp['m'][ind], df_tmp['pt'][ind], df_tmp['score'][ind]])
+                hsparse.Fill(x)
+                
+                counter += 1
+                if counter==nsig:
+                    return hsparse
+
+    return hsparse    
+
+def get_skimmed_large_data_std(mass, multiplicity, bratio, eff, sig_path, bkg_path, event_path, pt_bins, training_columns, mode, split='', suffix='', preselection='', range=0.04):
     print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
     print ('\nStarting BDT appplication on large data')
+
+    nbins = array('i', [40, 30])
+    xmin  = array('d', [mass*(1-range), 0.])
+    xmax  = array('d', [mass*(1+range), 3.])
+    hsparse = THnSparseD('sparse_m_pt', ';mass (GeV/#it{c}^{2});#it{p}_{T} (GeV/#it{c});counts', 2, nbins, xmin, xmax)
+
+    if mode == 3:
+        handlers_path = "../Models/3Body/handlers"
+        efficiencies_path = "../Results/3Body/Efficiencies"
+
+    if mode == 2:
+        handlers_path = "../Models/2Body/handlers"
+        efficiencies_path = "../Results/2Body/Efficiencies"
+
+    background_file = ROOT.TFile(event_path, "read")
+    hist_ev = background_file.Get('hNevents')
+    n_ev = hist_ev.GetBinContent(1)
+    nsig = int(multiplicity*eff*n_ev*bratio)
+    background_file.Close()
+    executor = ThreadPoolExecutor()
+    bkg_tree_name = bkg_path + ":/ntcand"
+    bkg_iterator = uproot.iterate(bkg_tree_name, executor=executor, library="pd")
+    
+    for data in bkg_iterator:
+        rename_df_columns(data)
+        print ('start entry chunk: {}, stop entry chunk: {}'.format(data.index[0], data.index[-1]))
+        
+        for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
+            data_range = f'{ptbin[0]}<pt<{ptbin[1]}'
+
+            df_tmp = data.query(data_range + 'and ' + preselection)
+            
+            for ind in df_tmp.index:
+                x = array('d', [df_tmp['m'][ind], df_tmp['pt'][ind]])
+                hsparse.Fill(x)
+    
+    executor = ThreadPoolExecutor()
+    sig_tree_name = sig_path + ":/ntcand"
+    sig_iterator = uproot.iterate(sig_tree_name, executor=executor, library="pd")
+
+    counter = 0
+    for data in sig_iterator:
+        rename_df_columns(data)
+        print ('start entry chunk: {}, stop entry chunk: {}'.format(data.index[0], data.index[-1]))
+        
+        for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
+
+            data_range = f'{ptbin[0]}<pt<{ptbin[1]}'
+
+            df_tmp = data.query(data_range + ' and ' + preselection)
+
+            for ind in df_tmp.index:
+                x = array('d', [df_tmp['m'][ind], df_tmp['pt'][ind]])
+                hsparse.Fill(x)
+                
+                counter += 1
+                if counter==nsig:
+                    return hsparse
+
+    return hsparse    
+
+def get_skimmed_large_data_full(mass, data_path, pt_bins, training_columns, mode, split='', suffix='', preselection='', range=0.04):
+    print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
+    print ('\nStarting BDT appplication on large data')
+
+    nbins = array('i', [40, 30, 2000])
+    xmin  = array('d', [mass*(1-range), 0., -20])
+    xmax  = array('d', [mass*(1+range), 3.,  20])
+    hsparse = THnSparseD('sparse_m_pt_s', ';mass (GeV/#it{c}^{2});#it{p}_{T} (GeV/#it{c});score;counts', 3, nbins, xmin, xmax)
 
     if mode == 3:
         handlers_path = "../Models/3Body/handlers"
@@ -199,34 +271,66 @@ def get_skimmed_large_data_full(data_path, cent_classes, pt_bins, ct_bins, train
     for data in iterator:
         print ('start entry chunk: {}, stop entry chunk: {}'.format(data.index[0], data.index[-1]))
         
-        for cclass in cent_classes:
-            for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
-                for ctbin in zip(ct_bins[:-1], ct_bins[1:]):
-                    info_string = '_{}{}_{}{}_{}{}'.format(cclass[0], cclass[1], ptbin[0], ptbin[1], ctbin[0], ctbin[1])
+        for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
+            info_string = f'_{ptbin[0]}{ptbin[1]}{split}'
 
-                    filename_handler = handlers_path + '/model_handler_' +suffix+ info_string + split + '.pkl'
-                    filename_efficiencies = efficiencies_path + '/Eff_Score_' +suffix+ info_string + split + '.npy'
+            filename_handler = handlers_path + '/model_handler_' +suffix+ info_string + '.pkl'
+            filename_efficiencies = efficiencies_path + '/Eff_Score_' + suffix + info_string + '.npy'
 
-                    model_handler = ModelHandler()
-                    model_handler.load_model_handler(filename_handler)
+            model_handler = ModelHandler()
+            model_handler.load_model_handler(filename_handler)
 
-                    eff_score_array = np.load(filename_efficiencies)
-                    tsd = eff_score_array[1][-1]
+            eff_score_array = np.load(filename_efficiencies)
+            tsd = eff_score_array[1][-1]
 
-                    data_range = f'{ctbin[0]}<ct<{ctbin[1]} and {ptbin[0]}<pt<{ptbin[1]} and {cclass[0]}<=centrality<{cclass[1]}'
+            data_range = f'{ptbin[0]}<pt<{ptbin[1]}'
+            df_tmp = data.query(data_range+" and "+preselection)
+            df_tmp.insert(0, 'score', model_handler.predict(df_tmp[training_columns]))
+            df_tmp = df_tmp.query('score>@tsd')
 
-                    df_tmp = data.query(data_range)
-                    df_tmp = data.query(preselection)
-                    df_tmp.insert(0, 'score', model_handler.predict(df_tmp[training_columns]))
-                    df_tmp = df_tmp.query('score>@tsd')
-                    df_tmp.insert(0, 'y', df_tmp['true'])
-                    df_tmp = df_tmp[application_columns] #df_tmp.loc[:, application_columns]
+            for ind in df_tmp.index:
+                x = array('d', [df_tmp['m'][ind], df_tmp['pt'][ind], df_tmp['score'][ind]])
+                hsparse.Fill(x)
 
-                    df_applied = df_applied.append(df_tmp, ignore_index=True, sort=False)
+    return hsparse
 
-    print(df_applied.info(memory_usage='deep'))
 
-    return df_applied
+def get_skimmed_large_data_std_full(mass, data_path, pt_bins, training_columns, mode, split='', suffix='', preselection='', range=0.04):
+    print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
+    print ('\nStarting BDT appplication on large data')
+
+    nbins = array('i', [40, 30])
+    xmin  = array('d', [mass*(1-range), 0.])
+    xmax  = array('d', [mass*(1+range), 3.])
+    hsparse = THnSparseD('sparse_m_pt', ';mass (GeV/#it{c}^{2});#it{p}_{T} (GeV/#it{c});counts', 2, nbins, xmin, xmax)
+
+    if mode == 3:
+        handlers_path = "../Models/3Body/handlers"
+        efficiencies_path = "../Results/3Body/Efficiencies"
+
+    if mode == 2:
+        handlers_path = "../Models/2Body/handlers"
+        efficiencies_path = "../Results/2Body/Efficiencies"
+
+    executor = ThreadPoolExecutor()
+    data_tree_name = data_path + ":/ntcand"
+    iterator = uproot.iterate(data_tree_name, executor=executor, library='pd')
+
+    df_applied = pd.DataFrame()
+
+    for data in iterator:
+        print ('start entry chunk: {}, stop entry chunk: {}'.format(data.index[0], data.index[-1]))
+        
+        for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
+            data_range = f'{ptbin[0]}<pt<{ptbin[1]}'
+            df_tmp = data.query(data_range+" and "+preselection)
+
+            for ind in df_tmp.index:
+                x = array('d', [df_tmp['m'][ind], df_tmp['pt'][ind]])
+                hsparse.Fill(x)
+
+    return hsparse
+
 
 def expected_signal_counts(bw, multiplicity, branching_ratio, pt_range, eff, nevents):
     signal = multiplicity * nevents* branching_ratio  * bw.Integral(pt_range[0], pt_range[1], 1e-8) / bw.Integral(0, 10, 1e-8)
@@ -253,46 +357,71 @@ def expo(x, tau):
     return np.exp(-x / (tau * 0.029979245800))
 
 
-def h2_preselection_efficiency(ptbins, ctbins, name='PreselEff'):
-    th2 = TH2D(name, ';#it{p}_{T} (GeV/#it{c});c#it{t} (cm);Preselection efficiency',
-               len(ptbins) - 1, np.array(ptbins, 'double'), len(ctbins) - 1, np.array(ctbins, 'double'))
-    th2.SetDirectory(0)
+def h1_preselection_efficiency(ptbins, name='PreselEff'):
+    th1 = TH1D(name, ';#it{p}_{T} (GeV/#it{c});Preselection efficiency', len(ptbins) - 1, np.array(ptbins, 'double'))
+    th1.SetDirectory(0)
 
-    return th2
-
-
-def h2_generated(ptbins, ctbins, name='Generated'):
-    th2 = TH2D(name, ';#it{p}_{T} (GeV/#it{c});c#it{t} (cm); Generated', len(ptbins)-1,
-               np.array(ptbins, 'double'), len(ctbins) - 1, np.array(ctbins, 'double'))
-    th2.SetDirectory(0)
-
-    return th2
+    return th1
 
 
-def h2_rawcounts(ptbins, ctbins, name='RawCounts', suffix=''):
-    th2 = TH2D(f'{name}{suffix}', ';#it{p}_{T} (GeV/#it{c});c#it{t} (cm);Raw counts', len(ptbins)-1,
-               np.array(ptbins, 'double'), len(ctbins) - 1, np.array(ctbins, 'double'))
-    th2.SetDirectory(0)
+def h1_generated(ptbins, name='Generated'):
+    th1 = TH1D(name, ';#it{p}_{T} (GeV/#it{c}); Generated', len(ptbins)-1, np.array(ptbins, 'double'))
+    th1.SetDirectory(0)
 
-    return th2
-
-
-def h2_significance(ptbins, ctbins, name='Significance', suffix=''):
-    th2 = TH2D(f'{name}{suffix}', ';#it{p}_{T} (GeV/#it{c});c#it{t} (cm);Significance', len(ptbins)-1,
-               np.array(ptbins, 'double'), len(ctbins) - 1, np.array(ctbins, 'double'))
-    th2.SetDirectory(0)
-
-    return th2
+    return th1
 
 
-def h1_invmass(counts, cent_class, pt_range, ct_range, name=''):
+def h1_rawcounts(ptbins, name='RawCounts', suffix=''):
+    th1 = TH1D(f'{name}{suffix}', ';#it{p}_{T} (GeV/#it{c});Raw counts', len(ptbins)-1, np.array(ptbins, 'double'))
+    th1.SetDirectory(0)
+
+    return th1
+
+
+def h1_significance(ptbins, name='Significance', suffix=''):
+    th1 = TH1D(f'{name}{suffix}', ';#it{p}_{T} (GeV/#it{c});Significance', len(ptbins)-1, np.array(ptbins, 'double'))
+    th1.SetDirectory(0)
+
+    return th1
+
+
+def h1_invmass(counts, pt_range, name=''):
     ghist = aghast.from_numpy(counts)
-    th1 = aghast.to_root(ghist, f'ct{ct_range[0]}{ct_range[1]}_pT{pt_range[0]}{pt_range[1]}_cen{cent_class[0]}{cent_class[1]}_{name}')
+    th1 = aghast.to_root(ghist, f'pT{pt_range[0]}{pt_range[1]}_{name}')
     th1.SetDirectory(0)
     return th1
 
-def h1_invmass_ov(counts, cent_class, pt_range, ct_range, hist_range, bins=40, name=''):
-    th1 = TH1D(f'ct{ct_range[0]}{ct_range[1]}_pT{pt_range[0]}{pt_range[1]}_cen{cent_class[0]}{cent_class[1]}_{name}', '', bins, hist_range[0], hist_range[1])
+def h1_from_sparse(hnsparse, pt_range, score, name=''):
+    hnsparse_clone = hnsparse.Clone()
+    ptbin_min = hnsparse_clone.GetAxis(1).FindBin(pt_range[0])
+    ptbin_max = hnsparse_clone.GetAxis(1).FindBin(pt_range[1])
+    if ptbin_max > hnsparse_clone.GetAxis(1).GetNbins():
+        ptbin_max = hnsparse_clone.GetAxis(1).GetNbins()
+    scorebin_min = hnsparse_clone.GetAxis(2).FindBin(score)
+    scorebin_max = hnsparse_clone.GetAxis(2).GetNbins()
+    if scorebin_min > scorebin_max:
+        scorebin_min = scorebin_max
+    hnsparse_clone.GetAxis(1).SetRange(ptbin_min, ptbin_max)
+    hnsparse_clone.GetAxis(2).SetRange(scorebin_min, scorebin_max)
+    th1 = hnsparse_clone.Projection(0)
+    th1.SetName(name)
+    th1.SetDirectory(0)
+    return th1
+
+def h1_from_sparse_std(hnsparse, pt_range, name=''):
+    hnsparse_clone = hnsparse.Clone()
+    ptbin_min = hnsparse_clone.GetAxis(1).FindBin(pt_range[0])
+    ptbin_max = hnsparse_clone.GetAxis(1).FindBin(pt_range[1])
+    if ptbin_max > hnsparse_clone.GetAxis(1).GetNbins():
+        ptbin_max = hnsparse_clone.GetAxis(1).GetNbins()
+    hnsparse_clone.GetAxis(1).SetRange(ptbin_min, ptbin_max)
+    th1 = hnsparse_clone.Projection(0)
+    th1.SetName(name)
+    th1.SetDirectory(0)
+    return th1
+
+def h1_invmass_ov(counts, pt_range, hist_range, bins=40, name=''):
+    th1 = TH1D(f'pT{pt_range[0]}{pt_range[1]}', '', bins, hist_range[0], hist_range[1])
 
     for index in range(0, len(counts)):
         th1.SetBinContent(index+1, counts[index])
@@ -315,7 +444,7 @@ def get_ctbin_index(th2, ctbin):
 
 
 def fit_hist(
-        histo, cent_class, pt_range, ct_range, mass, nsigma=3, model="pol2", fixsigma=-1, sigma_limits=None, mode=3, split ='', Eint=17.3, peak_mode=True, gauss=True):
+        histo, pt_range, mass, nsigma=3, model="pol2", fixsigma=-1, sigma_limits=None, mode=3, split ='', Eint=17.3, peak_mode=True, gauss=True):
     
     #mass != TDatabasePDG.Instance().GetParticle(333).Mass()
     
@@ -469,10 +598,10 @@ def fit_hist(
     pinfo2.SetTextAlign(30+3)
     pinfo2.SetTextFont(42)
 
-    string = 'Pb-Pb #sqrt{s_{NN}} = '+f'{Eint} GeV, centrality {cent_class[0]}-{cent_class[1]}%'
+    string = 'Pb-Pb #sqrt{s_{NN}} = '+f'{Eint} GeV, centrality {0}-{5}%'
     pinfo2.AddText(string)
 
-    string = f'{ct_range[0],}'+' #leq #it{ct} < '+f'{ct_range[1]} cm, {pt_range[0]:.3f}'+' #leq #it{p}_{T} < '+f'{pt_range[1]:.3f}'+' GeV/#it{c} '
+    string = f'{pt_range[0]:.3f}'+' #leq #it{p}_{T} < '+f'{pt_range[1]:.3f}'+' GeV/#it{c} '
     pinfo2.AddText(string)
 
     string = f'Significance ({nsigma:.0f}#sigma) {signif:.1f} #pm {errsignif:.1f} '
@@ -507,8 +636,8 @@ def fit_hist(
     return (signal, errsignal, signif, errsignif, sigma, sigmaErr)
 
 
-def load_mcsigma(cent_class, pt_range, ct_range, mode, split=''):
-    info_string = f'_{cent_class[0]}{cent_class[1]}_{pt_range[0]}{pt_range[1]}_{ct_range[0]}{ct_range[1]}{split}'
+def load_mcsigma(pt_range, mode, split=''):
+    info_string = f'_{pt_range[0]}{pt_range[1]}{split}'
     sig_path = os.environ['HYPERML_UTILS_{}'.format(mode)] + '/FixedSigma'
 
     file_name = f'{sig_path}/sigma_array{info_string}.npy'

@@ -31,9 +31,7 @@ with open(os.path.expandvars(args.config), 'r') as stream:
 N_BODY = params['NBODY']
 FILE_PREFIX = params['FILE_PREFIX']
 DATA_LIST = params['DATA_BKG_PATH']
-CENT_CLASSES = params['CENTRALITY_CLASS']
 PT_BINS = params['PT_BINS']
-CT_BINS = params['CT_BINS']
 
 EFF_MIN, EFF_MAX, EFF_STEP = params['BDT_EFFICIENCY']
 FIX_EFF_ARRAY = np.arange(EFF_MIN, EFF_MAX, EFF_STEP)
@@ -52,40 +50,38 @@ output_file = TFile(output_file_name, 'recreate')
 
 
 ###############################################################################
-for cclass in CENT_CLASSES:
-    cent_dir_name = f'{cclass[0]}-{cclass[1]}'
-    cent_dir = output_file.mkdir(cent_dir_name)
-    cent_dir.cd()
+cent_dir_name = '0-5'
+cent_dir = output_file.mkdir(cent_dir_name)
+cent_dir.cd()
 
-    #all file should have the same number of events
-    PreselEff = 0
+#all file should have the same number of events
+PreselEff = 0
+for input_file in input_file_list:
+    if PreselEff==0:
+        PreselEff = input_file.Get(f'{cent_dir_name}/PreselEff')
+    else:
+        PartialEff = input_file.Get(f'{cent_dir_name}/PreselEff')
+        PreselEff.Add(PartialEff)
+PreselEff.Scale(1./len(DATA_LIST))
+PreselEff.Write()
+
+for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
+    # get the dir where the inv mass histo are
+    input_subdir_list = []
     for input_file in input_file_list:
-        if PreselEff==0:
-            PreselEff = input_file.Get(f'{cent_dir_name}/PreselEff')
-        else:
-            PartialEff = input_file.Get(f'{cent_dir_name}/PreselEff')
-            PreselEff.Add(PartialEff)
-    PreselEff.Scale(1./len(DATA_LIST))
-    PreselEff.Write()
+        subdir_name = f'pt_{ptbin[0]}{ptbin[1]}'
+        input_subdir_list.append(input_file.Get(f'{cent_dir_name}/{subdir_name}'))
     
-    for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
-        for ctbin in zip(CT_BINS[:-1], CT_BINS[1:]):
-            # get the dir where the inv mass histo are
-            input_subdir_list = []
-            for input_file in input_file_list:
-                subdir_name = f'pt_{ptbin[0]}{ptbin[1]}'
-                input_subdir_list.append(input_file.Get(f'{cent_dir_name}/{subdir_name}'))
-            
-            #print(input_subdir_list)
-            # create the subdir in the output file
-            output_subdir = cent_dir.mkdir(subdir_name)
-            output_subdir.cd()
-            # loop over all the histo in the dir
-            for key_m in input_subdir_list[0].GetListOfKeys():
-                hist = TH1D(key_m.ReadObj())
-                print(hist.GetName())
-                for input_subdir in input_subdir_list[1:len(DATA_LIST)]:
-                    hist_part = input_subdir.Get(hist.GetName())
-                    hist.Add(hist_part)
-                hist.Write()
+    #print(input_subdir_list)
+    # create the subdir in the output file
+    output_subdir = cent_dir.mkdir(subdir_name)
+    output_subdir.cd()
+    # loop over all the histo in the dir
+    for key_m in input_subdir_list[0].GetListOfKeys():
+        hist = TH1D(key_m.ReadObj())
+        print(hist.GetName())
+        for input_subdir in input_subdir_list[1:len(DATA_LIST)]:
+            hist_part = input_subdir.Get(hist.GetName())
+            hist.Add(hist_part)
+        hist.Write()
 output_file.Close()

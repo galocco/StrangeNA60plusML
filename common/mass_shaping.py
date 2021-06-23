@@ -49,8 +49,6 @@ BRATIO = params['BRATIO']
 EINT = params['EINT']
 EFF = params['EFF']
 
-CENT_CLASSES = params['CENTRALITY_CLASS']
-CT_BINS = params['CT_BINS']
 PT_BINS = params['PT_BINS']
 
 COLUMNS = params['TRAINING_COLUMNS']
@@ -108,64 +106,60 @@ for split in SPLIT_LIST:
 
     application_columns = ['score', 'm', 'y', 'pt', 'ct','centrality']
     if LARGE_DATA:
-        df_skimmed = au.get_skimmed_large_data(MULTIPLICITY, BRATIO, EFF, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, PT_BINS, CT_BINS, COLUMNS, application_columns, N_BODY, split, FILE_PREFIX, PRESELECTION)
-        ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split, False, PRESELECTION, df_skimmed)
+        df_skimmed = au.get_skimmed_large_data(MULTIPLICITY, BRATIO, EFF, data_sig_path, data_bkg_path, event_path, PT_BINS, COLUMNS, application_columns, N_BODY, split, FILE_PREFIX, PRESELECTION)
+        ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, split, False, PRESELECTION, df_skimmed)
     else:
-        ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, CENT_CLASSES, split, False, PRESELECTION)
+        ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, EFF, N_BODY, data_sig_path, data_bkg_path, event_path, split, False, PRESELECTION)
     
     shift_bin = 1
     eff_index=0
     histo_split = []
+    cent_dir_histos = results_file.mkdir(f'0-5{split}')
+    for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
+        if LARGE_DATA:
+            df_applied = ml_application.get_data_slice(ptbin, application_columns)
+        else: 
+            df_applied = ml_application.apply_BDT_to_data(model_handler, ptbin, model_handler.get_training_columns(), application_columns)
 
-    for cclass in CENT_CLASSES:
-        cent_dir_histos = results_file.mkdir(f'{cclass[0]}-{cclass[1]}{split}')
-        for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
-            for ctbin in zip(CT_BINS[:-1], CT_BINS[1:]):
+        # data[0]=train_set, data[1]=y_train, data[2]=test_set, data[3]=y_test
+        #data = ml_analysis.prepare_dataframe(COLUMNS, cent_class=cclass, ct_range=ctbin, pt_range=ptbin)
 
-                if LARGE_DATA:
-                    df_applied = ml_application.get_data_slice(cclass, ptbin, ctbin, application_columns)
-                else: 
-                    df_applied = ml_application.apply_BDT_to_data(model_handler, cclass, ptbin, ctbin, model_handler.get_training_columns(), application_columns)
+        data_range = f'{ptbin[0]}<pt<{ptbin[1]}'#' and {cent_class[0]}<=centrality<{cent_class[1]}'
 
-                # data[0]=train_set, data[1]=y_train, data[2]=test_set, data[3]=y_test
-                #data = ml_analysis.prepare_dataframe(COLUMNS, cent_class=cclass, ct_range=ctbin, pt_range=ptbin)
+        input_model = xgb.XGBClassifier()
+        model_handler = ModelHandler(input_model)
+        
+        info_string = f'_{ptbin[0]}{ptbin[1]}{split}'
+        filename_handler = handlers_path + '/model_handler_' +FILE_PREFIX+ info_string + '.pkl'
+        model_handler.load_model_handler(filename_handler)
+        eff_score_array, model_handler = ml_application.load_ML_analysis(ptbin, split, FILE_PREFIX)
+        mass_bins = 40
+        # define subdir for saving invariant mass histograms
+        sub_dir_histos = cent_dir_histos.mkdir(f'pt_{ptbin[0]}{ptbin[1]}')
+        sub_dir_histos.cd()
+        sig_dir_histos = sub_dir_histos.mkdir('sig')
+        bkg_dir_histos = sub_dir_histos.mkdir('bkg')
 
-                data_range = f'{ptbin[0]}<pt<{ptbin[1]}'#' and {cent_class[0]}<=centrality<{cent_class[1]}'
+        for eff, tsd in zip(pd.unique(eff_score_array[0][::-1]), pd.unique(eff_score_array[1][::-1])):
+            #after selection
+            mass_array = np.array(df_applied.query('score>@tsd and y<0.5')['m'].values, dtype=np.float64)
+            counts, bin = np.histogram(mass_array, bins=mass_bins, range=[mass*0.97, mass*1.03])
+            
+            bkg_dir_histos.cd()
+            histo_name = f"eff{eff:.2f}"+split
+            hbkg_sel = au.h1_invmass_ov(counts, ptbin, hist_range=[mass*0.97, mass*1.03], bins=mass_bins, name=histo_name)
+            hbkg_sel.SetTitle(";m (GeV/#it{c}^{2});counts")
+            hbkg_sel.SetName(hbkg_sel.GetName()+"_bkg")
+            hbkg_sel.Write()
 
-                input_model = xgb.XGBClassifier()
-                model_handler = ModelHandler(input_model)
-                
-                info_string = f'_{cclass[0]}{cclass[1]}_{ptbin[0]}{ptbin[1]}_{ctbin[0]}{ctbin[1]}{split}'
-                filename_handler = handlers_path + '/model_handler_' +FILE_PREFIX+ info_string + '.pkl'
-                model_handler.load_model_handler(filename_handler)
-                eff_score_array, model_handler = ml_application.load_ML_analysis(cclass, ptbin, ctbin, split, FILE_PREFIX)
-                mass_bins = 40
-                # define subdir for saving invariant mass histograms
-                sub_dir_histos = cent_dir_histos.mkdir(f'pt_{ptbin[0]}{ptbin[1]}')
-                sub_dir_histos.cd()
-                sig_dir_histos = sub_dir_histos.mkdir('sig')
-                bkg_dir_histos = sub_dir_histos.mkdir('bkg')
-
-                for eff, tsd in zip(pd.unique(eff_score_array[0][::-1]), pd.unique(eff_score_array[1][::-1])):
-                    #after selection
-                    mass_array = np.array(df_applied.query('score>@tsd and y<0.5')['m'].values, dtype=np.float64)
-                    counts, bin = np.histogram(mass_array, bins=mass_bins, range=[mass*0.97, mass*1.03])
-                    
-                    bkg_dir_histos.cd()
-                    histo_name = f"eff{eff:.2f}"+split
-                    hbkg_sel = au.h1_invmass_ov(counts, cclass, ptbin, ctbin, hist_range=[mass*0.97, mass*1.03], bins=mass_bins, name=histo_name)
-                    hbkg_sel.SetTitle(";m (GeV/#it{c}^{2});counts")
-                    hbkg_sel.SetName(hbkg_sel.GetName()+"_bkg")
-                    hbkg_sel.Write()
-
-                    mass_array = np.array(df_applied.query('score>@tsd and y>0.5')['m'].values, dtype=np.float64)
-                    counts, bin = np.histogram(mass_array, bins=mass_bins, range=[mass*0.97, mass*1.03])
-                    
-                    sig_dir_histos.cd()
-                    histo_name = f"eff{eff:.2f}"+split
-                    hsig_sel = au.h1_invmass_ov(counts, cclass, ptbin, ctbin, hist_range=[mass*0.97, mass*1.03], bins=mass_bins, name=histo_name)
-                    hsig_sel.SetTitle(";m (GeV/#it{c}^{2});counts")
-                    hsig_sel.SetName(hsig_sel.GetName()+"_sig")
-                    hsig_sel.Write()
-                
+            mass_array = np.array(df_applied.query('score>@tsd and y>0.5')['m'].values, dtype=np.float64)
+            counts, bin = np.histogram(mass_array, bins=mass_bins, range=[mass*0.97, mass*1.03])
+            
+            sig_dir_histos.cd()
+            histo_name = f"eff{eff:.2f}"+split
+            hsig_sel = au.h1_invmass_ov(counts, ptbin, hist_range=[mass*0.97, mass*1.03], bins=mass_bins, name=histo_name)
+            hsig_sel.SetTitle(";m (GeV/#it{c}^{2});counts")
+            hsig_sel.SetName(hsig_sel.GetName()+"_sig")
+            hsig_sel.Write()
+            
 results_file.Close()

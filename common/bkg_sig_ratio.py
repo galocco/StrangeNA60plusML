@@ -47,9 +47,7 @@ T = params['T']
 EFF = params['EFF']
 SIGMA = params['SIGMA']
 
-CENT_CLASSES = params['CENTRALITY_CLASS']
 PT_BINS = params['PT_BINS']
-CT_BINS = params['CT_BINS']
 
 COLUMNS = params['TRAINING_COLUMNS']
 MODEL_PARAMS = params['XGBOOST_PARAMS']
@@ -81,10 +79,9 @@ results_dir = os.environ[f'HYPERML_RESULTS_{N_BODY}']
 
 ###############################################################################
 file_name = f"../Results/2Body/{FILE_PREFIX}_results_fit.root"
-inDirName = f'{CENT_CLASSES[0][0]}-{CENT_CLASSES[0][1]}'
+inDirName = '0-5'
 input_file = TFile(file_name)
-h2BDTEff = input_file.Get(f'{inDirName}/BDTeff')
-h1BDTEff = h2BDTEff.ProjectionX("bdteff", 1, h2BDTEff.GetNbinsY()+1)
+h1BDTEff = input_file.Get(f'{inDirName}/BDTeff')
 if CUSTOM:
     print("insert custom bdt efficiencies:")
     best_sig_eff = []
@@ -112,7 +109,7 @@ for model in BKG_MODELS:
     for index in range(0,len(best_sig_eff)):
 
         dir_name = f'{inDirName}/pt_{PT_BINS[index]}{PT_BINS[index+1]}/'
-        obj_name = f'ct0100_pT{PT_BINS[index]}{PT_BINS[index+1]}_cen05_eff{best_sig_eff[index]:.2f}'
+        obj_name = f'pT{PT_BINS[index]}{PT_BINS[index+1]}_eff{best_sig_eff[index]:.2f}'
 
         histo = input_file.Get(dir_name+f'{model}/'+obj_name)
         lineshape = histo.GetFunction("fitTpl")

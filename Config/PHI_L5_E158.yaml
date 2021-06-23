@@ -12,7 +12,7 @@ SIGMA: 0.003
 CENTRALITY_CLASS: 
   - [0, 5]
 CT_BINS: [0, 100]
-PT_BINS: [0,0.5,1.,1.5,2,2.5]
+PT_BINS: [2., 3.]
 
 BKG_MODELS: ['expo', 'pol1', 'pol2']
 
@@ -27,7 +27,7 @@ DATA_PATH: ['../Data/PHI_L5_E158/fntBkg_PHI_Full_L5_E158_Data.root']
 EVENT_PATH: ['../Data/PHI_L5_E158/Bkg-histos_PHI_L5_E158_Data.root']
 EVENT_PATH_FULL: ['../Data/PHI_L5_E158/Bkg-histos_PHI_Full_L5_E158_Data.root']
 
-PRESELECTION: (cosp > 0.999 or cosp < -0.999) and pt < 2.5 and dca < 0.07
+PRESELECTION: dist < 1.4 and d0prod < 0.09 and d0prod > -0.09 and dca < 0.016 and thetad > 0.97  and arm < 0.3 and arm > -0.3
 
 LARGE_DATA: True
 GAUSS: False
@@ -43,14 +43,21 @@ XGBOOST_PARAMS:
   tree_method: hist
 
 HYPERPARAMS:
-  max_depth: 7
-  learning_rate: 0.167
-  n_estimators: 83
-  gamma: 0.525
-  min_child_weight: 9.82
-  subsample: 0.89
-  colsample_bytree: 0.64
+  #max_depth: 7
+  #learning_rate: 0.167
+  #n_estimators: 83
+  #gamma: 0.525
+  #min_child_weight: 9.82
+  #subsample: 0.89
+  #colsample_bytree: 0.64
   seed : 42
+  max_depth: 8
+  learning_rate: 0.186
+  n_estimators: 477
+  gamma: 0.337
+  min_child_weight: 1.71
+  subsample: 0.89
+  colsample_bytree: 0.74
 
 HYPERPARAMS_RANGE: #TODO: check if it works without tuples
   # booster parameters
@@ -66,11 +73,11 @@ HYPERPARAMS_RANGE: #TODO: check if it works without tuples
 
 TRAINING_COLUMNS: 
   - cosp
-  - ct
+  - dist
   - dca
   - d0prod
   - d01 
   - d02
   - ptMin
   #- thetad
-  #- rapidity
+  - rapidity

@@ -1,31 +1,36 @@
 NBODY: 2
-FILE_PREFIX: 'K0S_L5_E40_analysis'
+FILE_PREFIX: 'PHI_L10_E158_analysis_z40'
 
-PDG: 310
-EINT: 40
-MULTIPLICITY: 39.15
-BRATIO: 0.692
-T: 0.22745
-EFF: 0.0758
-SIGMA: 0.002
+PDG: 333
+EINT: 158
+MULTIPLICITY: 8.46
+BRATIO: 0.489
+T: 0.298
+EFF: 0.528
+SIGMA: 0.003
 
-PT_BINS: [0, 2.]
+CENTRALITY_CLASS: 
+  - [0, 5]
+CT_BINS: [0, 100]
+PT_BINS: [0,0.5,1.,1.5,2.,2.5]
 
 BKG_MODELS: ['expo', 'pol1', 'pol2']
 
-BDT_EFFICIENCY: [0.20, 1., 0.01] ##min, max ,step
+BDT_EFFICIENCY: [0.01, 1.00, 0.01] ##min, max ,step
 
-MC_PATH: ../Data/K0S_L5_E40/fntSig_K0s_L5_E40_TS.root
-BKG_PATH: ../Data/K0S_L5_E40/fntBkg_K0s_L5_E40_TS.root
-MC_PATH_FULL: ../Data/K0S_L5_E40/fntBkg_K0s_Full_L5_E40_TS.root
-DATA_SIG_PATH: ['../Data/K0S_L5_E40/fntSig_K0s_L5_E40_Data.root']
-DATA_BKG_PATH: ['../Data/K0S_L5_E40/fntBkg_K0s_L5_E40_Data.root']
-DATA_PATH: ['../Data/K0S_L5_E40/fntBkg_K0s_Full_L5_E40_Data.root']
-EVENT_PATH: ['../Data/K0S_L5_E40/Bkg-histos_K0s_L5_E40_Data.root']
-EVENT_PATH_FULL: ['../Data/K0S_L5_E40/Bkg-histos_K0s_Full_L5_E40_Data.root']
+MC_PATH: ../Data/PHI_L10_E158_z40/fntSig_tof_158_40.root
+BKG_PATH: ../Data/PHI_L10_E158_z40/fntBkg_tof_158_40.root
+MC_PATH_FULL: ../Data/PHI_L10_E158_z40/fntBkg_tof_158_train.root
+DATA_SIG_PATH: ['../Data/PHI_L10_E158_z40/fntSig_tof_158_40.root']
+DATA_BKG_PATH: ['../Data/PHI_L10_E158_z40/fntBkg_tof_158_40.root']
+DATA_PATH: ['../Data/PHI_L10_E158_z40/fntBkg_tof_158_40.root']
+EVENT_PATH: ['../Data/PHI_L10_E158_z40/Bkg-histos_tof_158_40.root']
+EVENT_PATH_FULL: ['../Data/PHI_L10_E158_z40/Bkg-histos_tof_158_40.root']
 
-PRESELECTION: cosp > 0.99
 
+PRESELECTION: ptMin > 1 and ptMax > 1 > ct #and nsigma1 < 3 and nsigma2 < 3 and nsigma1 > -3 and nsigma2 > -3
+
+LARGE_DATA: True
 GAUSS: False
 
 XGBOOST_PARAMS:
@@ -63,9 +68,5 @@ HYPERPARAMS_RANGE: #TODO: check if it works without tuples
 TRAINING_COLUMNS: 
   - cosp
   - dist
-  - dca
-  - d0prod
-  - d01 
-  - d02
-  - ptMin
-  - rapidity
+  - nsigma1
+  - nsigma2

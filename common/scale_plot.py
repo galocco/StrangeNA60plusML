@@ -34,9 +34,7 @@ with open(os.path.expandvars(args.config), 'r') as stream:
 FILE_PREFIX = params['FILE_PREFIX']
 EINT = pu.get_sNN(params['EINT'])
 
-CENT_CLASSES = params['CENTRALITY_CLASS']
 PT_BINS = params['PT_BINS']
-CT_BINS = params['CT_BINS']
 
 BKG_MODELS = params['BKG_MODELS']
 
@@ -78,7 +76,7 @@ for split in SPLIT_LIST:
         results_file = TFile(file_name)
 
         cv = TCanvas("cv","cv")
-        histo = results_file.Get(f'0-5/pt_{ptbin[0]}{ptbin[1]}/pol2/ct0100_pT{ptbin[0]}{ptbin[1]}_cen05_eff{best_sig_eff[sig_index]:.2f}{split}')
+        histo = results_file.Get(f'0-5/pt_{ptbin[0]}{ptbin[1]}/pol2/pT{ptbin[0]}{ptbin[1]}_eff{best_sig_eff[sig_index]:.2f}{split}')
         lineshape = histo.GetFunction("fitTpl")
         parameter = []
         for par_index in range(0,6):
@@ -145,10 +143,10 @@ for split in SPLIT_LIST:
         pinfo2.SetTextAlign(30+3)
         pinfo2.SetTextFont(42)
 
-        string = 'Pb-Pb #sqrt{s_{NN}} = '+f'{EINT} GeV, centrality {0}-{5}%'
+        string = 'Pb-Pb #sqrt{s_{NN}} = '+f'{EINT} GeV, centrality 0-5%'
         pinfo2.AddText(string)
 
-        string = '0 #leq #it{ct} < 100 cm, '+f'{ptbin[0]:.1f}'+' #leq #it{p}_{T} < '+f'{ptbin[1]:.1f}'+' GeV/#it{c} '
+        string = f'{ptbin[0]:.1f}'+' #leq #it{p}_{T} < '+f'{ptbin[1]:.1f}'+' GeV/#it{c} '
         pinfo2.AddText(string)
 
         string = f'Significance ({nsigma:.0f}#sigma) {signif:.1f}'

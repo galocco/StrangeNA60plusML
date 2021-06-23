@@ -23,11 +23,11 @@ BKG_PATH: ../Data/K0S_L10_E40/fntBkg_K0s_L10_E40_TS.root
 MC_PATH_FULL: ../Data/K0S_L10_E40/fntBkg_K0s_Full_L10_E40_TS.root
 DATA_SIG_PATH: ['../Data/K0S_L10_E40/fntSig_K0s_L10_E40_Data.root']
 DATA_BKG_PATH: ['../Data/K0S_L10_E40/fntBkg_K0s_L10_E40_Data.root']
-DATA_PATH: ['../Data/K0S_L10_E40/fntBkg_K0s_Full_L10_E40.root']
+DATA_PATH: ['../Data/K0S_L10_E40/fntBkg_K0s_Full_L10_E40_Data.root']
 EVENT_PATH: ['../Data/K0S_L10_E40/Bkg-histos_K0s_L10_E40_Data.root']
-EVENT_PATH_FULL: ['../Data/K0S_L10_E40/Bkg-histos_K0s_Full_L10_E40.root']
+EVENT_PATH_FULL: ['../Data/K0S_L10_E40/Bkg-histos_K0s_Full_L10_E40_Data.root']
 
-PRESELECTION: cosp > 0.999
+PRESELECTION: cosp > 0.99
 
 LARGE_DATA: True
 GAUSS: False
@@ -68,8 +68,8 @@ TRAINING_COLUMNS:
   - cosp
   - dist
   - dca
-  - rapidity
   - d0prod
-  - d01
+  - d01 
   - d02
   - ptMin
+  - rapidity

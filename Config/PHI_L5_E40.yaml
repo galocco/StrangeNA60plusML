@@ -6,28 +6,27 @@ EINT: 40
 MULTIPLICITY: 2.55
 BRATIO: 0.489
 T: 0.244
-EFF: 0.528
-SIGMA: 0.003
+EFF: 0.191 #0.528
+SIGMA: 0.0025
 
 CENTRALITY_CLASS: 
   - [0, 5]
 CT_BINS: [0, 100]
-PT_BINS: [0,0.5,1,1.5,2, 2.5]
-
+PT_BINS: [0, 3.]
 BKG_MODELS: ['expo', 'pol1', 'pol2']
 
-BDT_EFFICIENCY: [0.01, 1.00, 0.01] ##min, max ,step
+BDT_EFFICIENCY: [0.01, 0.99, 0.01] ##min, max ,step
 
 MC_PATH: ../Data/PHI_L5_E40/fntSig_PHI_L5_E40_TS.root
 BKG_PATH: ../Data/PHI_L5_E40/fntBkg_PHI_L5_E40_TS.root
 MC_PATH_FULL: ../Data/PHI_L5_E40/fntBkg_PHI_Full_L5_E40_TS.root
-DATA_SIG_PATH: ['../Data/PHI_L5_E40/fntSig_PHI_L5_E40_Data.root']
-DATA_BKG_PATH: ['../Data/PHI_L5_E40/fntBkg_PHI_L5_E40_Data.root']
+DATA_SIG_PATH: ['../Data/PHI_L5_E40/fntSig_PHI_L5_E40_Data.root','../Data/PHI_L5_E40/fntSig_PHI_L5_E40_Data.root','../Data/PHI_L5_E40/fntSig_PHI_L5_E40_Data.root','../Data/PHI_L5_E40/fntSig_PHI_L5_E40_Data.root','../Data/PHI_L5_E40/fntSig_PHI_L5_E40_Data.root']
+DATA_BKG_PATH: ['../Data/PHI_L5_E40/fntBkg_PHI_L5_E40_Data_0.root','../Data/PHI_L5_E40/fntBkg_PHI_L5_E40_Data_1.root','../Data/PHI_L5_E40/fntBkg_PHI_L5_E40_Data_2.root','../Data/PHI_L5_E40/fntBkg_PHI_L5_E40_Data_3.root','../Data/PHI_L5_E40/fntBkg_PHI_L5_E40_Data_4.root']
 DATA_PATH: ['../Data/PHI_L5_E40/fntBkg_PHI_Full_L5_E40_Data.root']
-EVENT_PATH: ['../Data/PHI_L5_E40/Bkg-histos_PHI_L5_E40_Data.root']
+EVENT_PATH: ['../Data/PHI_L5_E40/Bkg-histos_PHI_L5_E40_Data_0.root','../Data/PHI_L5_E40/Bkg-histos_PHI_L5_E40_Data_1.root','../Data/PHI_L5_E40/Bkg-histos_PHI_L5_E40_Data_2.root','../Data/PHI_L5_E40/Bkg-histos_PHI_L5_E40_Data_3.root','../Data/PHI_L5_E40/Bkg-histos_PHI_L5_E40_Data_4.root']
 EVENT_PATH_FULL: ['../Data/PHI_L5_E40/Bkg-histos_PHI_Full_L5_E40_Data.root']
 
-PRESELECTION: pt<2.5
+PRESELECTION: 'pt > 0.9 and thetad > 0.005 and thetad < 0.15' #and rapidity > 2.9 and rapidity < 3.7 and thetad < 0.999999996 and thetad > 0.999996573' #dist<1 and d0prod < 0.1 and d0prod > -0.1 and dca< 0.018 and thetad > 0.999 and arm < 0.8 and arm > -0.8
 
 LARGE_DATA: True
 GAUSS: False
@@ -66,11 +65,14 @@ HYPERPARAMS_RANGE: #TODO: check if it works without tuples
 
 TRAINING_COLUMNS: 
   - cosp
-  - ct
+  #- ct
+  - dist
   - dca
-  - d0prod
-  - d01 
-  - d02
-  - ptMin
-  #- thetad
   #- rapidity
+  - d0prod
+  #- d01
+  #- d02
+  - ptMin
+  #- arm
+  #- ptMax
+  #- ipD
