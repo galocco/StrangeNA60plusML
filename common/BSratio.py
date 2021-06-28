@@ -23,7 +23,6 @@ parser.add_argument('config', help='Path to the YAML configuration file')
 parser.add_argument('-split', '--split', help='Run with matter and anti-matter splitted', action='store_true')
 parser.add_argument('-m', '--merged', help='Run on the merged histograms', action='store_true')
 parser.add_argument('-p', '--peak', help='Take signal from the gaussian fit', action='store_true')
-parser.add_argument('-f', '--full', help='Run the analysis on the full simulation', action='store_true')
 args = parser.parse_args()
 
 with open(os.path.expandvars(args.config), 'r') as stream:
@@ -54,7 +53,6 @@ BKG_MODELS = params['BKG_MODELS']
 SPLIT_MODE = args.split
 PEAK_MODE = args.peak
 MERGED = args.merged
-FULL_SIM = args.full
 if SPLIT_MODE:
     SPLIT_LIST = ['_matter', '_antimatter']
 else:
@@ -81,16 +79,11 @@ pt_spectrum = TF1("fpt", "x*exp(-TMath::Sqrt(x**2+[0]**2)/[1])", 0, 100)
 pt_spectrum.FixParameter(0, mass)
 pt_spectrum.FixParameter(1, T)
 n_events = 0
-for index in range(0, len(params['EVENT_PATH']) if FULL_SIM else len(params['EVENT_PATH'])):
-    if FULL_SIM:
-        event_path = os.path.expandvars(params['EVENT_PATH_FULL'][index])
-    else:
-        event_path = os.path.expandvars(params['EVENT_PATH'][index])
+for index in range(0, len(params['EVENT_PATH'])):
+    event_path = os.path.expandvars(params['EVENT_PATH'][index])
     background_file = TFile(event_path)
     hist_ev = background_file.Get('hNevents')
     n_events += hist_ev.GetBinContent(1)
-#ct_spectrum = TF1("fct","exp(-x/[0])",0,100)
-#ct_spectrum.FixParameter()
 nsigma = 3
 print("n_events: ",n_events)
 for split in SPLIT_LIST:

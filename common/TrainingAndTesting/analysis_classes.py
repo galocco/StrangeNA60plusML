@@ -19,61 +19,37 @@ from array import array
 
 class TrainingAnalysis:
 
-    def __init__(self, pdg_code, mode, mc_file_name, bkg_file_name, split = '', full_sim = False, entrystop=10000000, preselection=''):
-        self.mode = mode
+    def __init__(self, pdg_code, mc_file_name, bkg_file_name, split = '', entrystop=10000000, preselection=''):
         self.mass = ROOT.TDatabasePDG.Instance().GetParticle(pdg_code).Mass()
-        self.lifetime = ROOT.TDatabasePDG.Instance().GetParticle(pdg_code).Lifetime()*1e+12 #lifetime in ps
-        if self.lifetime == 0:
+        if pdg_code == 310: #K0s
             self.lifetime = 89.54# ps
+        elif pdg_code == 3122: #Lambda
+            self.lifetime = 263.2# ps
+        elif pdg_code == 3334: #Omega
+            self.lifetime = 82.1# ps
+        elif pdg_code == 3312: #Xi
+            self.lifetime = 163.9# ps
+        else:
+            self.lifetime = ROOT.TDatabasePDG.Instance().GetParticle(pdg_code).Lifetime()*1e+12 #lifetime in ps
 
         print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
         print('\nStarting BDT training and testing ')
         print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
         
-        if full_sim:
-            if self.mode == 3:
-                self.df_signal = uproot.open(mc_file_name)['ntcand'].arrays(library='pd').query(preselection)
-                preselection = ' and ' + preselection
-                self.df_generated = uproot.open(mc_file_name)['ntgen'].arrays(library='pd')
-                self.df_bkg = uproot.open(bkg_file_name)['ntcand'].arrays(library='pd',entry_stop=entrystop).query("true < 0.5" + preselection)
-                    
-            if self.mode == 2:
-                self.df_signal = uproot.open(bkg_file_name)['ntcand'].arrays(library='pd').query(preselection)
-                #self.df_signal = uproot.open(bkg_file_name)['ntcand'].arrays(library='pd',entry_stop=entrystop).query("true > 0.5 and " + preselection)
-                preselection = ' and ' + preselection
-                self.df_generated = uproot.open(mc_file_name)['ntgen'].arrays(library='pd')
-                self.df_bkg = uproot.open(bkg_file_name)['ntcand'].arrays(library='pd',entry_stop=entrystop).query("true < 0.5" + preselection)
-                
-            if split == '_antimatter':
-                self.df_bkg = self.df_bkg.query('ArmenterosAlpha < 0 and true < 0.5')
-                self.df_signal = self.df_signal.query('ArmenterosAlpha < 0')
-                self.df_generated = self.df_generated.query('matter < 0.5')
+        self.df_signal = uproot.open(mc_file_name)['ntcand'].arrays(library='pd').query(preselection)
+        preselection = ' and ' + preselection
+        self.df_generated = uproot.open(mc_file_name)['ntgen'].arrays(library='pd')
+        self.df_bkg = uproot.open(bkg_file_name)['ntcand'].arrays(library='pd',entry_stop=entrystop).query("true < 0.5" + preselection)
+            
+        if split == '_antimatter':
+            self.df_bkg = self.df_bkg.query('ArmenterosAlpha < 0 and true < 0.5')
+            self.df_signal = self.df_signal.query('ArmenterosAlpha < 0')
+            self.df_generated = self.df_generated.query('matter < 0.5')
 
-            if split == '_matter':
-                self.df_bkg = self.df_bkg.query('ArmenterosAlpha > 0 and true < 0.5')
-                self.df_signal = self.df_signal.query('ArmenterosAlpha > 0')
-                self.df_generated = self.df_generated.query('matter > 0.5')
-        
-        else:
-            if self.mode == 3:
-                self.df_signal = uproot.open(mc_file_name)['ntcand'].arrays(library='pd').query(preselection)
-                self.df_generated = uproot.open(mc_file_name)['ntgen'].arrays(library='pd').query(preselection)
-                self.df_bkg = uproot.open(bkg_file_name)['ntcand'].arrays(library='pd',entry_stop=entrystop)
-                    
-            if self.mode == 2:
-                self.df_signal = uproot.open(mc_file_name)['ntcand'].arrays(library='pd').query(preselection)
-                self.df_generated = uproot.open(mc_file_name)['ntgen'].arrays(library='pd')
-                self.df_bkg = uproot.open(bkg_file_name)['ntcand'].arrays(library='pd',entry_stop=entrystop).query(preselection)
-
-            if split == '_antimatter':
-                self.df_bkg = self.df_bkg.query('ArmenterosAlpha < 0')
-                self.df_signal = self.df_signal.query('ArmenterosAlpha < 0')
-                self.df_generated = self.df_generated.query('matter < 0.5')
-
-            if split == '_matter':
-                self.df_bkg = self.df_bkg.query('ArmenterosAlpha > 0')
-                self.df_signal = self.df_signal.query('ArmenterosAlpha > 0')
-                self.df_generated = self.df_generated.query('matter > 0.5')
+        if split == '_matter':
+            self.df_bkg = self.df_bkg.query('ArmenterosAlpha > 0 and true < 0.5')
+            self.df_signal = self.df_signal.query('ArmenterosAlpha > 0')
+            self.df_generated = self.df_generated.query('matter > 0.5')
 
         self.df_signal['y'] = 1
         self.df_bkg['y'] = 0
@@ -93,7 +69,7 @@ class TrainingAnalysis:
         pres_histo.Divide(gen_histo)
 
         if save:
-            path = os.environ['HYPERML_EFFICIENCIES_{}'.format(self.mode)]
+            path = os.environ['HYPERML_EFFICIENCIES']
 
             filename = path + f'/PreselEff{split}{suffix}.root'
             t_file = ROOT.TFile(filename, 'recreate')
@@ -124,9 +100,9 @@ class TrainingAnalysis:
     def save_ML_analysis(self, model_handler, eff_score_array, pt_range, training_columns, split='', suffix=''):
         info_string = f'_{pt_range[0]}{pt_range[1]}{split}'
 
-        models_path = os.environ['HYPERML_MODELS_{}'.format(self.mode)]+'/models'
-        handlers_path = os.environ['HYPERML_MODELS_{}'.format(self.mode)]+'/handlers'
-        efficiencies_path = os.environ['HYPERML_EFFICIENCIES_{}'.format(self.mode)]
+        models_path = os.environ['HYPERML_MODELS']+'/models'
+        handlers_path = os.environ['HYPERML_MODELS']+'/handlers'
+        efficiencies_path = os.environ['HYPERML_EFFICIENCIES']
 
         if not os.path.exists(models_path):
             os.makedirs(models_path)
@@ -141,18 +117,12 @@ class TrainingAnalysis:
         
         model_handler.dump_model_handler(filename_handler)
         model_handler.dump_original_model(filename_model, xgb_format=True)
-        dump = model_handler.model.get_booster().get_dump()
-        
-        variables = []
-        for column in training_columns: 
-            variables.append((column,'F'))
-        au.convert_model(dump,variables,filename_model_tmva)
         np.save(filename_efficiencies, eff_score_array)
 
         print('ML analysis results saved.\n')
 
     def save_ML_plots(self, model_handler, data, eff_score_array, pt_range, split='', suffix=''):
-        fig_path = os.environ['HYPERML_FIGURES_{}'.format(self.mode)]
+        fig_path = os.environ['HYPERML_FIGURES']
         info_string = f'_{pt_range[0]}{pt_range[1]}{split}'
 
         bdt_score_dir = fig_path + '/TrainTest'
@@ -183,35 +153,28 @@ class TrainingAnalysis:
 
 class ModelApplication:
 
-    def __init__(self, pdg_code, multiplicity, branching_ratio, eff, mode, data_sig_filename, data_bkg_filename, event_filename, split, full_sim, preselection = "",hsparse=0):
+    def __init__(self, pdg_code, multiplicity, branching_ratio, event_filename, preselection = "",hsparse=0):
 
         print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
         print('\nStarting BDT appplication and signal extraction')
 
-        self.mode = mode
         self.mass = ROOT.TDatabasePDG.Instance().GetParticle(pdg_code).Mass()
         self.lifetime = ROOT.TDatabasePDG.Instance().GetParticle(pdg_code).Lifetime()*1e+12 #lifetime in ps
         if self.lifetime == 0:
             self.lifetime = 89.54# ps
         self.multiplicity = multiplicity
         self.branching_ratio = branching_ratio
-        self.eff = eff
-        print("lifetime: ",self.lifetime)
-        print("mass: ",self.mass)
-
         background_file = ROOT.TFile(event_filename,"read")
         hist_ev = background_file.Get('hNevents')
         self.n_events = hist_ev.GetBinContent(1)
-        background_file.Close()
-        nsig = int(self.multiplicity*self.eff*self.n_events*self.branching_ratio)
-        print("nsig: ",nsig)        
+        background_file.Close()     
         self.hnsparse = hsparse
         print('\nNumber of events: ', self.n_events)
 
         print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
 
     def load_preselection_efficiency(self, split, suffix = ''):
-        efficiencies_path = os.environ['HYPERML_EFFICIENCIES_{}'.format(self.mode)]
+        efficiencies_path = os.environ['HYPERML_EFFICIENCIES']
         filename_efficiencies = efficiencies_path + f'/PreselEff{split}{suffix}.root'
 
         tfile = ROOT.TFile(filename_efficiencies)
@@ -225,8 +188,8 @@ class ModelApplication:
 
         info_string = f'_{pt_range[0]}{pt_range[1]}{split}'
 
-        handlers_path = os.environ['HYPERML_MODELS_{}'.format(self.mode)] + '/handlers'
-        efficiencies_path = os.environ['HYPERML_EFFICIENCIES_{}'.format(self.mode)]
+        handlers_path = os.environ['HYPERML_MODELS'] + '/handlers'
+        efficiencies_path = os.environ['HYPERML_EFFICIENCIES']
 
         filename_handler = handlers_path + '/model_handler_' + suffix + info_string + '.pkl'
         filename_efficiencies = efficiencies_path + '/Eff_Score_' + suffix + info_string + '.npy'
@@ -244,11 +207,11 @@ class ModelApplication:
     def load_sigma_array(self, pt_range, split=''):
 
         info_string = '_{}{}{}'.format(pt_range[0], pt_range[1], split)
-        sigma_path = os.environ['HYPERML_UTILS_{}'.format(self.mode)]+'/FixedSigma'
+        sigma_path = os.environ['HYPERML_UTILS']+'/FixedSigma'
         filename_sigma = sigma_path + "/sigma_array" + info_string + '.npy'
         return np.load(filename_sigma)
 
-    def significance_scan(self, pre_selection_efficiency, eff_score_array, pt_range, pt_spectrum, split='', mass_bins=40, custom = False, suffix = '', sigma_mass = 2):
+    def significance_scan(self, pre_selection_efficiency, eff_score_array, pt_range, pt_spectrum, split='', custom = False, suffix = '', sigma_mass = 2):
         print('\nSignificance scan: ...')
 
         hist_range = [self.mass*0.97, self.mass*1.03]
@@ -260,9 +223,6 @@ class ModelApplication:
         expected_signal = []
         significance = []
         significance_error = []
-        significance_custom = []
-        significance_custom_error = []
-        
         for index, tsd in enumerate(threshold_space):
             histo_name = f'score{tsd:.2f}'
             h1_minv = au.h1_from_sparse(self.hnsparse, pt_range, tsd, name=histo_name)
@@ -297,11 +257,11 @@ class ModelApplication:
 
         max_index = np.argmax(significance)
         max_score = threshold_space[max_index]
-        max_significance = significance[max_index]
+        #max_significance = significance[max_index]
         data_range_array = [pt_range[0], pt_range[1]]
         pu.plot_significance_scan_root(
             max_index, significance, significance_error, expected_signal, self.hnsparse, threshold_space,
-            data_range_array, self.n_events, self.mode, split, self.mass, custom, suffix, sigma_mass)
+            data_range_array, self.n_events, split, self.mass, custom, suffix, sigma_mass)
 
         bdt_eff_max_score = bdt_efficiency[max_index]
 
@@ -310,9 +270,9 @@ class ModelApplication:
         # return max_score, bdt_eff_max_score, max_significance
         return bdt_eff_max_score, max_score
 
-def load_mcsigma(cent_class, pt_range, ct_range, mode, split=''):
+def load_mcsigma(cent_class, pt_range, ct_range, split=''):
     info_string = f'_{cent_class[0]}{cent_class[1]}_{pt_range[0]}{pt_range[1]}_{ct_range[0]}{ct_range[1]}{split}'
-    sigma_path = os.environ['HYPERML_UTILS_{}'.format(mode)] + '/FixedSigma'
+    sigma_path = os.environ['HYPERML_UTILS'] + '/FixedSigma'
 
     file_name = f'{sigma_path}/sigma_array{info_string}.npy'
 

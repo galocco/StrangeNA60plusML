@@ -34,7 +34,6 @@ with open(os.path.expandvars(args.config), 'r') as stream:
 
 ###############################################################################
 # define analysis global variables
-N_BODY = params['NBODY']
 PDG_CODE = params['PDG']
 FILE_PREFIX = params['FILE_PREFIX']
 MULTIPLICITY = params['MULTIPLICITY']
@@ -57,11 +56,11 @@ if SPLIT_MODE:
 else:
     SPLIT_LIST = ['']
 
-LABELS = [f'{x:.2f}_{y}' for x in FIX_EFF_ARRAY for y in BKG_MODELS]
+LABELS = [f'{x:.3f}_{y}' for x in FIX_EFF_ARRAY for y in BKG_MODELS]
 
 ###############################################################################
 # define paths for loading results
-results_dir = os.environ['HYPERML_RESULTS_{}'.format(N_BODY)]
+results_dir = os.environ['HYPERML_RESULTS']
 
 input_file_name = results_dir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_results_merged.root' if MERGED else results_dir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_results.root'
 input_file = TFile(input_file_name, 'read')
@@ -112,20 +111,20 @@ for split in SPLIT_LIST:
 
             # loop over all the histo in the dir
             for key in input_subdir.GetListOfKeys():
-                keff = key.GetName()[-4:]
+                keff = key.GetName()[-5:]
                 
                 hist = TH1D(key.ReadObj())
                 hist.SetDirectory(0)
 
                 if key == input_subdir.GetListOfKeys()[0] and bkgmodel=="pol2":
-                    rawcounts, err_rawcounts, significance, err_significance, mu, mu_err, sigma, sigma_err = au.fit_hist(hist, ptbin, mass, model=bkgmodel, mode=N_BODY, Eint=EINT, peak_mode=PEAK_MODE, gauss=GAUSS)
+                    rawcounts, err_rawcounts, significance, err_significance, mu, mu_err, sigma, sigma_err = au.fit_hist(hist, ptbin, mass, model=bkgmodel, Eint=EINT, peak_mode=PEAK_MODE, gauss=GAUSS)
                     mean_fit.append(mu)
                     mean_fit_error.append(mu_err)
                     sigma_fit.append(sigma)
                     sigma_fit_error.append(sigma_err)
                     
                 else:
-                    rawcounts, err_rawcounts, significance, err_significance, _, _, _, _ = au.fit_hist(hist, ptbin, mass, model=bkgmodel, mode=N_BODY, Eint=EINT, peak_mode=PEAK_MODE, gauss=GAUSS)
+                    rawcounts, err_rawcounts, significance, err_significance, _, _, _, _ = au.fit_hist(hist, ptbin, mass, model=bkgmodel, Eint=EINT, peak_mode=PEAK_MODE, gauss=GAUSS)
 
                 dict_key = f'{keff}_{bkgmodel}'
 

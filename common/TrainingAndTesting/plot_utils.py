@@ -33,7 +33,7 @@ kYellowC = ROOT.TColor.GetColor('#ffe119')
 kYellowCT = ROOT.TColor.GetColorTransparent(kYellowC, 0.5)
 
 
-def plot_efficiency_significance(mode, tsd, significance, efficiency, data_range_array):
+def plot_efficiency_significance(tsd, significance, efficiency, data_range_array):
     fig, ax1 = plt.subplots()
 
     color = 'tab:blue'
@@ -53,8 +53,7 @@ def plot_efficiency_significance(mode, tsd, significance, efficiency, data_range
 
     fig.tight_layout()
 
-    fig_eff_path = os.environ['HYPERML_FIGURES_{}'.format(
-        mode)]+'/Significance'
+    fig_eff_path = os.environ['HYPERML_FIGURES']+'/Significance'
     if not os.path.exists(fig_eff_path):
         os.makedirs(fig_eff_path)
 
@@ -67,7 +66,7 @@ def plot_efficiency_significance(mode, tsd, significance, efficiency, data_range
 
 def plot_significance_scan_root(
         max_index, significance, significance_error, expected_signal, hnsparse, score_list, data_range_array,
-        n_ev, mode, split, mass, custom = False, suffix = '', sigma_mass=0.005):
+        n_ev, split, mass, custom = False, suffix = '', sigma_mass=0.005):
 
     if custom:
         label = 'Significance x Efficiency'
@@ -168,8 +167,7 @@ def plot_significance_scan_root(
         split,
         suffix)
 
-    fig_sig_path = os.environ['HYPERML_FIGURES_{}'.format(
-        mode)]+'/Significance'
+    fig_sig_path = os.environ['HYPERML_FIGURES']+'/Significance'
     if not os.path.exists(fig_sig_path):
         os.makedirs(fig_sig_path)
 
@@ -185,7 +183,7 @@ def plot_significance_scan_root(
 
 def plot_significance_scan(
         max_index, significance, significance_error, expected_signal, bkg_df, score_list, data_range_array,
-        n_ev, mode, split='', mass_bins=40, mass = 2.992, hist_range = [2.96,3.04], custom = False, suffix = '', sigma_mass=0.005):
+        n_ev, split='', mass_bins=40, mass = 2.992, hist_range = [2.96,3.04], custom = False, suffix = '', sigma_mass=0.005):
 
     if custom:
         label = 'Significance x Efficiency'
@@ -283,8 +281,7 @@ def plot_significance_scan(
         split,
         suffix)
 
-    fig_sig_path = os.environ['HYPERML_FIGURES_{}'.format(
-        mode)]+'/Significance'
+    fig_sig_path = os.environ['HYPERML_FIGURES']+'/Significance'
     if not os.path.exists(fig_sig_path):
         os.makedirs(fig_sig_path)
 
@@ -292,7 +289,7 @@ def plot_significance_scan(
     plt.close()
 
 
-def plot_confusion_matrix(y_true, df, mode, score,
+def plot_confusion_matrix(y_true, df, score,
                           normalize=False,
                           title=None,
                           cmap=plt.cm.Blues, fig_name='confusion.pdf'):
@@ -349,7 +346,7 @@ def plot_confusion_matrix(y_true, df, mode, score,
 
     fig.tight_layout()
 
-    fig_sig_path = os.environ['HYPERML_FIGURES_{}'.format(mode)]+'/Confusion'
+    fig_sig_path = os.environ['HYPERML_FIGURES']+'/Confusion'
     if not os.path.exists(fig_sig_path):
         os.makedirs(fig_sig_path)
 

@@ -1,13 +1,13 @@
 NBODY: 2
-FILE_PREFIX: 'K0S_L10_E40_analysis'
+FILE_PREFIX: 'LAMBDA_L10_E40_analysis'
 
-PDG: 310
+PDG: 3122
 EINT: 40
 MULTIPLICITY: 39.15
 BRATIO: 0.692
 T: 0.22745
 SIGMA: 0.002
-MASS_WINDOW: 0.04
+MASS_WINDOW: 0.01
 
 PT_BINS: [0, 3.]
 
@@ -15,10 +15,10 @@ BKG_MODELS: ['expo', 'pol1', 'pol2']
 
 BDT_EFFICIENCY: [0.90, 1.00, 0.001] ##min, max ,step
 
-MC_PATH: ../Data/K0S_L10_E40/fntSig_K0s_L10_E40_train.root
-BKG_PATH: ../Data/K0S_L10_E40/fntBkg_K0s_L10_E40_train.root
-DATA_PATH: ['../Data/K0S_L10_E40/fntBkg_K0s_L10_E40.root']
-EVENT_PATH: ['../Data/K0S_L10_E40/Bkg-histos_K0s_L10_E40.root']
+MC_PATH: ../Data/LAMBDA_L10_E40/fntSig_Lambda_L10_E40_train.root
+BKG_PATH: ../Data/LAMBDA_L10_E40/fntBkg_Lambda_L10_E40_train.root
+DATA_PATH: ['../Data/LAMBDA_L10_E40/fntBkg_Lambda_L10_E40.root']
+EVENT_PATH: ['../Data/LAMBDA_L10_E40/Bkg-histos_Lambda_L10_E40.root']
 
 PRESELECTION: pt < 3
 
