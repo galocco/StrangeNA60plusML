@@ -24,7 +24,6 @@ gROOT.SetBatch()
 ###############################################################################
 parser = argparse.ArgumentParser()
 parser.add_argument('-c', '--custom', help='Run with customized bdt efficiencies', action='store_true')
-parser.add_argument('-split', '--split', help='Run with matter and anti-matter splitted', action='store_true')
 parser.add_argument('config', help='Path to the YAML configuration file')
 args = parser.parse_args()
 
@@ -37,34 +36,15 @@ with open(os.path.expandvars(args.config), 'r') as stream:
 
 ###############################################################################
 # define analysis global variables
-N_BODY = params['NBODY']
 PDG_CODE = params['PDG']
 FILE_PREFIX = params['FILE_PREFIX']
-MULTIPLICITY = params['MULTIPLICITY']
-BRATIO = params['BRATIO']
-EINT = pu.get_sNN(params['EINT'])
-T = params['T']
-EFF = params['EFF']
-SIGMA = params['SIGMA']
 
 PT_BINS = params['PT_BINS']
-
-COLUMNS = params['TRAINING_COLUMNS']
-MODEL_PARAMS = params['XGBOOST_PARAMS']
-HYPERPARAMS = params['HYPERPARAMS']
-HYPERPARAMS_RANGE = params['HYPERPARAMS_RANGE']
 
 BKG_MODELS = params['BKG_MODELS']
 
 EFF_MIN, EFF_MAX, EFF_STEP = params['BDT_EFFICIENCY']
 FIX_EFF_ARRAY = np.arange(EFF_MIN, EFF_MAX, EFF_STEP)
-
-SPLIT_MODE = args.split
-
-if SPLIT_MODE:
-    SPLIT_LIST = ['_matter', '_antimatter']
-else:
-    SPLIT_LIST = ['']
 
 CUSTOM = args.custom
 
@@ -75,7 +55,7 @@ bkg_path = os.path.expandvars(params['BKG_PATH'])
 data_sig_path = os.path.expandvars(params['DATA_SIG_PATH'])
 data_bkg_path = os.path.expandvars(params['DATA_BKG_PATH'])
 event_path = os.path.expandvars(params['EVENT_PATH'])
-results_dir = os.environ[f'HYPERML_RESULTS_{N_BODY}']
+results_dir = os.environ[f'HYPERML_RESULTS']
 
 ###############################################################################
 file_name = f"../Results/2Body/{FILE_PREFIX}_results_fit.root"

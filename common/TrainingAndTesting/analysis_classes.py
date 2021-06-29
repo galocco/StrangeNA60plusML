@@ -19,7 +19,7 @@ from array import array
 
 class TrainingAnalysis:
 
-    def __init__(self, pdg_code, mc_file_name, bkg_file_name, split = '', entrystop=10000000, preselection=''):
+    def __init__(self, pdg_code, mc_file_name, bkg_file_name, entrystop=10000000, preselection=''):
         self.mass = ROOT.TDatabasePDG.Instance().GetParticle(pdg_code).Mass()
         if pdg_code == 310: #K0s
             self.lifetime = 89.54# ps
@@ -40,21 +40,11 @@ class TrainingAnalysis:
         preselection = ' and ' + preselection
         self.df_generated = uproot.open(mc_file_name)['ntgen'].arrays(library='pd')
         self.df_bkg = uproot.open(bkg_file_name)['ntcand'].arrays(library='pd',entry_stop=entrystop).query("true < 0.5" + preselection)
-            
-        if split == '_antimatter':
-            self.df_bkg = self.df_bkg.query('ArmenterosAlpha < 0 and true < 0.5')
-            self.df_signal = self.df_signal.query('ArmenterosAlpha < 0')
-            self.df_generated = self.df_generated.query('matter < 0.5')
-
-        if split == '_matter':
-            self.df_bkg = self.df_bkg.query('ArmenterosAlpha > 0 and true < 0.5')
-            self.df_signal = self.df_signal.query('ArmenterosAlpha > 0')
-            self.df_generated = self.df_generated.query('matter > 0.5')
 
         self.df_signal['y'] = 1
         self.df_bkg['y'] = 0
 
-    def preselection_efficiency(self, pt_bins, split, save=True, suffix=''):
+    def preselection_efficiency(self, pt_bins, save=True, suffix=''):
         cut  =  f'{pt_bins[0]}<=pt<={pt_bins[1]}'         
             
         pres_histo = au.h1_preselection_efficiency(pt_bins)
@@ -71,7 +61,7 @@ class TrainingAnalysis:
         if save:
             path = os.environ['HYPERML_EFFICIENCIES']
 
-            filename = path + f'/PreselEff{split}{suffix}.root'
+            filename = path + f'/PreselEff{suffix}.root'
             t_file = ROOT.TFile(filename, 'recreate')
             
             pres_histo.Write()
@@ -97,8 +87,8 @@ class TrainingAnalysis:
 
         return [train_set, y_train, test_set, y_test]
 
-    def save_ML_analysis(self, model_handler, eff_score_array, pt_range, training_columns, split='', suffix=''):
-        info_string = f'_{pt_range[0]}{pt_range[1]}{split}'
+    def save_ML_analysis(self, model_handler, eff_score_array, pt_range, suffix=''):
+        info_string = f'_{pt_range[0]}{pt_range[1]}'
 
         models_path = os.environ['HYPERML_MODELS']+'/models'
         handlers_path = os.environ['HYPERML_MODELS']+'/handlers'
@@ -112,7 +102,6 @@ class TrainingAnalysis:
 
         filename_handler = handlers_path + '/model_handler_' + suffix + info_string + '.pkl'
         filename_model = models_path + '/BDT' + suffix + info_string + '.model'
-        filename_model_tmva = models_path + '/BDT' + suffix + info_string + '.xml'
         filename_efficiencies = efficiencies_path + '/Eff_Score_'+suffix + info_string + '.npy'
         
         model_handler.dump_model_handler(filename_handler)
@@ -121,9 +110,9 @@ class TrainingAnalysis:
 
         print('ML analysis results saved.\n')
 
-    def save_ML_plots(self, model_handler, data, eff_score_array, pt_range, split='', suffix=''):
+    def save_ML_plots(self, model_handler, data, eff_score_array, pt_range, suffix=''):
         fig_path = os.environ['HYPERML_FIGURES']
-        info_string = f'_{pt_range[0]}{pt_range[1]}{split}'
+        info_string = f'_{pt_range[0]}{pt_range[1]}'
 
         bdt_score_dir = fig_path + '/TrainTest'
         bdt_eff_dir = fig_path + '/Efficiency'
@@ -153,15 +142,22 @@ class TrainingAnalysis:
 
 class ModelApplication:
 
-    def __init__(self, pdg_code, multiplicity, branching_ratio, event_filename, preselection = "",hsparse=0):
+    def __init__(self, pdg_code, multiplicity, branching_ratio, event_filename, hsparse=0):
 
         print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
         print('\nStarting BDT appplication and signal extraction')
 
         self.mass = ROOT.TDatabasePDG.Instance().GetParticle(pdg_code).Mass()
-        self.lifetime = ROOT.TDatabasePDG.Instance().GetParticle(pdg_code).Lifetime()*1e+12 #lifetime in ps
-        if self.lifetime == 0:
+        if pdg_code == 310: #K0s
             self.lifetime = 89.54# ps
+        elif pdg_code == 3122: #Lambda
+            self.lifetime = 263.2# ps
+        elif pdg_code == 3334: #Omega
+            self.lifetime = 82.1# ps
+        elif pdg_code == 3312: #Xi
+            self.lifetime = 163.9# ps
+        else:
+            self.lifetime = ROOT.TDatabasePDG.Instance().GetParticle(pdg_code).Lifetime()*1e+12 #lifetime in ps
         self.multiplicity = multiplicity
         self.branching_ratio = branching_ratio
         background_file = ROOT.TFile(event_filename,"read")
@@ -173,9 +169,9 @@ class ModelApplication:
 
         print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
 
-    def load_preselection_efficiency(self, split, suffix = ''):
+    def load_preselection_efficiency(self, suffix = ''):
         efficiencies_path = os.environ['HYPERML_EFFICIENCIES']
-        filename_efficiencies = efficiencies_path + f'/PreselEff{split}{suffix}.root'
+        filename_efficiencies = efficiencies_path + f'/PreselEff{suffix}.root'
 
         tfile = ROOT.TFile(filename_efficiencies)
 
@@ -184,9 +180,9 @@ class ModelApplication:
 
         return self.presel_histo
 
-    def load_ML_analysis(self, pt_range, split='', suffix=''):
+    def load_ML_analysis(self, pt_range, suffix=''):
 
-        info_string = f'_{pt_range[0]}{pt_range[1]}{split}'
+        info_string = f'_{pt_range[0]}{pt_range[1]}'
 
         handlers_path = os.environ['HYPERML_MODELS'] + '/handlers'
         efficiencies_path = os.environ['HYPERML_EFFICIENCIES']
@@ -204,14 +200,14 @@ class ModelApplication:
     def get_preselection_efficiency(self, ptbin_index):
         return self.presel_histo.GetBinContent(ptbin_index)
 
-    def load_sigma_array(self, pt_range, split=''):
+    def load_sigma_array(self, pt_range):
 
         info_string = '_{}{}{}'.format(pt_range[0], pt_range[1], split)
         sigma_path = os.environ['HYPERML_UTILS']+'/FixedSigma'
         filename_sigma = sigma_path + "/sigma_array" + info_string + '.npy'
         return np.load(filename_sigma)
 
-    def significance_scan(self, pre_selection_efficiency, eff_score_array, pt_range, pt_spectrum, split='', custom = False, suffix = '', sigma_mass = 2):
+    def significance_scan(self, pre_selection_efficiency, eff_score_array, pt_range, pt_spectrum, custom = False, suffix = '', sigma_mass = 2):
         print('\nSignificance scan: ...')
 
         hist_range = [self.mass*0.97, self.mass*1.03]
@@ -237,9 +233,6 @@ class ModelApplication:
                 pt_spectrum, self.multiplicity, self.branching_ratio, pt_range, pre_selection_efficiency * bdt_efficiency[index],
                 self.n_events)
 
-            if split != '':
-                exp_signal = 0.5 * exp_signal            
-
             exp_background = fit_tpl.Integral(peak_range[0], peak_range[1])
             expected_signal.append(exp_signal)
 
@@ -259,9 +252,9 @@ class ModelApplication:
         max_score = threshold_space[max_index]
         #max_significance = significance[max_index]
         data_range_array = [pt_range[0], pt_range[1]]
-        pu.plot_significance_scan_root(
+        pu.plot_significance_scan_hsp(
             max_index, significance, significance_error, expected_signal, self.hnsparse, threshold_space,
-            data_range_array, self.n_events, split, self.mass, custom, suffix, sigma_mass)
+            data_range_array, self.mass, custom, suffix, sigma_mass)
 
         bdt_eff_max_score = bdt_efficiency[max_index]
 
@@ -271,7 +264,7 @@ class ModelApplication:
         return bdt_eff_max_score, max_score
 
 def load_mcsigma(cent_class, pt_range, ct_range, split=''):
-    info_string = f'_{cent_class[0]}{cent_class[1]}_{pt_range[0]}{pt_range[1]}_{ct_range[0]}{ct_range[1]}{split}'
+    info_string = f'_{cent_class[0]}{cent_class[1]}_{pt_range[0]}{pt_range[1]}_{ct_range[0]}{ct_range[1]}'
     sigma_path = os.environ['HYPERML_UTILS'] + '/FixedSigma'
 
     file_name = f'{sigma_path}/sigma_array{info_string}.npy'

@@ -28,9 +28,8 @@ with open(os.path.expandvars(args.config), 'r') as stream:
 
 ###############################################################################
 # define analysis global variables
-N_BODY = params['NBODY']
 FILE_PREFIX = params['FILE_PREFIX']
-DATA_LIST = params['DATA_BKG_PATH']
+DATA_LIST = params['DATA_PATH']
 PT_BINS = params['PT_BINS']
 
 EFF_MIN, EFF_MAX, EFF_STEP = params['BDT_EFFICIENCY']
@@ -39,7 +38,7 @@ FIX_EFF_ARRAY = np.arange(EFF_MIN, EFF_MAX, EFF_STEP)
 
 ###############################################################################
 # define paths for loading results
-results_dir = os.environ['HYPERML_RESULTS_{}'.format(N_BODY)]
+results_dir = os.environ['HYPERML_RESULTS']
 input_file_list = []
 for index in range(0,len(DATA_LIST)):
     input_file_name = results_dir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_results_{index}'+'.root'
@@ -47,7 +46,6 @@ for index in range(0,len(DATA_LIST)):
 
 output_file_name = results_dir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_results_merged.root'
 output_file = TFile(output_file_name, 'recreate')
-
 
 ###############################################################################
 cent_dir_name = '0-5'
@@ -72,7 +70,6 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
         subdir_name = f'pt_{ptbin[0]}{ptbin[1]}'
         input_subdir_list.append(input_file.Get(f'{cent_dir_name}/{subdir_name}'))
     
-    #print(input_subdir_list)
     # create the subdir in the output file
     output_subdir = cent_dir.mkdir(subdir_name)
     output_subdir.cd()

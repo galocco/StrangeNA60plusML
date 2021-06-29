@@ -20,7 +20,6 @@ gROOT.SetBatch()
 ###############################################################################
 parser = argparse.ArgumentParser()
 parser.add_argument('config', help='Path to the YAML configuration file')
-parser.add_argument('-split', '--split', help='Run with matter and anti-matter splitted', action='store_true')
 parser.add_argument('-m', '--merged', help='Run on the merged histograms', action='store_true')
 parser.add_argument('-p', '--peak', help='Take signal from the gaussian fit', action='store_true')
 args = parser.parse_args()
@@ -47,14 +46,8 @@ FIX_EFF_ARRAY = np.arange(EFF_MIN, EFF_MAX, EFF_STEP)
 
 BKG_MODELS = params['BKG_MODELS']
 
-SPLIT_MODE = args.split
 PEAK_MODE = args.peak
 MERGED = args.merged
-
-if SPLIT_MODE:
-    SPLIT_LIST = ['_matter', '_antimatter']
-else:
-    SPLIT_LIST = ['']
 
 LABELS = [f'{x:.3f}_{y}' for x in FIX_EFF_ARRAY for y in BKG_MODELS]
 
@@ -81,81 +74,80 @@ count=0
 ###############################################################################
 # start the actual signal extraction
 mass = TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
-for split in SPLIT_LIST:
-    cent_dir_name = f'0-5{split}'
-    cent_dir = output_file.mkdir(cent_dir_name)
-    cent_dir.cd()
+cent_dir_name = '0-5'
+cent_dir = output_file.mkdir(cent_dir_name)
+cent_dir.cd()
 
-    h1_eff = input_file.Get(cent_dir_name + '/PreselEff')
-    h1_BDT_eff = au.h1_rawcounts(PT_BINS, name = "BDTeff")
+h1_eff = input_file.Get(cent_dir_name + '/PreselEff')
+h1_BDT_eff = au.h1_rawcounts(PT_BINS, name = "BDTeff")
 
-    for lab in LABELS:
-        h1_rawcounts_dict[lab] = au.h1_rawcounts(PT_BINS, suffix=lab)
-        significance_dict[lab] = au.h1_significance(PT_BINS, suffix=lab)
+for lab in LABELS:
+    h1_rawcounts_dict[lab] = au.h1_rawcounts(PT_BINS, suffix=lab)
+    significance_dict[lab] = au.h1_significance(PT_BINS, suffix=lab)
 
-    for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
-        ptbin_index = au.get_ptbin_index(h1_eff, ptbin)
+for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
+    ptbin_index = au.get_ptbin_index(h1_eff, ptbin)
 
-        # get the dir where the inv mass histo are
-        subdir_name = f'pt_{ptbin[0]}{ptbin[1]}'
-        input_subdir = input_file.Get(f'{cent_dir_name}/{subdir_name}')
+    # get the dir where the inv mass histo are
+    subdir_name = f'pt_{ptbin[0]}{ptbin[1]}'
+    input_subdir = input_file.Get(f'{cent_dir_name}/{subdir_name}')
 
-        # create the subdir in the output file
-        output_subdir = cent_dir.mkdir(subdir_name)
-        output_subdir.cd()
+    # create the subdir in the output file
+    output_subdir = cent_dir.mkdir(subdir_name)
+    output_subdir.cd()
 
-        for bkgmodel in BKG_MODELS:
-            # create dirs for models
-            fit_dir = output_subdir.mkdir(bkgmodel)
-            fit_dir.cd()
+    for bkgmodel in BKG_MODELS:
+        # create dirs for models
+        fit_dir = output_subdir.mkdir(bkgmodel)
+        fit_dir.cd()
 
-            # loop over all the histo in the dir
-            for key in input_subdir.GetListOfKeys():
-                keff = key.GetName()[-5:]
+        # loop over all the histo in the dir
+        for key in input_subdir.GetListOfKeys():
+            keff = key.GetName()[-5:]
+            
+            hist = TH1D(key.ReadObj())
+            hist.SetDirectory(0)
+
+            if key == input_subdir.GetListOfKeys()[0] and bkgmodel=="pol2":
+                rawcounts, err_rawcounts, significance, err_significance, mu, mu_err, sigma, sigma_err = au.fit_hist(hist, ptbin, mass, model=bkgmodel, Eint=EINT, peak_mode=PEAK_MODE, gauss=GAUSS)
+                mean_fit.append(mu)
+                mean_fit_error.append(mu_err)
+                sigma_fit.append(sigma)
+                sigma_fit_error.append(sigma_err)
                 
-                hist = TH1D(key.ReadObj())
-                hist.SetDirectory(0)
+            else:
+                rawcounts, err_rawcounts, significance, err_significance, _, _, _, _ = au.fit_hist(hist, ptbin, mass, model=bkgmodel, Eint=EINT, peak_mode=PEAK_MODE, gauss=GAUSS)
 
-                if key == input_subdir.GetListOfKeys()[0] and bkgmodel=="pol2":
-                    rawcounts, err_rawcounts, significance, err_significance, mu, mu_err, sigma, sigma_err = au.fit_hist(hist, ptbin, mass, model=bkgmodel, Eint=EINT, peak_mode=PEAK_MODE, gauss=GAUSS)
-                    mean_fit.append(mu)
-                    mean_fit_error.append(mu_err)
-                    sigma_fit.append(sigma)
-                    sigma_fit_error.append(sigma_err)
-                    
-                else:
-                    rawcounts, err_rawcounts, significance, err_significance, _, _, _, _ = au.fit_hist(hist, ptbin, mass, model=bkgmodel, Eint=EINT, peak_mode=PEAK_MODE, gauss=GAUSS)
+            dict_key = f'{keff}_{bkgmodel}'
 
-                dict_key = f'{keff}_{bkgmodel}'
+            h1_rawcounts_dict[dict_key].SetBinContent(ptbin_index, rawcounts)
+            h1_rawcounts_dict[dict_key].SetBinError(ptbin_index, err_rawcounts)
 
-                h1_rawcounts_dict[dict_key].SetBinContent(ptbin_index, rawcounts)
-                h1_rawcounts_dict[dict_key].SetBinError(ptbin_index, err_rawcounts)
+            significance_dict[dict_key].SetBinContent(ptbin_index, significance)
+            significance_dict[dict_key].SetBinError(ptbin_index, err_significance)
 
-                significance_dict[dict_key].SetBinContent(ptbin_index, significance)
-                significance_dict[dict_key].SetBinError(ptbin_index, err_significance)
+            if key == input_subdir.GetListOfKeys()[0]:
+                h1_BDT_eff.SetBinContent(ptbin_index, float(keff))                           
 
-                if key == input_subdir.GetListOfKeys()[0]:
-                    h1_BDT_eff.SetBinContent(ptbin_index, float(keff))                           
+cent_dir.cd()
+h1_eff.Write()
+h1_BDT_eff.Write()
+for lab in LABELS:
+    h1_rawcounts_dict[lab].Write()
 
-    cent_dir.cd()
-    h1_eff.Write()
-    h1_BDT_eff.Write()
-    for lab in LABELS:
-        h1_rawcounts_dict[lab].Write()
-    
-    hist_mean = h1_eff.Clone("Mean")
-    hist_mean.SetTitle("; #it{c}t (cm); #mu (GeV/#it{c}^{2})")
-    hist_sigma = h1_eff.Clone("Sigma")
-    hist_sigma.SetTitle( "; #it{c}t (cm); #sigma (GeV/#it{c}^{2})")
+hist_mean = h1_eff.Clone("Mean")
+hist_mean.SetTitle("; #it{c}t (cm); #mu (GeV/#it{c}^{2})")
+hist_sigma = h1_eff.Clone("Sigma")
+hist_sigma.SetTitle( "; #it{c}t (cm); #sigma (GeV/#it{c}^{2})")
 
 
-    for iBin in range(1, hist_mean.GetNbinsX()+1):
-        hist_mean.SetBinContent(iBin, mean_fit[iBin-1])
-        hist_mean.SetBinError(iBin, mean_fit_error[iBin-1])
-        hist_sigma.SetBinContent(iBin, sigma_fit[iBin-1])
-        hist_sigma.SetBinError(iBin, sigma_fit_error[iBin-1])
-    
-    hist_mean.Write()
-    hist_sigma.Write()
+for iBin in range(1, hist_mean.GetNbinsX()+1):
+    hist_mean.SetBinContent(iBin, mean_fit[iBin-1])
+    hist_mean.SetBinError(iBin, mean_fit_error[iBin-1])
+    hist_sigma.SetBinContent(iBin, sigma_fit[iBin-1])
+    hist_sigma.SetBinError(iBin, sigma_fit_error[iBin-1])
+
+hist_mean.Write()
+hist_sigma.Write()
 
 output_file.Close()

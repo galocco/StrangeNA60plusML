@@ -64,16 +64,15 @@ def plot_efficiency_significance(tsd, significance, efficiency, data_range_array
     plt.close()
 
 
-def plot_significance_scan_root(
+def plot_significance_scan_hsp(
         max_index, significance, significance_error, expected_signal, hnsparse, score_list, data_range_array,
-        n_ev, split, mass, custom = False, suffix = '', sigma_mass=0.005):
+        mass, custom = False, suffix = '', sigma_mass=0.005):
 
     if custom:
         label = 'Significance x Efficiency'
     else:
         label = 'Significance'
 
-    raw_yield = expected_signal[max_index]
     max_score = score_list[max_index]
 
     peak_range = [mass-3*sigma_mass, mass+3*sigma_mass]
@@ -161,10 +160,9 @@ def plot_significance_scan_root(
     h1_sign_err.Draw("AL E4")
     h1_sign.Draw("L same")
 
-    fig_name = 'Significance_pT{}{}{}_{}.pdf'.format(
+    fig_name = 'Significance_pT{}{}_{}.pdf'.format(
         data_range_array[0],
         data_range_array[1],
-        split,
         suffix)
 
     fig_sig_path = os.environ['HYPERML_FIGURES']+'/Significance'
@@ -173,17 +171,16 @@ def plot_significance_scan_root(
 
     cv_sig.SaveAs(fig_sig_path + '/' + fig_name)
 
-    fig_name = 'InvMass_pT{}{}{}_{}.pdf'.format(
+    fig_name = 'InvMass_pT{}{}_{}.pdf'.format(
         data_range_array[0],
         data_range_array[1],
-        split,
         suffix)
 
     cv_inv.SaveAs(fig_sig_path + '/' + fig_name)
 
 def plot_significance_scan(
         max_index, significance, significance_error, expected_signal, bkg_df, score_list, data_range_array,
-        n_ev, split='', mass_bins=40, mass = 2.992, hist_range = [2.96,3.04], custom = False, suffix = '', sigma_mass=0.005):
+        mass_bins=40, mass = 2.992, hist_range = [2.96,3.04], custom = False, suffix = '', sigma_mass=0.005):
 
     if custom:
         label = 'Significance x Efficiency'
@@ -275,10 +272,9 @@ def plot_significance_scan(
 
     # axs[1].text(0.37, 0.95, text, transform=axs[1].transAxes, verticalalignment='top', bbox=props)
 
-    fig_name = 'Significance_pT{}{}{}{}.pdf'.format(
+    fig_name = 'Significance_pT{}{}{}.pdf'.format(
         data_range_array[0],
         data_range_array[1],
-        split,
         suffix)
 
     fig_sig_path = os.environ['HYPERML_FIGURES']+'/Significance'

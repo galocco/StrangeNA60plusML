@@ -20,7 +20,6 @@ gROOT.SetBatch()
 ###############################################################################
 parser = argparse.ArgumentParser()
 parser.add_argument('config', help='Path to the YAML configuration file')
-parser.add_argument('-split', '--split', help='Run with matter and anti-matter splitted', action='store_true')
 parser.add_argument('-m', '--merged', help='Run on the merged histograms', action='store_true')
 parser.add_argument('-p', '--peak', help='Take signal from the gaussian fit', action='store_true')
 args = parser.parse_args()
@@ -50,13 +49,8 @@ EFF_MIN, EFF_MAX, EFF_STEP = params['BDT_EFFICIENCY']
 FIX_EFF_ARRAY = np.arange(EFF_MIN, EFF_MAX, EFF_STEP)
 BKG_MODELS = params['BKG_MODELS']
 
-SPLIT_MODE = args.split
 PEAK_MODE = args.peak
 MERGED = args.merged
-if SPLIT_MODE:
-    SPLIT_LIST = ['_matter', '_antimatter']
-else:
-    SPLIT_LIST = ['']
 
 LABELS = [f'{x:.2f}_{y}' for x in FIX_EFF_ARRAY for y in BKG_MODELS]
 
@@ -85,61 +79,58 @@ for index in range(0, len(params['EVENT_PATH'])):
     hist_ev = background_file.Get('hNevents')
     n_events += hist_ev.GetBinContent(1)
 nsigma = 3
-print("n_events: ",n_events)
-for split in SPLIT_LIST:
-    cent_dir_name = f'0-5{split}'
-    #cent_dir = output_file.mkdir(cent_dir_name)
-    #cent_dir.cd()
+cent_dir_name = '0-5'
+#cent_dir = output_file.mkdir(cent_dir_name)
+#cent_dir.cd()
 
-    h1_eff = input_file.Get(cent_dir_name + '/PreselEff')
-    for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
-        ptbin_index = au.get_ptbin_index(h1_eff, ptbin)
-        # get the dir where the inv mass histo are
-        subdir_name = f'pt_{ptbin[0]}{ptbin[1]}'
-        input_subdir = input_file.Get(f'{cent_dir_name}/{subdir_name}')
-        eff_presel = h1_eff.GetBinContent(ptbin_index)
-        # create the subdir in the output file
-        #output_subdir = cent_dir.mkdir(subdir_name)
-        #output_subdir.cd()
-        nbins = int((EFF_MAX-EFF_MIN)/EFF_STEP)
-        hist_BS = TH1D("hist_BS_" + subdir_name, ";BDT efficiency;B/S", nbins, EFF_MAX, EFF_MIN)
-        #hist_BS.GetXaxis().SetNdivisions(10)
-        hist_BS_efftot = TH1D("hist_BS_efftot_" + subdir_name, ";BDT efficiency;B/S", nbins, EFF_MAX*eff_presel, EFF_MIN*eff_presel)
-        #hist_BS_efftot.GetXaxis().SetNdivisions(10)
-        hist_Sgn = TH1D("hist_Sgn_" + subdir_name, ";BDT efficiency;Sign/#sqrt{n_{ev}}", nbins, EFF_MAX , EFF_MIN)
-        #hist_Sgn.GetXaxis().SetNdivisions(10)
-        hist_Sgn_efftot = TH1D("hist_Sgn_efftot_" + subdir_name, ";BDT efficiency;Sign/#sqrt{n_{ev}}", nbins, EFF_MAX*eff_presel, EFF_MIN*eff_presel)
-        #hist_BS_efftot.GetXaxis().SetNdivisions(10)
+h1_eff = input_file.Get(cent_dir_name + '/PreselEff')
+for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
+    ptbin_index = au.get_ptbin_index(h1_eff, ptbin)
+    # get the dir where the inv mass histo are
+    subdir_name = f'pt_{ptbin[0]}{ptbin[1]}'
+    input_subdir = input_file.Get(f'{cent_dir_name}/{subdir_name}')
+    eff_presel = h1_eff.GetBinContent(ptbin_index)
+    # create the subdir in the output file
+    #output_subdir = cent_dir.mkdir(subdir_name)
+    #output_subdir.cd()
+    nbins = int((EFF_MAX-EFF_MIN)/EFF_STEP)
+    hist_BS = TH1D("hist_BS_" + subdir_name, ";BDT efficiency;B/S", nbins, EFF_MAX, EFF_MIN)
+    #hist_BS.GetXaxis().SetNdivisions(10)
+    hist_BS_efftot = TH1D("hist_BS_efftot_" + subdir_name, ";BDT efficiency;B/S", nbins, EFF_MAX*eff_presel, EFF_MIN*eff_presel)
+    #hist_BS_efftot.GetXaxis().SetNdivisions(10)
+    hist_Sgn = TH1D("hist_Sgn_" + subdir_name, ";BDT efficiency;Sign/#sqrt{n_{ev}}", nbins, EFF_MAX , EFF_MIN)
+    #hist_Sgn.GetXaxis().SetNdivisions(10)
+    hist_Sgn_efftot = TH1D("hist_Sgn_efftot_" + subdir_name, ";BDT efficiency;Sign/#sqrt{n_{ev}}", nbins, EFF_MAX*eff_presel, EFF_MIN*eff_presel)
+    #hist_BS_efftot.GetXaxis().SetNdivisions(10)
 
-        print("eff presel: ", eff_presel)
-        print("multiplicity: ", MULTIPLICITY)
-        print("b-ratio: ", BRATIO)
-        # loop over all the histo in the dir
-        for key in input_subdir.GetListOfKeys():
-            keff = key.GetName()[-4:]
-            #for latter in reversed(key.GetName()[-4:]):
-            hist = TH1D(key.ReadObj())
-            mass_range = [mass - nsigma*SIGMA, mass + nsigma*SIGMA]
-            bkg_counts = 0
-            for index in np.arange(mass_range[0], mass_range[1], hist.GetBinWidth(1)):
-                bkg_counts += hist.GetBinContent(hist.GetXaxis().FindBin(index))
+    print("eff presel: ", eff_presel)
+    print("multiplicity: ", MULTIPLICITY)
+    print("b-ratio: ", BRATIO)
+    # loop over all the histo in the dir
+    for key in input_subdir.GetListOfKeys():
+        keff = key.GetName()[-4:]
+        #for latter in reversed(key.GetName()[-4:]):
+        hist = TH1D(key.ReadObj())
+        mass_range = [mass - nsigma*SIGMA, mass + nsigma*SIGMA]
+        bkg_counts = 0
+        for index in np.arange(mass_range[0], mass_range[1], hist.GetBinWidth(1)):
+            bkg_counts += hist.GetBinContent(hist.GetXaxis().FindBin(index))
 
-            pt_frac = 1# pt_spectrum.Integral(ptbin[0], ptbin[1], 1e-8) / pt_spectrum.Integral(0, 100, 1e-8)
-            #ct_frac = ct_spectrum.Integral(ctbin[0], ctbin[1], 1e-8) / ct_spectrum.Integral(0, 100, 1e-8)
+        pt_frac = 1# pt_spectrum.Integral(ptbin[0], ptbin[1], 1e-8) / pt_spectrum.Integral(0, 100, 1e-8)
+        #ct_frac = ct_spectrum.Integral(ctbin[0], ctbin[1], 1e-8) / ct_spectrum.Integral(0, 100, 1e-8)
 
-            print("pt_frac: ", eff_presel)
-            sig_counts = MULTIPLICITY*BRATIO*n_events*EFF#*pt_frac#*float(keff)#*ct_frac
-            print("eff: ",keff," sig: ",sig_counts," bkg: ",bkg_counts," B/S",round(bkg_counts/sig_counts,1)," bin: ",hist_BS.GetXaxis().FindBin(keff))
-            hist_BS.SetBinContent(hist_BS.GetXaxis().FindBin(keff),bkg_counts/sig_counts)
-            hist_BS_efftot.SetBinContent(hist_BS.GetXaxis().FindBin(keff),bkg_counts/sig_counts)
-            hist_Sgn.SetBinContent(hist_BS.GetXaxis().FindBin(keff),sig_counts/math.sqrt(sig_counts+bkg_counts)/math.sqrt(n_events))
-            hist_Sgn_efftot.SetBinContent(hist_BS.GetXaxis().FindBin(keff),sig_counts/math.sqrt(sig_counts+bkg_counts)/math.sqrt(n_events))
+        print("pt_frac: ", eff_presel)
+        sig_counts = MULTIPLICITY*BRATIO*n_events*0.701#*pt_frac#*float(keff)#*ct_frac TODO: fix this stuff
+        print("eff: ",keff," sig: ",sig_counts," bkg: ",bkg_counts," B/S",round(bkg_counts/sig_counts,1)," bin: ",hist_BS.GetXaxis().FindBin(keff))
+        hist_BS.SetBinContent(hist_BS.GetXaxis().FindBin(keff),bkg_counts/sig_counts)
+        hist_BS_efftot.SetBinContent(hist_BS.GetXaxis().FindBin(keff),bkg_counts/sig_counts)
+        hist_Sgn.SetBinContent(hist_BS.GetXaxis().FindBin(keff),sig_counts/math.sqrt(sig_counts+bkg_counts)/math.sqrt(n_events))
+        hist_Sgn_efftot.SetBinContent(hist_BS.GetXaxis().FindBin(keff),sig_counts/math.sqrt(sig_counts+bkg_counts)/math.sqrt(n_events))
 
-        output_file.cd()
-        hist_BS.Write()
-        hist_BS_efftot.Write()
-        hist_Sgn.Write()
-        hist_Sgn_efftot.Write()
-
+    output_file.cd()
+    hist_BS.Write()
+    hist_BS_efftot.Write()
+    hist_Sgn.Write()
+    hist_Sgn_efftot.Write()
 
 output_file.Close()

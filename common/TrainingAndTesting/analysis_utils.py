@@ -6,19 +6,17 @@ import warnings
 import aghast
 import numpy as np
 import pandas as pd
-import ROOT
 import uproot
 import xgboost as xgb
 from hipe4ml.model_handler import ModelHandler
-from ROOT import TF1, TH1D, TH2D, TH3D, TCanvas, TPaveStats, TPaveText, gStyle, TDatabasePDG, THnSparseD
+from ROOT import TF1, TH1D, TCanvas, TPaveStats, TPaveText, gStyle, THnSparseD
 import re
 import xml.etree.cElementTree as ET
-from sklearn.utils import shuffle
 from array import array
 # avoid pandas warning
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-def get_skimmed_large_data_df(mass, data_path, pt_bins, training_columns, mode, split='', suffix='', preselection='', range=0.04):
+def get_skimmed_large_data_df(mass, data_path, pt_bins, training_columns, suffix='', preselection='', range=0.04):
     print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
     print ('\nStarting BDT appplication on large data')
 
@@ -34,13 +32,11 @@ def get_skimmed_large_data_df(mass, data_path, pt_bins, training_columns, mode, 
     data_tree_name = data_path + ":/ntcand"
     iterator = uproot.iterate(data_tree_name, executor=executor, library='pd')
 
-    df_applied = pd.DataFrame()
-
     for data in iterator:
         print ('start entry chunk: {}, stop entry chunk: {}'.format(data.index[0], data.index[-1]))
         
         for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
-            info_string = f'_{ptbin[0]}{ptbin[1]}{split}'
+            info_string = f'_{ptbin[0]}{ptbin[1]}'
 
             filename_handler = handlers_path + '/model_handler_' +suffix+ info_string + '.pkl'
             filename_efficiencies = efficiencies_path + '/Eff_Score_' + suffix + info_string + '.npy'
@@ -62,7 +58,7 @@ def get_skimmed_large_data_df(mass, data_path, pt_bins, training_columns, mode, 
 
     return hsparse
 
-def get_skimmed_large_data_std_hsp(mass, data_path, pt_bins, training_columns, split='', suffix='', preselection='', range=0.04):
+def get_skimmed_large_data_std_hsp(mass, data_path, pt_bins, preselection='', range=0.04):
     print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
     print ('\nStarting BDT appplication on large data')
 
@@ -91,7 +87,7 @@ def get_skimmed_large_data_std_hsp(mass, data_path, pt_bins, training_columns, s
 
     return hsparse 
 
-def get_skimmed_large_data_hsp(mass, data_path, pt_bins, training_columns, split='', suffix='', preselection='', range=0.04):
+def get_skimmed_large_data_hsp(mass, data_path, pt_bins, training_columns, suffix='', preselection='', range=0.04):
     print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
     print ('\nStarting BDT appplication on large data')
 
@@ -116,7 +112,7 @@ def get_skimmed_large_data_hsp(mass, data_path, pt_bins, training_columns, split
         print ('start entry chunk: {}, stop entry chunk: {}'.format(data.index[0], data.index[-1]))
         
         for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
-            info_string = f'_{ptbin[0]}{ptbin[1]}{split}'
+            info_string = f'_{ptbin[0]}{ptbin[1]}'
 
             filename_handler = handlers_path + '/model_handler_' +suffix+ info_string + '.pkl'
             filename_efficiencies = efficiencies_path + '/Eff_Score_' + suffix + info_string + '.npy'
@@ -257,7 +253,7 @@ def get_ctbin_index(th2, ctbin):
 
 
 def fit_hist(
-        histo, pt_range, mass, nsigma=3, model="pol2", fixsigma=-1, sigma_limits=None, mode=3, split ='', Eint=17.3, peak_mode=True, gauss=True):
+        histo, pt_range, mass, nsigma=3, model="pol2", fixsigma=-1, sigma_limits=None, Eint=17.3, peak_mode=True, gauss=True):
     
     #mass != TDatabasePDG.Instance().GetParticle(333).Mass()
     
@@ -449,9 +445,9 @@ def fit_hist(
     return (signal, errsignal, signif, errsignif, sigma, sigmaErr)
 
 
-def load_mcsigma(pt_range, mode, split=''):
-    info_string = f'_{pt_range[0]}{pt_range[1]}{split}'
-    sig_path = os.environ['HYPERML_UTILS_{}'.format(mode)] + '/FixedSigma'
+def load_mcsigma(pt_range):
+    info_string = f'_{pt_range[0]}{pt_range[1]}'
+    sig_path = os.environ['HYPERML_UTILS'] + '/FixedSigma'
 
     file_name = f'{sig_path}/sigma_array{info_string}.npy'
 

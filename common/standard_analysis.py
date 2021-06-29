@@ -22,7 +22,6 @@ gROOT.SetBatch()
 
 ###############################################################################
 parser = argparse.ArgumentParser()
-parser.add_argument('-split', '--split', help='Run with matter and anti-matter splitted', action='store_true')
 parser.add_argument('-p', '--peak', help='Take signal from the gaussian fit', action='store_true')
 parser.add_argument('config', help='Path to the YAML configuration file')
 args = parser.parse_args()
@@ -36,26 +35,13 @@ with open(os.path.expandvars(args.config), 'r') as stream:
 
 ###############################################################################
 # define analysis global variables
-N_BODY = params['NBODY']
 PDG_CODE = params['PDG']
 FILE_PREFIX = params['FILE_PREFIX']
-MULTIPLICITY = params['MULTIPLICITY']
-BRATIO = params['BRATIO']
-EINT = pu.get_sNN(params['EINT'])
-T = params['T']
-SIGMA = params['SIGMA']
 GAUSS = params['GAUSS']
 MASS_WINDOW = params['MASS_WINDOW']
 PT_BINS = params['PT_BINS']
-COLUMNS = params['TRAINING_COLUMNS']
 
 PRESELECTION = params['PRESELECTION']
-SPLIT_MODE = args.split
-
-if SPLIT_MODE:
-    SPLIT_LIST = ['_matter','_antimatter']
-else:
-    SPLIT_LIST = ['']
 
 PEAK_MODE = args.peak
 
@@ -81,19 +67,18 @@ for index in range(0,len(params['EVENT_PATH'])):
     mass = TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
     cv = ROOT.TCanvas("cv","cv")
 
-    for split in SPLIT_LIST:
 
-        hnsparse = au.get_skimmed_large_data_hsp(mass, data_path, PT_BINS, COLUMNS, N_BODY, split, FILE_PREFIX, PRESELECTION, MASS_WINDOW)
-        results_file.cd()
-        hnsparse.Write()
-        cent_dir = results_file.mkdir(f'0-5{split}')
-        cent_dir.cd()
+    hnsparse = au.get_skimmed_large_data_std_hsp(mass, data_path, PT_BINS, PRESELECTION, MASS_WINDOW)
+    results_file.cd()
+    hnsparse.Write()
+    cent_dir = results_file.mkdir('0-5')
+    cent_dir.cd()
 
-        for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
-            sub_dir = cent_dir.mkdir(f'pt_{ptbin[0]}{ptbin[1]}')
-            sub_dir.cd()
-            h1_minv = au.h1_from_sparse_std(hnsparse, ptbin, f'pt_{ptbin[0]}{ptbin[1]}')
-            h1_minv.Write()
+    for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
+        sub_dir = cent_dir.mkdir(f'pt_{ptbin[0]}{ptbin[1]}')
+        sub_dir.cd()
+        h1_minv = au.h1_from_sparse_std(hnsparse, ptbin, f'pt_{ptbin[0]}{ptbin[1]}')
+        h1_minv.Write()
 
     results_file.Close()
 print(f'--- analysis time: {((time.time() - start_time) / 60):.2f} minutes ---')
