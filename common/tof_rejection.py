@@ -14,7 +14,6 @@ import pandas as pd
 
 import ROOT
 from ROOT import TFile, gROOT, TDatabasePDG, TF1, TH1D
-from analysis_classes import ModelApplication
 
 # avoid pandas warning
 warnings.simplefilter(action='ignore', category=FutureWarning)

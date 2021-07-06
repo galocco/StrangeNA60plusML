@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import math
 import os
 import time
 import warnings
@@ -15,12 +14,11 @@ import yaml
 from analysis_classes import ModelApplication, TrainingAnalysis
 from hipe4ml import analysis_utils, plot_utils
 from hipe4ml.model_handler import ModelHandler
-from ROOT import TFile, gROOT, TF1, TDatabasePDG, TH1D, TCanvas, gStyle, gSystem
+from ROOT import TFile, gROOT, TF1, TDatabasePDG, gSystem
 from scipy import stats
 #import mplhep
 
 #plt.style.use(mplhep.style.ALICE)
-
 # avoid pandas warning
 warnings.simplefilter(action='ignore', category=FutureWarning)
 gROOT.SetBatch()
@@ -78,7 +76,8 @@ signal_path = os.path.expandvars(params['MC_PATH'])
 bkg_path = os.path.expandvars(params['BKG_PATH'])
     
 results_dir = os.environ[f'HYPERML_RESULTS']+"/"+FILE_PREFIX
-gSystem.Exec('mkdir '+results_dir)
+if gSystem.AccessPathName(results_dir):
+    gSystem.Exec('mkdir '+results_dir)
 
 ###############################################################################
 start_time = time.time()                          # for performances evaluation
@@ -170,7 +169,7 @@ if APPLICATION:
         cent_dir_histos.cd()
         hnsparse.Write()
 
-        th2_efficiency = ml_application.load_preselection_efficiency(FILE_PREFIX)
+        th1_efficiency = ml_application.load_preselection_efficiency(FILE_PREFIX)
 
         for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
             ptbin_index = ml_application.presel_histo.GetXaxis().FindBin(0.5 * (ptbin[0] + ptbin[1]))
@@ -187,7 +186,7 @@ if APPLICATION:
                 pt_spectrum.FixParameter(0,mass)
                 pt_spectrum.FixParameter(1,T)
 
-                sigscan_eff, sigscan_tsd = ml_application.significance_scan(presel_eff, eff_score_array, ptbin, pt_spectrum, suffix=FILE_PREFIX, sigma_mass = SIGMA, custom=CUSTOM_SCAN)
+                sigscan_eff, sigscan_tsd = ml_application.significance_scan(presel_eff, eff_score_array, ptbin, pt_spectrum, suffix=FILE_PREFIX, sigma_mass = SIGMA, custom=CUSTOM_SCAN, mass_range=MASS_WINDOW)
                 eff_score_array = np.append(eff_score_array, [[sigscan_eff], [sigscan_tsd]], axis=1)
 
                 sigscan_results[f'pt{ptbin[0]}{ptbin[1]}'] = [sigscan_eff, sigscan_tsd]
@@ -204,11 +203,7 @@ if APPLICATION:
             print('Application and signal extraction: Done!\n')
 
         cent_dir_histos.cd()
-        th2_efficiency.Write()
-        #if SIGNIFICANCE_SCAN:
-        #    sigscan_results = np.asarray(sigscan_results)
-        #    filename_sigscan = results_dir + f'/Efficiencies/{FILE_PREFIX}_sigscan.npy'
-        #    np.save(filename_sigscan, sigscan_results)
+        th1_efficiency.Write()
         print (f'--- ML application time: {((time.time() - app_time) / 60):.2f} minutes ---')
         
         results_histos_file.Close()

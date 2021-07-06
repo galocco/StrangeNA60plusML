@@ -35,11 +35,10 @@ with open(os.path.expandvars(args.config), 'r') as stream:
 # define analysis global variables
 PDG_CODE = params['PDG']
 FILE_PREFIX = params['FILE_PREFIX']
-MULTIPLICITY = params['MULTIPLICITY']
-BRATIO = params['BRATIO']
 EINT = pu.get_sNN(params['EINT'])
 GAUSS = params['GAUSS']
 PT_BINS = params['PT_BINS']
+MASS_WINDOW = params['MASS_WINDOW']
 
 EFF_MIN, EFF_MAX, EFF_STEP = params['BDT_EFFICIENCY']
 FIX_EFF_ARRAY = np.arange(EFF_MIN, EFF_MAX, EFF_STEP)
@@ -109,14 +108,14 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
             hist.SetDirectory(0)
 
             if key == input_subdir.GetListOfKeys()[0] and bkgmodel=="pol2":
-                rawcounts, err_rawcounts, significance, err_significance, mu, mu_err, sigma, sigma_err = au.fit_hist(hist, ptbin, mass, model=bkgmodel, Eint=EINT, peak_mode=PEAK_MODE, gauss=GAUSS)
+                rawcounts, err_rawcounts, significance, err_significance, mu, mu_err, sigma, sigma_err = au.fit_hist(hist, ptbin, mass, model=bkgmodel, Eint=EINT, peak_mode=PEAK_MODE, gauss=GAUSS, mass_range=MASS_WINDOW)
                 mean_fit.append(mu)
                 mean_fit_error.append(mu_err)
                 sigma_fit.append(sigma)
                 sigma_fit_error.append(sigma_err)
                 
             else:
-                rawcounts, err_rawcounts, significance, err_significance, _, _, _, _ = au.fit_hist(hist, ptbin, mass, model=bkgmodel, Eint=EINT, peak_mode=PEAK_MODE, gauss=GAUSS)
+                rawcounts, err_rawcounts, significance, err_significance, _, _, _, _ = au.fit_hist(hist, ptbin, mass, model=bkgmodel, Eint=EINT, peak_mode=PEAK_MODE, gauss=GAUSS, mass_range=MASS_WINDOW)
 
             dict_key = f'{keff}_{bkgmodel}'
 
@@ -136,10 +135,9 @@ for lab in LABELS:
     h1_rawcounts_dict[lab].Write()
 
 hist_mean = h1_eff.Clone("Mean")
-hist_mean.SetTitle("; #it{c}t (cm); #mu (GeV/#it{c}^{2})")
+hist_mean.SetTitle("; #it{p}_{T} (GeV/#it{c}); #mu (GeV/#it{c}^{2})")
 hist_sigma = h1_eff.Clone("Sigma")
-hist_sigma.SetTitle( "; #it{c}t (cm); #sigma (GeV/#it{c}^{2})")
-
+hist_sigma.SetTitle( "; #it{p}_{T} (GeV/#it{c}); #sigma (GeV/#it{c}^{2})")
 
 for iBin in range(1, hist_mean.GetNbinsX()+1):
     hist_mean.SetBinContent(iBin, mean_fit[iBin-1])

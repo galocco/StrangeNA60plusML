@@ -9,7 +9,7 @@ import pandas as pd
 import ROOT
 import uproot
 import xgboost as xgb
-from hipe4ml import analysis_utils, plot_utils
+from hipe4ml import plot_utils
 from hipe4ml.model_handler import ModelHandler
 from sklearn.model_selection import train_test_split
 import math
@@ -21,16 +21,6 @@ class TrainingAnalysis:
 
     def __init__(self, pdg_code, mc_file_name, bkg_file_name, entrystop=10000000, preselection=''):
         self.mass = ROOT.TDatabasePDG.Instance().GetParticle(pdg_code).Mass()
-        if pdg_code == 310: #K0s
-            self.lifetime = 89.54# ps
-        elif pdg_code == 3122: #Lambda
-            self.lifetime = 263.2# ps
-        elif pdg_code == 3334: #Omega
-            self.lifetime = 82.1# ps
-        elif pdg_code == 3312: #Xi
-            self.lifetime = 163.9# ps
-        else:
-            self.lifetime = ROOT.TDatabasePDG.Instance().GetParticle(pdg_code).Lifetime()*1e+12 #lifetime in ps
 
         print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
         print('\nStarting BDT training and testing ')
@@ -45,7 +35,7 @@ class TrainingAnalysis:
         self.df_bkg['y'] = 0
 
     def preselection_efficiency(self, pt_bins, save=True, suffix=''):
-        cut  =  f'{pt_bins[0]}<=pt<={pt_bins[1]}'         
+        cut  =  f'{pt_bins[0]}<=pt<={pt_bins[len(pt_bins)]}'         
             
         pres_histo = au.h1_preselection_efficiency(pt_bins)
         gen_histo = au.h1_generated(pt_bins)
@@ -142,7 +132,7 @@ class TrainingAnalysis:
 
 class ModelApplication:
 
-    def __init__(self, pdg_code, multiplicity, branching_ratio, event_filename, hsparse=0):
+    def __init__(self, pdg_code, multiplicity, branching_ratio, event_filename, hsparse):
 
         print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
         print('\nStarting BDT appplication and signal extraction')
@@ -207,10 +197,10 @@ class ModelApplication:
         filename_sigma = sigma_path + "/sigma_array" + info_string + '.npy'
         return np.load(filename_sigma)
 
-    def significance_scan(self, pre_selection_efficiency, eff_score_array, pt_range, pt_spectrum, custom = False, suffix = '', sigma_mass = 2):
+    def significance_scan(self, pre_selection_efficiency, eff_score_array, pt_range, pt_spectrum, custom = False, suffix = '', sigma_mass = 2, mass_range=0.04):
         print('\nSignificance scan: ...')
 
-        hist_range = [self.mass*0.97, self.mass*1.03]
+        hist_range = [self.mass*(1-mass_range), self.mass*(1+mass_range)]
         peak_range = [self.mass-3*sigma_mass, self.mass+3*sigma_mass]
         
         bdt_efficiency = eff_score_array[0]
@@ -222,7 +212,7 @@ class ModelApplication:
         for index, tsd in enumerate(threshold_space):
             histo_name = f'score{tsd:.2f}'
             h1_minv = au.h1_from_sparse(self.hnsparse, pt_range, tsd, name=histo_name)
-            fit_tpl = ROOT.TF1('fitTpl', 'pol3(0)', hist_range[0], hist_range[1])
+            fit_tpl = ROOT.TF1('fitTpl', 'pol1(0)', hist_range[0], hist_range[1])
             peak_bins = [h1_minv.GetXaxis().FindBin(peak_range[0]), h1_minv.GetXaxis().FindBin(peak_range[1])]
             for bin in range(peak_bins[0], peak_bins[1]+1):
                 h1_minv.SetBinContent(bin, 0)
@@ -233,7 +223,7 @@ class ModelApplication:
                 pt_spectrum, self.multiplicity, self.branching_ratio, pt_range, pre_selection_efficiency * bdt_efficiency[index],
                 self.n_events)
 
-            exp_background = fit_tpl.Integral(peak_range[0], peak_range[1])
+            exp_background = fit_tpl.Integral(peak_range[0], peak_range[1])/h1_minv.GetBinWidth(1)
             expected_signal.append(exp_signal)
 
             if (exp_background < 0):
@@ -241,6 +231,7 @@ class ModelApplication:
 
             sig = exp_signal / np.sqrt(exp_signal + exp_background + 1e-10)
             sig_error = au.significance_error(exp_signal, exp_background)
+
             if custom:
                 significance.append(sig)
                 significance_error.append(sig_error)

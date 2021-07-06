@@ -13,8 +13,7 @@ import plot_utils as pu
 import pandas as pd
 
 import ROOT
-from ROOT import TFile, gROOT, TDatabasePDG, TF1, TH1D
-from analysis_classes import ModelApplication
+from ROOT import TFile, gROOT, TDatabasePDG
 
 # avoid pandas warning
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -41,7 +40,7 @@ GAUSS = params['GAUSS']
 MASS_WINDOW = params['MASS_WINDOW']
 PT_BINS = params['PT_BINS']
 
-PRESELECTION = params['PRESELECTION']
+STD_SELECTION = params['STD_SELECTION']
 
 PEAK_MODE = args.peak
 
@@ -54,12 +53,12 @@ for index in range(0,len(params['EVENT_PATH'])):
     event_path = os.path.expandvars(params['EVENT_PATH'][index])
     BKG_MODELS = params['BKG_MODELS']
 
-    results_dir = f"../Results/2Body"
+    results_dir = f"../Results"
 
     ###############################################################################
     start_time = time.time()                          # for performances evaluation
 
-    resultsSysDir = os.environ['HYPERML_RESULTS_{}'.format(params['NBODY'])]
+    resultsSysDir = os.environ['HYPERML_RESULTS']
 
     file_name = results_dir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_std_results.root'
     results_file = TFile(file_name, 'recreate')
@@ -68,7 +67,7 @@ for index in range(0,len(params['EVENT_PATH'])):
     cv = ROOT.TCanvas("cv","cv")
 
 
-    hnsparse = au.get_skimmed_large_data_std_hsp(mass, data_path, PT_BINS, PRESELECTION, MASS_WINDOW)
+    hnsparse = au.get_skimmed_large_data_std_hsp(mass, data_path, PT_BINS, STD_SELECTION, MASS_WINDOW)
     results_file.cd()
     hnsparse.Write()
     cent_dir = results_file.mkdir('0-5')

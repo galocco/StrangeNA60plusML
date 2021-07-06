@@ -9,7 +9,7 @@ import plot_utils as pu
 import numpy as np
 import uproot
 import yaml
-from ROOT import TFile, gROOT, TF1, TDatabasePDG, TH1D, TCanvas, gStyle, gSystem, TH1D
+from ROOT import TFile, gROOT, TDatabasePDG, TH1D, TCanvas, TH1D
 import ROOT
 
 # avoid pandas warning
@@ -32,7 +32,6 @@ with open(os.path.expandvars(args.config), 'r') as stream:
 # define analysis global variables
 PDG_CODE = params['PDG']
 FILE_PREFIX = params['FILE_PREFIX']
-PRESELECTION = params['PRESELECTION']
 
 ###############################################################################
 # define paths for loading data
@@ -47,8 +46,8 @@ file_name = results_dir + f'/{FILE_PREFIX}_features.root'
 results_file = TFile(file_name, 'recreate')
 
 mass = TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
-df_bkg = uproot.open(bkg_path)['ntcand'].arrays(library='pd',entry_stop=4000000).query("true < 0.5 and" + PRESELECTION)
-df_sig = uproot.open(signal_path)['ntcand'].arrays(library='pd',entry_stop=4000000).query(PRESELECTION)
+df_bkg = uproot.open(bkg_path)['ntcand'].arrays(library='pd',entry_stop=4000000).query("true < 0.5")
+df_sig = uproot.open(signal_path)['ntcand'].arrays(library='pd',entry_stop=4000000)
 if "thetad" in df_bkg.columns:
     df_sig.rename(columns={"thetad": "costhetad"}, inplace=True)
     df_bkg.rename(columns={"thetad": "costhetad"}, inplace=True)

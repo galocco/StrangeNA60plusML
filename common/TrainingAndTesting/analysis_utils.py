@@ -1,62 +1,15 @@
 import math
-import os
 from concurrent.futures import ThreadPoolExecutor
 from math import floor, log10
 import warnings
 import aghast
 import numpy as np
-import pandas as pd
 import uproot
-import xgboost as xgb
 from hipe4ml.model_handler import ModelHandler
 from ROOT import TF1, TH1D, TCanvas, TPaveStats, TPaveText, gStyle, THnSparseD
-import re
-import xml.etree.cElementTree as ET
 from array import array
 # avoid pandas warning
 warnings.simplefilter(action='ignore', category=FutureWarning)
-
-def get_skimmed_large_data_df(mass, data_path, pt_bins, training_columns, suffix='', preselection='', range=0.04):
-    print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
-    print ('\nStarting BDT appplication on large data')
-
-    nbins = array('i', [40, 30, 2000])
-    xmin  = array('d', [mass*(1-range), 0., -20])
-    xmax  = array('d', [mass*(1+range), 3.,  20])
-    hsparse = THnSparseD('sparse_m_pt_s', ';mass (GeV/#it{c}^{2});#it{p}_{T} (GeV/#it{c});score;counts', 3, nbins, xmin, xmax)
-
-    handlers_path = "../Models/handlers"
-    efficiencies_path = "../Results/Efficiencies"
-
-    executor = ThreadPoolExecutor()
-    data_tree_name = data_path + ":/ntcand"
-    iterator = uproot.iterate(data_tree_name, executor=executor, library='pd')
-
-    for data in iterator:
-        print ('start entry chunk: {}, stop entry chunk: {}'.format(data.index[0], data.index[-1]))
-        
-        for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
-            info_string = f'_{ptbin[0]}{ptbin[1]}'
-
-            filename_handler = handlers_path + '/model_handler_' +suffix+ info_string + '.pkl'
-            filename_efficiencies = efficiencies_path + '/Eff_Score_' + suffix + info_string + '.npy'
-
-            model_handler = ModelHandler()
-            model_handler.load_model_handler(filename_handler)
-
-            eff_score_array = np.load(filename_efficiencies)
-            tsd = eff_score_array[1][-1]
-
-            data_range = f'{ptbin[0]}<pt<{ptbin[1]}'
-            df_tmp = data.query(data_range+" and "+preselection)
-            df_tmp.insert(0, 'score', model_handler.predict(df_tmp[training_columns]))
-            df_tmp = df_tmp.query('score>@tsd')
-
-            for ind in df_tmp.index:
-                x = array('d', [df_tmp['m'][ind], df_tmp['pt'][ind], df_tmp['score'][ind]])
-                hsparse.Fill(x)
-
-    return hsparse
 
 def get_skimmed_large_data_std_hsp(mass, data_path, pt_bins, preselection='', range=0.04):
     print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
@@ -91,7 +44,7 @@ def get_skimmed_large_data_hsp(mass, data_path, pt_bins, training_columns, suffi
     print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
     print ('\nStarting BDT appplication on large data')
 
-    nbins = array('i', [40, 30, 2000])
+    nbins = array('i', [40, 30, 20000])
     xmin  = array('d', [mass*(1-range), 0., -20])
     xmax  = array('d', [mass*(1+range), 3.,  20])
     hsparse = THnSparseD('sparse_m_pt_s', ';mass (GeV/#it{c}^{2});#it{p}_{T} (GeV/#it{c});score;counts', 3, nbins, xmin, xmax)
@@ -105,8 +58,6 @@ def get_skimmed_large_data_hsp(mass, data_path, pt_bins, training_columns, suffi
 
     if preselection != "":
         preselection = " and "+preselection
-
-    df_applied = pd.DataFrame()
 
     for data in iterator:
         print ('start entry chunk: {}, stop entry chunk: {}'.format(data.index[0], data.index[-1]))
@@ -253,11 +204,11 @@ def get_ctbin_index(th2, ctbin):
 
 
 def fit_hist(
-        histo, pt_range, mass, nsigma=3, model="pol2", fixsigma=-1, sigma_limits=None, Eint=17.3, peak_mode=True, gauss=True):
+        histo, pt_range, mass, nsigma=3, model="pol2", mass_range=0.04, Eint=17.3, peak_mode=True, gauss=True):
     
     #mass != TDatabasePDG.Instance().GetParticle(333).Mass()
     
-    hist_range = [mass*0.97,mass*1.03]
+    hist_range = [mass*(1-mass_range),mass*(1+mass_range)]
     # canvas for plotting the invariant mass distribution
     cv = TCanvas(f'cv_{histo.GetName()}')
 
@@ -325,17 +276,8 @@ def fit_hist(
     bkg_tpl.SetLineColor(2)
 
     # define limits for the sigma if provided
-    if sigma_limits != None:
-        fit_tpl.SetParameter(n_bkgpars + 2, 0.5 *
-                             (sigma_limits[0] + sigma_limits[1]))
-        fit_tpl.SetParLimits(n_bkgpars + 2, sigma_limits[0], sigma_limits[1])
-    # if the mc sigma is provided set the sigma to that value
-    elif fixsigma > 0:
-        fit_tpl.FixParameter(n_bkgpars + 2, fixsigma)
-    # otherwise set sigma limits reasonably
-    else:
-        fit_tpl.SetParameter(n_bkgpars + 2, 0.0025)
-        fit_tpl.SetParLimits(n_bkgpars + 2, 0.0005, 0.0035)
+    fit_tpl.SetParameter(n_bkgpars + 2, 0.0025)
+    fit_tpl.SetParLimits(n_bkgpars + 2, 0.0005, 0.0035)
 
     ########################################
     # plotting the fits
@@ -443,16 +385,6 @@ def fit_hist(
 
     return (signal, errsignal, signif, errsignif, mu, muErr, sigma, sigmaErr)
     return (signal, errsignal, signif, errsignif, sigma, sigmaErr)
-
-
-def load_mcsigma(pt_range):
-    info_string = f'_{pt_range[0]}{pt_range[1]}'
-    sig_path = os.environ['HYPERML_UTILS'] + '/FixedSigma'
-
-    file_name = f'{sig_path}/sigma_array{info_string}.npy'
-
-    return np.load(file_name, allow_pickle=True)
-
 
 def rename_df_columns(df):
     rename_dict = {}

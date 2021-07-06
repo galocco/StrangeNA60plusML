@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 #macro to compute the shift of the gaussian mu parameter due to reconstruction and BDT selection
 import argparse
-from common.run_analysis import MASS_WINDOW
 import os
 import time
 import warnings
@@ -56,7 +55,7 @@ event_path = os.path.expandvars(params['EVENT_PATH'][0])
 handlers_path = '../Models/handlers'
 ###############################################################################
 
-resultsSysDir = os.environ['HYPERML_RESULTS')]
+resultsSysDir = os.environ['HYPERML_RESULTS']
 file_name =  '../Results/' + FILE_PREFIX + '/' + FILE_PREFIX + '_mass_shaping.root'
 results_file = TFile(file_name,"recreate")
 
