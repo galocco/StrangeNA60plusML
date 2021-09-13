@@ -21,6 +21,7 @@ gROOT.SetBatch()
 parser = argparse.ArgumentParser()
 parser.add_argument('config', help='Path to the YAML configuration file')
 parser.add_argument('-m', '--merged', help='Run on the merged histograms', action='store_true')
+parser.add_argument('-c', '--crystal', help='Fit with the crystalball', action='store_true')
 parser.add_argument('-p', '--peak', help='Take signal from the gaussian fit', action='store_true')
 args = parser.parse_args()
 
@@ -47,6 +48,7 @@ BKG_MODELS = params['BKG_MODELS']
 
 PEAK_MODE = args.peak
 MERGED = args.merged
+CRYSTAL = args.crystal
 
 LABELS = [f'{x:.3f}_{y}' for x in FIX_EFF_ARRAY for y in BKG_MODELS]
 
@@ -71,6 +73,7 @@ sigma_fit = []
 sigma_fit_error = []
 count=0
 ###############################################################################
+start_time = time.time()                          # for performances evaluation
 # start the actual signal extraction
 mass = TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
 cent_dir_name = '0-5'
@@ -85,6 +88,10 @@ for lab in LABELS:
     significance_dict[lab] = au.h1_significance(PT_BINS, suffix=lab)
 
 for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
+
+    print('\n==================================================')
+    print('pT:', ptbin)
+    print('Fitting ...', end='\r')
     ptbin_index = au.get_ptbin_index(h1_eff, ptbin)
 
     # get the dir where the inv mass histo are
@@ -108,14 +115,14 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
             hist.SetDirectory(0)
 
             if key == input_subdir.GetListOfKeys()[0] and bkgmodel=="pol2":
-                rawcounts, err_rawcounts, significance, err_significance, mu, mu_err, sigma, sigma_err = au.fit_hist(hist, ptbin, mass, model=bkgmodel, Eint=EINT, peak_mode=PEAK_MODE, gauss=GAUSS, mass_range=MASS_WINDOW)
+                rawcounts, err_rawcounts, significance, err_significance, mu, mu_err, sigma, sigma_err = au.fit_hist(hist, ptbin, mass, model=bkgmodel, Eint=EINT, peak_mode=PEAK_MODE, gauss=GAUSS, mass_range=MASS_WINDOW, crystal=CRYSTAL)
                 mean_fit.append(mu)
                 mean_fit_error.append(mu_err)
                 sigma_fit.append(sigma)
                 sigma_fit_error.append(sigma_err)
                 
             else:
-                rawcounts, err_rawcounts, significance, err_significance, _, _, _, _ = au.fit_hist(hist, ptbin, mass, model=bkgmodel, Eint=EINT, peak_mode=PEAK_MODE, gauss=GAUSS, mass_range=MASS_WINDOW)
+                rawcounts, err_rawcounts, significance, err_significance, _, _, _, _ = au.fit_hist(hist, ptbin, mass, model=bkgmodel, Eint=EINT, peak_mode=PEAK_MODE, gauss=GAUSS, mass_range=MASS_WINDOW, crystal=CRYSTAL)
 
             dict_key = f'{keff}_{bkgmodel}'
 
@@ -149,3 +156,6 @@ hist_mean.Write()
 hist_sigma.Write()
 
 output_file.Close()
+
+print('')
+print(f'--- training and testing in {((time.time() - start_time) / 60):.2f} minutes ---')

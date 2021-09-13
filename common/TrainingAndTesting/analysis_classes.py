@@ -26,16 +26,15 @@ class TrainingAnalysis:
         print('\nStarting BDT training and testing ')
         print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
         
-        self.df_signal = uproot.open(mc_file_name)['ntcand'].arrays(library='pd').query(preselection)
-        preselection = ' and ' + preselection
-        self.df_generated = uproot.open(mc_file_name)['ntgen'].arrays(library='pd')
-        self.df_bkg = uproot.open(bkg_file_name)['ntcand'].arrays(library='pd',entry_stop=entrystop).query("true < 0.5" + preselection)
+        self.df_signal = uproot.open(mc_file_name)['ntcand'].arrays(library="pd").query(preselection)
+        self.df_generated = uproot.open(mc_file_name)['ntgen'].arrays(library="pd")
+        self.df_bkg = uproot.open(bkg_file_name)['ntcand'].arrays(library="pd", entry_stop=entrystop).query("true < 0.5 and " + preselection)
 
         self.df_signal['y'] = 1
         self.df_bkg['y'] = 0
 
     def preselection_efficiency(self, pt_bins, save=True, suffix=''):
-        cut  =  f'{pt_bins[0]}<=pt<={pt_bins[len(pt_bins)]}'         
+        cut  =  f'{pt_bins[0]}<=pt<={pt_bins[len(pt_bins)-1]}'         
             
         pres_histo = au.h1_preselection_efficiency(pt_bins)
         gen_histo = au.h1_generated(pt_bins)
@@ -189,13 +188,6 @@ class ModelApplication:
 
     def get_preselection_efficiency(self, ptbin_index):
         return self.presel_histo.GetBinContent(ptbin_index)
-
-    def load_sigma_array(self, pt_range):
-
-        info_string = '_{}{}{}'.format(pt_range[0], pt_range[1], split)
-        sigma_path = os.environ['HYPERML_UTILS']+'/FixedSigma'
-        filename_sigma = sigma_path + "/sigma_array" + info_string + '.npy'
-        return np.load(filename_sigma)
 
     def significance_scan(self, pre_selection_efficiency, eff_score_array, pt_range, pt_spectrum, custom = False, suffix = '', sigma_mass = 2, mass_range=0.04):
         print('\nSignificance scan: ...')

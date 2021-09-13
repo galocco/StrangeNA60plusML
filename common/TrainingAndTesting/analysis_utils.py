@@ -6,7 +6,7 @@ import aghast
 import numpy as np
 import uproot
 from hipe4ml.model_handler import ModelHandler
-from ROOT import TF1, TH1D, TCanvas, TPaveStats, TPaveText, gStyle, THnSparseD
+from ROOT import TF1, TH1D, TCanvas, TPaveStats, TPaveText, gStyle, THnSparseD, TMath
 from array import array
 # avoid pandas warning
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -15,7 +15,7 @@ def get_skimmed_large_data_std_hsp(mass, data_path, pt_bins, preselection='', ra
     print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
     print ('\nStarting BDT appplication on large data')
 
-    nbins = array('i', [40, 30])
+    nbins = array('i', [40, 300])
     xmin  = array('d', [mass*(1-range), 0.])
     xmax  = array('d', [mass*(1+range), 3.])
     hsparse = THnSparseD('sparse_m_pt', ';mass (GeV/#it{c}^{2});#it{p}_{T} (GeV/#it{c});counts', 2, nbins, xmin, xmax)
@@ -44,7 +44,7 @@ def get_skimmed_large_data_hsp(mass, data_path, pt_bins, training_columns, suffi
     print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
     print ('\nStarting BDT appplication on large data')
 
-    nbins = array('i', [40, 30, 20000])
+    nbins = array('i', [40, 3000, 20000])
     xmin  = array('d', [mass*(1-range), 0., -20])
     xmax  = array('d', [mass*(1+range), 3.,  20])
     hsparse = THnSparseD('sparse_m_pt_s', ';mass (GeV/#it{c}^{2});#it{p}_{T} (GeV/#it{c});score;counts', 3, nbins, xmin, xmax)
@@ -147,8 +147,9 @@ def h1_invmass(counts, pt_range, name=''):
 
 def h1_from_sparse(hnsparse, pt_range, score, name=''):
     hnsparse_clone = hnsparse.Clone()
-    ptbin_min = hnsparse_clone.GetAxis(1).FindBin(pt_range[0])
-    ptbin_max = hnsparse_clone.GetAxis(1).FindBin(pt_range[1])
+    step = 3.0/3000.0/2.
+    ptbin_min = hnsparse_clone.GetAxis(1).FindBin(pt_range[0]+step)
+    ptbin_max = hnsparse_clone.GetAxis(1).FindBin(pt_range[1]-step)
     if ptbin_max > hnsparse_clone.GetAxis(1).GetNbins():
         ptbin_max = hnsparse_clone.GetAxis(1).GetNbins()
     scorebin_min = hnsparse_clone.GetAxis(2).FindBin(score)
@@ -167,8 +168,9 @@ def h1_from_sparse(hnsparse, pt_range, score, name=''):
 
 def h1_from_sparse_std(hnsparse, pt_range, name=''):
     hnsparse_clone = hnsparse.Clone()
-    ptbin_min = hnsparse_clone.GetAxis(1).FindBin(pt_range[0])
-    ptbin_max = hnsparse_clone.GetAxis(1).FindBin(pt_range[1])
+    step = 3.0/3000.0/2.
+    ptbin_min = hnsparse_clone.GetAxis(1).FindBin(pt_range[0]+step)
+    ptbin_max = hnsparse_clone.GetAxis(1).FindBin(pt_range[1]-step)
     if ptbin_max > hnsparse_clone.GetAxis(1).GetNbins():
         ptbin_max = hnsparse_clone.GetAxis(1).GetNbins()
     hnsparse_clone.GetAxis(1).SetRange(ptbin_min, ptbin_max)
@@ -204,7 +206,7 @@ def get_ctbin_index(th2, ctbin):
 
 
 def fit_hist(
-        histo, pt_range, mass, nsigma=3, model="pol2", mass_range=0.04, Eint=17.3, peak_mode=True, gauss=True):
+        histo, pt_range, mass, nsigma=3, model="pol2", mass_range=0.04, Eint=17.3, peak_mode=True, gauss=True, crystal=False):
     
     #mass != TDatabasePDG.Instance().GetParticle(333).Mass()
     
@@ -221,21 +223,26 @@ def fit_hist(
         print(f'Unsupported model {model}')
 
     # define the fit function bkg_model + gauss/voigt
-    if gauss:
-        fit_tpl = TF1('fitTpl', f'{model}(0)+gausn({n_bkgpars})', 0, 5)
+    if crystal:
+        par = 7
+        #fit_tpl = TF1('fitTpl', crystal_ball, 0, 5, par)
+        fit_tpl = TF1('fitTpl', f'{model}(0)+gausn({n_bkgpars})+gausn({n_bkgpars+3})', 0, 5)
     else:
-        fit_tpl = TF1('fitTpl', f'{model}(0)+TMath::Voigt(x-[{n_bkgpars+1}],[{n_bkgpars+2}],[{n_bkgpars+3}])*[{n_bkgpars}]', 0, 5)
+        if gauss:
+            fit_tpl = TF1('fitTpl', f'{model}(0)+gausn({n_bkgpars})', 0, 5)
+        else:
+            fit_tpl = TF1('fitTpl', f'{model}(0)+TMath::Voigt(x-[{n_bkgpars+1}],[{n_bkgpars+2}],[{n_bkgpars+3}])*[{n_bkgpars}]', 0, 5)
 
-    # redefine parameter names for the bkg_model
-    for i in range(n_bkgpars):
-        fit_tpl.SetParName(i, f'B_{i}')
+        # redefine parameter names for the bkg_model
+        for i in range(n_bkgpars):
+            fit_tpl.SetParName(i, f'B_{i}')
 
-    # define parameter names for the signal fit
-    fit_tpl.SetParName(n_bkgpars, 'N_{sig}')
-    fit_tpl.SetParName(n_bkgpars + 1, '#mu')
-    fit_tpl.SetParName(n_bkgpars + 2, '#sigma')
-    if not gauss:
-        fit_tpl.SetParName(n_bkgpars + 3, '#Gamma')
+        # define parameter names for the signal fit
+        fit_tpl.SetParName(n_bkgpars, 'N_{sig}')
+        fit_tpl.SetParName(n_bkgpars + 1, '#mu')
+        fit_tpl.SetParName(n_bkgpars + 2, '#sigma')
+        if not gauss:
+            fit_tpl.SetParName(n_bkgpars + 3, '#Gamma')
 
     max_hist_value = histo.GetMaximum()
     hist_bkg_eval = (histo.GetBinContent(1)+histo.GetBinContent(histo.GetNbinsX()))/2.
@@ -246,16 +253,48 @@ def fit_hist(
     #    fit_tpl.SetParameter(0, -5400/2)
     #    fit_tpl.SetParameter(1, 29)#94.76)
     #    fit_tpl.SetParameter(2, 5575/2)
-
-    fit_tpl.SetParameter(n_bkgpars, max_hist_value-hist_bkg_eval)
-    fit_tpl.SetParLimits(n_bkgpars, 0, max_hist_value+3*hist_bkg_eval)
-    fit_tpl.SetParameter(n_bkgpars + 1, mass)
-    fit_tpl.SetParLimits(n_bkgpars + 1, mass-0.005, mass+0.005)
-    fit_tpl.SetParameter(n_bkgpars + 2, 0.0035)
-    fit_tpl.SetParLimits(n_bkgpars + 2, 0.001, 0.006)
-    if not gauss:
-        fit_tpl.SetParameter(n_bkgpars + 3, 0.00426)
-        fit_tpl.SetParLimits(n_bkgpars + 3, 0.000001, 0.005)
+    if crystal:
+        #fit_tpl.SetParameters(1, 2.5, mass, histo.GetRMS()/2., histo.GetMaximum())
+        fit_tpl.SetParameter(n_bkgpars, 100)
+        fit_tpl.SetParLimits(n_bkgpars, 0, 5000)
+        fit_tpl.SetParameter(n_bkgpars + 3, 100)
+        fit_tpl.SetParLimits(n_bkgpars + 3, 0, 5000)
+        fit_tpl.SetParameter(n_bkgpars + 1, mass)
+        fit_tpl.SetParLimits(n_bkgpars + 1, mass-0.005, mass+0.005)
+        fit_tpl.SetParameter(n_bkgpars + 4, mass)
+        fit_tpl.SetParLimits(n_bkgpars + 4, mass-0.005, mass+0.005)
+        fit_tpl.SetParameter(n_bkgpars + 2, 0.0035)
+        fit_tpl.SetParLimits(n_bkgpars + 2, 0.001, 0.006)
+        fit_tpl.SetParameter(n_bkgpars + 5, 0.0035)
+        fit_tpl.SetParLimits(n_bkgpars + 5, 0.001, 0.006)
+        #fit_tpl.SetParameter(1, 1.5)
+        #fit_tpl.SetParLimits(1, 0.75,3)
+        #fit_tpl.SetParameter(0, 1)
+        #fit_tpl.SetParLimits(0, 0.5,1)
+        #fit_tpl.SetParameter(1, 2.5)
+        #fit_tpl.SetParameter(2, mass)
+        #fit_tpl.FixParameter(n_bkgpars+2, mass)
+        #fit_tpl.FixParameter(n_bkgpars+5, mass)
+        #fit_tpl.SetParLimits(n_bkgpars+2, mass-0.0002,mass+0.0002)
+        #fit_tpl.SetParLimits(n_bkgpars+5, mass-0.0002,mass+0.0002)
+        #fit_tpl.SetParameter(n_bkgpars+3, 0.002)
+        #fit_tpl.SetParameter(n_bkgpars+6, 0.002)
+        #fit_tpl.SetParLimits(n_bkgpars+3, 0.001, 0.01)
+        #fit_tpl.SetParLimits(n_bkgpars+6, 0.001, 0.01)
+        #fit_tpl.SetParameter(3, histo.GetRMS()/2.)
+        #fit_tpl.SetParameter(4, histo.GetMaximum())
+        #fit_tpl.SetParameter(5, -2000)
+        #fit_tpl.SetParameter(6, 2000)
+    else:
+        fit_tpl.SetParameter(n_bkgpars, max_hist_value-hist_bkg_eval)
+        fit_tpl.SetParLimits(n_bkgpars, 0, max_hist_value+3*hist_bkg_eval)
+        fit_tpl.SetParameter(n_bkgpars + 1, mass)
+        fit_tpl.SetParLimits(n_bkgpars + 1, mass-0.005, mass+0.005)
+        fit_tpl.SetParameter(n_bkgpars + 2, 0.0035)
+        fit_tpl.SetParLimits(n_bkgpars + 2, 0.001, 0.006)
+        if not gauss:
+            fit_tpl.SetParameter(n_bkgpars + 3, 0.00426)
+            fit_tpl.SetParLimits(n_bkgpars + 3, 0.000001, 0.005)
 
     # define signal and bkg_model TF1 separately
     if gauss:
@@ -281,7 +320,7 @@ def fit_hist(
 
     ########################################
     # plotting the fits
-    ax_titles = ';m (GeV/#it{c})^{2};Counts' + f' / {round(1000 * histo.GetBinWidth(1), 2)} MeV'
+    ax_titles = ';m (GeV/#it{c}^{2});Counts' + f' / {round(1000 * histo.GetBinWidth(1), 2)} MeV'+'/#it{c}^{2}'
 
     # invariant mass distribution histo and fit
     histo.UseCurrentStyle()
@@ -315,8 +354,12 @@ def fit_hist(
     bkg = bkg_tpl.Integral(mu - nsigma * sigma, mu +
                            nsigma * sigma) / histo.GetBinWidth(1)
     if peak_mode:
-        signal = fit_tpl.GetParameter(n_bkgpars) / histo.GetBinWidth(1)
-        errsignal = fit_tpl.GetParError(n_bkgpars) / histo.GetBinWidth(1)
+        if crystal:
+            signal = (fit_tpl.GetParameter(n_bkgpars) + fit_tpl.GetParameter(n_bkgpars+3)) / histo.GetBinWidth(1)
+            errsignal = TMath.Sqrt(fit_tpl.GetParError(n_bkgpars)*fit_tpl.GetParError(n_bkgpars)+fit_tpl.GetParError(n_bkgpars+3)*fit_tpl.GetParError(n_bkgpars+3)) / histo.GetBinWidth(1)
+        else:
+            signal = fit_tpl.GetParameter(n_bkgpars) / histo.GetBinWidth(1)
+            errsignal = fit_tpl.GetParError(n_bkgpars) / histo.GetBinWidth(1)
     else:
         signal = 0
         bin_min = histo.GetXaxis().FindBin(mu - nsigma * sigma)
@@ -401,3 +444,31 @@ def pt_array_to_mt_m0_array(pt_array, mass):
     for pt_item in pt_array:
         mt_array.append(math.sqrt(pt_item**2+mass**2)-mass)
     return mt_array
+
+def crystal_ball(x, par):
+    # Crystal Ball function fit
+    alpha = par[0]
+    n =     par[1]
+    meanx = par[2]
+    sigma = par[3]
+    nn =    par[4]
+    p0 =    par[5]
+    p1 =    par[6]
+    #print("alpha: ",alpha)
+    #print("n: ",n)
+    #print("meanx: ",meanx)
+    #print("sigma: ",sigma)
+    #print("nn: ",nn)
+    #print("p0: ",p0)
+    #print("p1: ",p1)
+    a = TMath.Power((n/math.fabs(alpha)), n) * math.exp(-0.5*alpha*alpha)
+    b = n/math.fabs(alpha) - math.fabs(alpha)
+ 
+    arg = (x[0] - meanx)/sigma
+
+    if arg > -1.*alpha:
+        fitval = nn * math.exp(-0.5*arg*arg)
+    else:
+        fitval = nn * a * TMath.Power((b-arg), (-1*n))
+      
+    return fitval+p0+p1*x[0]

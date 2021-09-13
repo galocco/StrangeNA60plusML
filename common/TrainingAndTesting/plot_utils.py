@@ -67,7 +67,6 @@ def plot_efficiency_significance(tsd, significance, efficiency, data_range_array
 def plot_significance_scan_hsp(
         max_index, significance, significance_error, expected_signal, hnsparse, score_list, data_range_array,
         mass, custom = False, suffix = '', sigma_mass=0.005):
-
     if custom:
         label = 'Significance x Efficiency'
     else:
@@ -78,20 +77,24 @@ def plot_significance_scan_hsp(
     peak_range = [mass-3*sigma_mass, mass+3*sigma_mass]
 
     h1_minv = au.h1_from_sparse(hnsparse, data_range_array, score_list[max_index], name="max_sig")
+    
     hist_range = [h1_minv.GetXaxis().GetXmin(), h1_minv.GetXaxis().GetXmax()]
+    
     mass_bins = h1_minv.GetNbinsX()
 
-    bkg_tpl_l = ROOT.TF1('fitBkg_l', 'pol1(0)', hist_range[0], hist_range[1])
+    bkg_tpl_l = ROOT.TF1('fitBkg_l', 'pol1(0)', hist_range[0], peak_range[0])
     bkg_tpl_r = ROOT.TF1('fitBkg_r', 'pol1(0)', peak_range[1], hist_range[1])
     bkg_tpl_l.SetLineColor(ROOT.kGreen+2)
     bkg_tpl_r.SetLineColor(ROOT.kGreen+2)
     fit_tpl = ROOT.TF1('fitTpl','pol1(0)+gausn(2)', peak_range[0], peak_range[1])
+
     fit_tpl.SetLineColor(ROOT.kOrange+4)
     peak_bins = [h1_minv.GetXaxis().FindBin(peak_range[0]), h1_minv.GetXaxis().FindBin(peak_range[1])]
-    h1_minv.GetYaxis().SetTitle(f'Events/{1000*((hist_range[1] - hist_range[0])/mass_bins):.1f}'+' MeV/#it{c}^{2}')
+    h1_minv.GetYaxis().SetTitle(f'Counts/{1000*((hist_range[1] - hist_range[0])/mass_bins):.1f}'+' MeV/#it{c}^{2}')
+
     for bin in range(peak_bins[0], peak_bins[1]+1):
         h1_minv.SetBinContent(bin, 0)
-    h1_minv.Fit(bkg_tpl_l, "QRL", "", hist_range[0], hist_range[1])
+    h1_minv.Fit(bkg_tpl_l, "QR")#, "", hist_range[0], peak_bins[1])
     bkg_tpl_l.SetRange(hist_range[0], peak_range[0])
     h1_peak = h1_minv.Clone()
     h1_peak.SetName("peak")
@@ -104,9 +107,9 @@ def plot_significance_scan_hsp(
     cv_inv = ROOT.TCanvas("cv_iv","cv", 1024, 768)
     cv_inv.cd()
     ROOT.gStyle.SetOptStat(0)
-    h1_minv.SetTitle(r'%1.f #leq #it{p}_{T} #leq %1.f GeV/#it{c}  Cut Score=%0.2f  Significance=%0.2f  Raw yield=%0.2f' % (
+    h1_minv.SetTitle(r'%0.2f #leq #it{p}_{T} #leq %0.2f GeV/#it{c}  Cut Score=%0.2f  Significance=%0.2f  Raw yield=%1f' % (
         data_range_array[0], data_range_array[1], max_score,  significance[max_index], expected_signal[max_index]))
-    h1_peak.SetTitle(r'%1.f #leq #it{p}_{T} #leq %1.f GeV/#it{c}  Cut Score=%0.2f  Significance=%0.2f  Raw yield=%0.2f' % (
+    h1_peak.SetTitle(r'%0.2f #leq #it{p}_{T} #leq %0.2f GeV/#it{c}  Cut Score=%0.2f  Significance=%0.2f  Raw yield=%1f' % (
         data_range_array[0], data_range_array[1], max_score,  significance[max_index], expected_signal[max_index]))
     
     for bin in range(1, h1_minv.GetNbinsX()+1):
@@ -138,6 +141,7 @@ def plot_significance_scan_hsp(
     score_err_list = []
     for i in range(len(score_list)):
         score_err_list.append(0)
+    
     score_err_binning = array('d', score_err_list)
     sgn_binning = array('d', significance[::-1])
     sgn_err_binning = array('d', significance_error[::-1])
@@ -145,7 +149,7 @@ def plot_significance_scan_hsp(
     h1_sign = ROOT.TGraphErrors(len(score_list)-1 ,score_binning, sgn_binning, score_err_binning, score_err_binning)
     h1_sign_err = ROOT.TGraphErrors(len(score_list)-1 ,score_binning, sgn_binning, score_err_binning, sgn_err_binning)
 
-    h1_sign_err.SetTitle(r'%1.f #leq #it{p}_{T} #leq %1.f GeV/#it{c}  Cut Score=%0.2f  Significance=%0.2f  Raw yield=%0.2f' % (
+    h1_sign_err.SetTitle(r'%0.2f #leq #it{p}_{T} #leq %0.2f GeV/#it{c}  Cut Score=%0.2f  Significance=%0.2f  Raw yield=%1f' % (
         data_range_array[0], data_range_array[1], max_score,  significance[max_index], expected_signal[max_index]))
     h1_sign_err.GetXaxis().SetTitle("score")
     h1_sign_err.GetXaxis().SetRangeUser(score_list[::-1][0], score_list[::-1][-1])
@@ -156,22 +160,23 @@ def plot_significance_scan_hsp(
     h1_sign_err.SetMarkerColor(1)
     h1_sign.SetMarkerColor(1)
 
-
     h1_sign_err.Draw("AL E4")
     h1_sign.Draw("L same")
-
-    fig_name = 'Significance_pT{}{}_{}.pdf'.format(
+    #h1_sign_err.GetYAxis().SetRangeUser(-6,6)
+    #h1_sign.GetYAxis().SetRangeUser(-6,6)
+    fig_name = 'Significance_pT{}{}_{}.png'.format(
         data_range_array[0],
         data_range_array[1],
         suffix)
 
     fig_sig_path = os.environ['HYPERML_FIGURES']+'/Significance'
+    
     if not os.path.exists(fig_sig_path):
         os.makedirs(fig_sig_path)
 
     cv_sig.SaveAs(fig_sig_path + '/' + fig_name)
 
-    fig_name = 'InvMass_pT{}{}_{}.pdf'.format(
+    fig_name = 'InvMass_pT{}{}_{}.png'.format(
         data_range_array[0],
         data_range_array[1],
         suffix)

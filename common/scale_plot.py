@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 
 import argparse
+from inspect import getattr_static
 import math
 import os
 import plot_utils as pu
 import numpy as np
 import yaml
 import ROOT
-from ROOT import (TF1, TCanvas, TFile, TPaveText, gStyle)
+from ROOT import TF1, TCanvas, TFile, TPaveText, gStyle, gPad
 from scipy import stats
 
 ###############################################################################
@@ -34,39 +35,50 @@ BKG_MODELS = params['BKG_MODELS']
 CUSTOM = args.custom
 ###############################################################################
 # define paths for loading data
-event_path = os.path.expandvars(params['EVENT_PATH'])
+event_path = params['EVENT_PATH'][0]
 
 ###############################################################################
-file_name = f"../Results/2Body/{FILE_PREFIX}_results_fit.root"
+file_name = f"../Results/{FILE_PREFIX}/{FILE_PREFIX}_scaled.root"
+results_file = TFile(file_name,"recreate")
+file_name = f"../Results/{FILE_PREFIX}/{FILE_PREFIX}_results_fit.root"
 inDirName = '0-5'
-input_file = TFile(file_name)
-h2BDTEff = input_file.Get(f'{inDirName}/BDTeff')
-h1BDTEff = h2BDTEff.ProjectionX("bdteff", 1, h2BDTEff.GetNbinsY()+1)
+input_file = TFile(file_name,"read")
+h1BDTEff = input_file.Get(f'{inDirName}/BDTeff')
 if CUSTOM:
     print("insert custom bdt efficiencies:")
     best_sig_eff = []
     for index in range(0,len(PT_BINS)):
         best_sig_eff.append(input())
 else:
-    best_sig_eff = np.round(np.array(h1BDTEff)[1:-1], 2)
-#best_sig_eff[2] = 0.28
-background_file = TFile(event_path)
+    best_sig_eff = np.round(np.array(h1BDTEff)[1:-1], 3)
+    print(best_sig_eff)
+#best_sig_eff[0] = 0.975
+background_file = TFile(event_path, "read")
 hist_ev = background_file.Get('hNevents')
 n_ev = hist_ev.GetBinContent(1)
 background_file.Close()
 full_run = 10**10
 sig_index = 0
-
+model = 'pol1'
+if 'pol' in str(model):
+    n_bkgpars = int(model[3]) + 1
+elif 'expo' in str(model):
+    n_bkgpars = 2
+else:
+    print(f'Unsupported model {model}')
+cv = TCanvas("cv","cv")
 for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
-    results_file = TFile(file_name)
 
-    cv = TCanvas("cv","cv")
-    histo = results_file.Get(f'0-5/pt_{ptbin[0]}{ptbin[1]}/pol2/pT{ptbin[0]}{ptbin[1]}_eff{best_sig_eff[sig_index]:.2f}')
-    lineshape = histo.GetFunction("fitTpl")
-    parameter = []
-    for par_index in range(0,6):
-        parameter.append(lineshape.GetParameter(par_index))
-    histo.GetListOfFunctions().Remove(lineshape)
+    histo = input_file.Get(f'0-5/pt_{ptbin[0]}{ptbin[1]}/{model}/eff{best_sig_eff[sig_index]:.3f}')
+    fitTpl = histo.GetFunction("fitTpl")
+    #lineshape = TF1('lineshape', '([0]+[1]*x)+[2]*TMath::Exp(-0.5*((x-[3])/[4])*((x-[3])/[4]))/(TMath::Sqrt(2*3.141593)*[4])', 0, 5)
+    
+    lineshape = TF1('lineshape', f'{model}(0)+gausn({n_bkgpars})+gausn({n_bkgpars+3})', 0, 5)
+    for par_index in range(0,n_bkgpars+6):
+        print("par(",par_index,") = ",fitTpl.GetParameter(par_index))
+        lineshape.SetParameter(par_index, fitTpl.GetParameter(par_index))
+    histo.GetListOfFunctions().Remove(fitTpl)
+    cv.SetLeftMargin(0.15)
     for index in range(1,histo.GetNbinsX()+1):
         mass = histo.GetBinCenter(index)
 
@@ -80,26 +92,24 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
     histo.GetYaxis().SetRangeUser(0,1.5*int(lineshape.Eval(true_mass)*full_run/n_ev))
     histo.Draw()
 
-    for par_index in range(0,4):
+    for par_index in range(0,n_bkgpars+1):
         lineshape.SetParameter(par_index,lineshape.GetParameter(par_index)*full_run/n_ev)
-
+    lineshape.SetParameter(n_bkgpars+3,lineshape.GetParameter(n_bkgpars+3)*full_run/n_ev)
+    
     lineshape.Draw("same")
 
-    bkg_tpl = TF1('fitTpl', 'pol2(0)', 0, 5)
-
-    bkg_tpl.SetParameter(0,lineshape.GetParameter(0))
-    bkg_tpl.SetParameter(1,lineshape.GetParameter(1))
-    bkg_tpl.SetParameter(2,lineshape.GetParameter(2))
+    bkg_tpl = TF1('fitTpl', f'{model}(0)', 0, 5)
+    for par_index in range(0, n_bkgpars):
+        bkg_tpl.SetParameter(par_index, lineshape.GetParameter(par_index))
 
     # get the fit parameters
-    n_bkgpars = 3
     nsigma = 3
     mu = lineshape.GetParameter(n_bkgpars+1)
     muErr = lineshape.GetParError(n_bkgpars+1)
     sigma = lineshape.GetParameter(n_bkgpars+2)
     sigmaErr = lineshape.GetParError(n_bkgpars+2)
-    signal = lineshape.GetParameter(n_bkgpars) / histo.GetBinWidth(1)
-    errsignal = lineshape.GetParError(n_bkgpars) / histo.GetBinWidth(1)
+    signal = (lineshape.GetParameter(n_bkgpars)+lineshape.GetParameter(n_bkgpars+3)) / histo.GetBinWidth(1)
+    errsignal = ROOT.TMath.Sqrt(lineshape.GetParError(n_bkgpars)**2+lineshape.GetParError(n_bkgpars+3)**2) / histo.GetBinWidth(1)
     bkg = bkg_tpl.Integral(mu - nsigma * sigma, mu +
                             nsigma * sigma) / histo.GetBinWidth(1)
 
@@ -148,10 +158,6 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
         string = f'S/B ({nsigma:.0f}#sigma) {ratio:.4f}'
 
     pinfo2.AddText(string)
-
-    string = '#sigma__{fit}'+f' {1000*sigma:.0f} #pm {1000*sigmaErr:.0f} MeV/'+'#it{c}^{2}'
-    pinfo2.AddText(string)
-    print("sigma: ",sigma*1000," +- ",1000*sigmaErr)
     
     pinfo2.Draw()
     gStyle.SetOptStat(0)
@@ -165,5 +171,10 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
     bkg_tpl.Draw("same")
 
     sig_index += 1
-    cv.SaveAs('../Results/2Body/'+FILE_PREFIX+f'_pol2_pt_{ptbin[0]}{ptbin[1]}.png')
-    cv.SaveAs('../Results/2Body/'+FILE_PREFIX+f'_pol2_pt_{ptbin[0]}{ptbin[1]}.pdf')
+    results_file.cd()
+    cv.Write()
+    histo.Write()
+    #cv.SaveAs(FILE_PREFIX+f'_pol1_pt_{ptbin[0]}{ptbin[1]}.png')
+    cv.SaveAs(FILE_PREFIX+f'_pol1_pt_{ptbin[0]}{ptbin[1]}.pdf')
+results_file.Close()
+input_file.Close()

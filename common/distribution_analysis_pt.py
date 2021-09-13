@@ -4,8 +4,8 @@ import argparse
 import math
 import os
 import random
+import time
 from array import array
-from multiprocessing import Pool
 
 import numpy as np
 import yaml
@@ -53,9 +53,13 @@ MULTIPLICITY = params['MULTIPLICITY']
 PDG_CODE = params['PDG']
 PT_BINS = params['PT_BINS']
 EFF_MIN, EFF_MAX, EFF_STEP = params['BDT_EFFICIENCY']
-EVENT_PATH = os.path.expandvars(params['EVENT_PATH'])
+EVENT_PATH = os.path.expandvars(params['EVENT_PATH'][0])
 
 SCALE = args.scale
+
+
+###############################################################################
+start_time = time.time()                          # for performances evaluation
 
 gROOT.SetBatch()
 
@@ -83,19 +87,24 @@ pt_distr.SetParameter(1,T)
 pt_distr.SetParLimits(1,T*0.8,T*1.2)
 pt_distr.FixParameter(2,mass)
 
+pt_distr_gen = TF1("pt_distr_gen", "[0]*x*exp(-TMath::Sqrt(x**2+[2]**2)/[1])",PT_BINS[0],PT_BINS[-1])
+pt_distr_gen.FixParameter(0, math.sqrt(MULTIPLICITY/(T*math.exp(-mass)*(1+mass)/(PT_BINS[1]-PT_BINS[0]))))
+pt_distr_gen.FixParameter(1, T)
+pt_distr_gen.FixParameter(2, mass)
 
-resultsSysDir = os.environ['HYPERML_RESULTS_{}'.format(params['NBODY'])]
 
-var = 'm_{T}'
-unit = 'GeV'
+resultsSysDir = os.environ['HYPERML_RESULTS']+"/"+FILE_PREFIX
 
-file_name = resultsSysDir + '/' + FILE_PREFIX + '/' + FILE_PREFIX + '_dist.root'
+var = '#it{p}_{T}'
+unit = 'GeV/#it{c}'
+
+file_name = resultsSysDir + '/' + FILE_PREFIX + '_dist.root'
 distribution = TFile(file_name, 'recreate')
 
-file_name = resultsSysDir + '/' + FILE_PREFIX + '/' + FILE_PREFIX + '_results_fit.root'
+file_name = resultsSysDir + '/' + FILE_PREFIX + '_results_fit.root'
 results_file = TFile(file_name, 'read')
 
-bkgModels = params['BKG_MODELS'] if 'BKG_MODELS' in params else ['mt_distr']
+bkgModels = params['BKG_MODELS']
 
 if SCALE:
     n_run = rate*running_time*24*60*60*5
@@ -106,12 +115,13 @@ inDirName = '0-5'
 
 h1BDTEff = results_file.Get(f'{inDirName}/BDTeff')
 
-best_sig = np.round(np.array(h1BDTEff)[1:-1], 2)
+best_sig = np.round(np.array(h1BDTEff)[1:-1], 3)
+#best_sig = [0.991, 0.991, 0.991, 0.991, 0.991, 0.991, 0.991, 0.991, 0.991, 0.991, 0.991, 0.991, 0.991, 0.991, 0.991]
 #best_sig = [0.8,0.8,0.8,0.8]
 #best_sig[0] = 0.15
 sig_ranges = []
-eff_m = 0.05
-eff_p = 0.05
+eff_m = 0.04
+eff_p = 0.04
 for i in best_sig:
     if EFF_MAX < i+eff_p:
         eff_p = EFF_MAX-i
@@ -146,16 +156,17 @@ for model in bkgModels:
     h1RawCounts = TH1D(f"mt_best_{model}",";m_{T}-m_{0} [GeV];1/N_{ev}1/m_{T}dN/dm_{T} [GeV^{-2}]",len(PT_BINS)-1,binning)
     h1RawCountsPt = TH1D(f"pt_best_{model}",";#it{p}_{T} [GeV/#it{c}];1/N_{ev}dN/d#it{p}_{T} [(GeV/#it{c})^{-1}]",len(PT_BINS)-1,pt_binning)
 
-    out_dir.cd()
-
     for iBin in range(1, h1RawCounts.GetNbinsX() + 1):
-        h1RawCounts = results_file.Get(f'{inDirName}/RawCounts{ranges["BEST"][iBin-1]:.2f}_{model}')
+        h1Counts = results_file.Get(f'{inDirName}/RawCounts{ranges["BEST"][iBin-1]:.3f}_{model}')
 
-        h1RawCounts.SetBinContent(iBin, h1RawCounts.GetBinContent(iBin) / h1PreselEff.GetBinContent(iBin) / ranges['BEST'][iBin-1] / h1RawCounts.GetBinWidth(iBin) / (PT_BINS[iBin-1]+PT_BINS[iBin])/2 / n_ev)
-        h1RawCounts.SetBinError(iBin, h1RawCounts.GetBinError(iBin) / h1PreselEff.GetBinContent(iBin) / ranges['BEST'][iBin-1] / h1RawCounts.GetBinWidth(iBin) / (PT_BINS[iBin-1]+PT_BINS[iBin])/2 / math.sqrt(n_ev*n_run))
+        #print("eff(",iBin,"): ", h1PreselEff.GetBinContent(iBin))
+        #print("effBDT(",iBin,"): ", ranges['BEST'][iBin-1])
+        #print("bin width: ", h1RawCountsPt.GetBinWidth(iBin))
+        h1RawCounts.SetBinContent(iBin, h1Counts.GetBinContent(iBin) / h1PreselEff.GetBinContent(iBin) / ranges['BEST'][iBin-1] / h1RawCounts.GetBinWidth(iBin) / (PT_BINS[iBin-1]+PT_BINS[iBin])/2 / n_ev)
+        h1RawCounts.SetBinError(iBin, h1Counts.GetBinError(iBin) / h1PreselEff.GetBinContent(iBin) / ranges['BEST'][iBin-1] / h1RawCounts.GetBinWidth(iBin) / (PT_BINS[iBin-1]+PT_BINS[iBin])/2 / math.sqrt(n_ev*n_run))
         
-        h1RawCountsPt.SetBinContent(iBin, h1RawCounts.GetBinContent(iBin) / h1PreselEff.GetBinContent(iBin) / ranges['BEST'][iBin-1] / h1RawCountsPt.GetBinWidth(iBin) / n_ev)
-        h1RawCountsPt.SetBinError(iBin, h1RawCounts.GetBinError(iBin) / h1PreselEff.GetBinContent(iBin) / ranges['BEST'][iBin-1] / h1RawCountsPt.GetBinWidth(iBin) / math.sqrt(n_ev*n_run))
+        h1RawCountsPt.SetBinContent(iBin, h1Counts.GetBinContent(iBin) / h1PreselEff.GetBinContent(iBin) / ranges['BEST'][iBin-1] / h1RawCountsPt.GetBinWidth(iBin) / n_ev)
+        h1RawCountsPt.SetBinError(iBin, h1Counts.GetBinError(iBin) / h1PreselEff.GetBinContent(iBin) / ranges['BEST'][iBin-1] / h1RawCountsPt.GetBinWidth(iBin) / math.sqrt(n_ev*n_run))
         
         raws.append([])
         errs.append([])
@@ -164,9 +175,9 @@ for model in bkgModels:
             if eff >= EFF_MAX:
                 continue
             
-            h1RawCounts = results_file.Get(f'{inDirName}/RawCounts{eff:.2f}_{model}')
-            raws[iBin-1].append(h1RawCounts.GetBinContent(iBin) / h1PreselEff.GetBinContent(iBin) / eff / h1RawCounts.GetBinWidth(iBin) / (PT_BINS[iBin-1]+PT_BINS[iBin])/2 / n_ev)
-            errs[iBin-1].append(h1RawCounts.GetBinError(iBin) / h1PreselEff.GetBinContent(iBin) / eff / h1RawCounts.GetBinWidth(iBin) / (PT_BINS[iBin-1]+PT_BINS[iBin])/2 / math.sqrt(n_ev*n_run) )
+            h1Counts = results_file.Get(f'{inDirName}/RawCounts{eff:.3f}_{model}')
+            raws[iBin-1].append(h1Counts.GetBinContent(iBin) / h1PreselEff.GetBinContent(iBin) / eff / h1RawCounts.GetBinWidth(iBin)/ n_ev)
+            errs[iBin-1].append(h1Counts.GetBinError(iBin) / h1PreselEff.GetBinContent(iBin) / eff / h1RawCounts.GetBinWidth(iBin)/ math.sqrt(n_ev*n_run) )
 
 
     out_dir.cd()
@@ -175,7 +186,7 @@ for model in bkgModels:
     fit_function = h1RawCounts.GetFunction("mt_distr")
     fit_function.SetLineColor(kOrangeC)
     h1RawCounts.Write()
-    hRawCounts.append(h1RawCounts)
+    #hRawCounts.append(h1RawCounts)
 
     cvDir.cd()
     myCv = TCanvas(f"mT_SpectraCv_{model}")
@@ -231,9 +242,10 @@ for model in bkgModels:
     ###########################################################################
     #h1RawCounts.UseCurrentStyle()
 
-    h1RawCountsPt.Fit(pt_distr, "M0+", "",MT_BINS[1],MT_BINS[-1])
+    h1RawCountsPt.Fit(pt_distr, "M0+", "",PT_BINS[0],PT_BINS[-2])
     fit_function = h1RawCountsPt.GetFunction("pt_distr")
     fit_function.SetLineColor(kOrangeC)
+    h1RawCountsPt.GetXaxis().SetRangeUser(0,2.75)
     h1RawCountsPt.Write()
     hRawCounts.append(h1RawCountsPt)
 
@@ -253,7 +265,7 @@ for model in bkgModels:
     err_decimal = pu.get_decimal(pt_distr.GetParError(1)*1000)
     string = 'Pb-Pb, #sqrt{#it{s}_{NN}} = '+f'{EINT} GeV,  0-5%'
     pinfo.AddText(string)
-    string = 'T = {:.'+f'{5}'+'f} #pm {:.'+f'{5}'+'f} MeV '
+    string = 'T = {:.'+f'{3}'+'f} #pm {:.'+f'{3}'+'f} MeV '
     string = string.format(
         pt_distr.GetParameter(1)*1000, pt_distr.GetParError(1)*1000)
     pinfo.AddText(string)
@@ -263,6 +275,11 @@ for model in bkgModels:
         if pt_distr.GetNDF() != 0:
             string = f'#chi^{{2}} / NDF = {(pt_distr.GetChisquare() / pt_distr.GetNDF()):.2f}'
         pinfo.AddText(string)
+    print("**************************************************")
+    bratio = 0.489
+    mult = pt_distr.GetParameter(0)*pt_distr.GetParameter(1)*pt_distr.GetParameter(1)*ROOT.TMath.Exp(-mass/pt_distr.GetParameter(1))/bratio
+    print("multiplicity: ", mult)
+    print("**************************************************")
     h1RawCountsPt.SetMarkerStyle(20)
     h1RawCountsPt.SetMarkerColor(ROOT.kBlue)
     h1RawCountsPt.SetLineColor(ROOT.kBlue)
@@ -270,6 +287,7 @@ for model in bkgModels:
     h1RawCountsPt.Draw("ex0same")
     pt_distr.Draw("same")
 
+    myCv.SetLogy()
     pinfo.Draw("x0same")
     myCv.SaveAs(resultsSysDir+"/pT_spectra_"+FILE_PREFIX+"_"+model+".png")
     myCv.SaveAs(resultsSysDir+"/pT_spectra_"+FILE_PREFIX+"_"+model+".pdf")
@@ -297,7 +315,7 @@ pars = TH2D("pars", ";T (MeV);Normalisation;Entries", 400, T*0.8*1000, T*1.2*100
 tmpCt = hRawCounts[0].Clone("tmpCt")
 
 combinations = set()
-size = 0
+size = 10000
 count=0
 for _ in range(size):
     tmpCt.Reset()
@@ -314,14 +332,14 @@ for _ in range(size):
         continue
 
     combinations.add(combo)
-    tmpCt.Fit(mt_distr, "M0+","",MT_BINS[0],MT_BINS[-1])
-    prob.Fill(mt_distr.GetProb())
-    if mt_distr.GetChisquare() < 3 * mt_distr.GetNDF():
-        #if(mt_distr.GetParameter(2))>270 and count==0:
+    tmpCt.Fit(pt_distr, "MQR0+","",PT_BINS[0],PT_BINS[-1])
+    prob.Fill(pt_distr.GetProb())
+    #if pt_distr.GetChisquare() < 10 * pt_distr.GetNDF():
+        #if(pt_distr.GetParameter(2))>270 and count==0:
         #    tmpCt.Write()
         #    count=1
-        syst.Fill(mt_distr.GetParameter(2)*1000)
-        pars.Fill(mt_distr.GetParameter(2)*1000, mt_distr.GetParameter(0))
+    syst.Fill(pt_distr.GetParameter(1)*1000)
+    pars.Fill(pt_distr.GetParameter(1)*1000, pt_distr.GetParameter(0))
 
 syst.SetFillColor(600)
 syst.SetFillStyle(3345)
@@ -330,3 +348,6 @@ prob.Write()
 pars.Write()
 
 results_file.Close()
+
+print('')
+print(f'--- training and testing in {((time.time() - start_time) / 60):.2f} minutes ---')

@@ -70,6 +70,8 @@ APPLICATION = args.application
 CUSTOM_SCAN = args.custom
 SIGNIFICANCE_SCAN = args.significance
 
+EVENT_PATH = os.path.expandvars(params['EVENT_PATH'][0])
+
 ###############################################################################
 # define paths for loading data
 signal_path = os.path.expandvars(params['MC_PATH'])
@@ -198,6 +200,7 @@ if APPLICATION:
 
                 histo_name = f'eff{eff:.3f}'
                 h1_minv = au.h1_from_sparse(hnsparse, ptbin, tsd, name=histo_name)
+                
                 h1_minv.Write()
                         
             print('Application and signal extraction: Done!\n')

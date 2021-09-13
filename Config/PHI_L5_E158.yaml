@@ -6,12 +6,8 @@ EINT: 158
 MULTIPLICITY: 8.46
 BRATIO: 0.489
 T: 0.298
-EFF: 0.374
 SIGMA: 0.003
 
-CENTRALITY_CLASS: 
-  - [0, 5]
-CT_BINS: [0, 100]
 PT_BINS: [2., 3.]
 
 BKG_MODELS: ['expo', 'pol1', 'pol2']
@@ -20,12 +16,8 @@ BDT_EFFICIENCY: [0.01, 1.0, 0.01] ##min, max ,step
 
 MC_PATH: ../Data/PHI_L5_E158/fntSig_PHI_L5_E158_TS.root
 BKG_PATH: ../Data/PHI_L5_E158/fntBkg_PHI_L5_E158_TS.root
-MC_PATH_FULL: ../Data/PHI_L5_E158/fntBkg_PHI_Full_L5_E158_TS.root
-DATA_SIG_PATH: ['../Data/PHI_L5_E158/fntSig_PHI_L5_E158_Data.root']
-DATA_BKG_PATH: ['../Data/PHI_L5_E158/fntBkg_PHI_L5_E158_Data.root']
 DATA_PATH: ['../Data/PHI_L5_E158/fntBkg_PHI_Full_L5_E158_Data.root']
 EVENT_PATH: ['../Data/PHI_L5_E158/Bkg-histos_PHI_L5_E158_Data.root']
-EVENT_PATH_FULL: ['../Data/PHI_L5_E158/Bkg-histos_PHI_Full_L5_E158_Data.root']
 
 PRESELECTION: dist < 1.4 and d0prod < 0.09 and d0prod > -0.09 and dca < 0.016 and thetad > 0.97  and arm < 0.3 and arm > -0.3
 

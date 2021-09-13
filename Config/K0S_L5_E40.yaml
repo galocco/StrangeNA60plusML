@@ -6,27 +6,32 @@ EINT: 40
 MULTIPLICITY: 39.15
 BRATIO: 0.692
 T: 0.22745
-EFF: 0.0758
-SIGMA: 0.002
+SIGMA: 0.003
+MASS_WINDOW: 0.04
 
-PT_BINS: [0, 2.]
+#PT_BINS: [0,0.125,0.25,0.375,0.5,0.625,0.75,0.875,1.0,1.125,1.25,1.375,1.5,1.625,1.75,1.875,2.0,2.125,2.25,2.375,2.5,2.625,2.75,2.875, 3.0]
+PT_BINS: [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.,1.2,1.4,1.6,1.8,2.0,2.25,2.5,2.75, 3.0]
 
 BKG_MODELS: ['expo', 'pol1', 'pol2']
 
-BDT_EFFICIENCY: [0.20, 1., 0.01] ##min, max ,step
+BDT_EFFICIENCY: [0.20, 1., 0.001] ##min, max ,step
 
-MC_PATH: ../Data/K0S_L5_E40/fntSig_K0s_L5_E40_TS.root
-BKG_PATH: ../Data/K0S_L5_E40/fntBkg_K0s_L5_E40_TS.root
-MC_PATH_FULL: ../Data/K0S_L5_E40/fntBkg_K0s_Full_L5_E40_TS.root
-DATA_SIG_PATH: ['../Data/K0S_L5_E40/fntSig_K0s_L5_E40_Data.root']
-DATA_BKG_PATH: ['../Data/K0S_L5_E40/fntBkg_K0s_L5_E40_Data.root']
-DATA_PATH: ['../Data/K0S_L5_E40/fntBkg_K0s_Full_L5_E40_Data.root']
-EVENT_PATH: ['../Data/K0S_L5_E40/Bkg-histos_K0s_L5_E40_Data.root']
-EVENT_PATH_FULL: ['../Data/K0S_L5_E40/Bkg-histos_K0s_Full_L5_E40_Data.root']
+#MC_PATH: ../Data/K0S_L5_E40/fntSig_K0S_L5_E40_test.root
+#BKG_PATH: ../Data/K0S_L5_E40/fntBkg_K0S_L5_E40_9.root
+#DATA_PATH: ['../Data/K0S_L5_E40/fntBkg_K0S_L5_E40.root']
+#EVENT_PATH: ['../Data/K0S_L5_E40/merged_ev.root']
 
-PRESELECTION: cosp > 0.99
+MC_PATH: ../Data/K0S_L5_E40/fntSig_L5_E40_train.root
+BKG_PATH: ../Data/K0S_L5_E40/fntBkg_K0S_L5_E40_train.root
+DATA_PATH:
+- ../Data/K0S_L5_E40/fntBkg_K0S_L5_E40_data.root
+EVENT_PATH:
+- ../Data/K0S_L5_E40/merged_ev.root
 
-GAUSS: False
+PRESELECTION: cosp > 0.9999 and pt<3
+STD_SELECTION: pt<3 and dist > 5 and cosp > 0.999988 and dcaD < 0.007 and dca<0.015 and cospD > 0.999
+
+GAUSS: True
 
 XGBOOST_PARAMS:
   # general parameters
@@ -65,7 +70,4 @@ TRAINING_COLUMNS:
   - dist
   - dca
   - d0prod
-  - d01 
-  - d02
-  - ptMin
   - rapidity

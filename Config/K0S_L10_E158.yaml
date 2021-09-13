@@ -6,30 +6,22 @@ EINT: 158
 MULTIPLICITY: 77.45
 BRATIO: 0.692
 T: 0.229
-EFF: 0.115
 SIGMA: 0.002
 
-CENTRALITY_CLASS: 
-  - [0, 5]
-CT_BINS: [0, 100]
 PT_BINS: [0, 2]
 
 BKG_MODELS: ['expo', 'pol1', 'pol2']
 
-BDT_EFFICIENCY: [0.10, 1.00, 0.01] ##min, max ,step
+BDT_EFFICIENCY: [0.10, 1.00, 0.001] ##min, max ,step
 
 MC_PATH: ../Data/K0S_L10_E158/fntSig_K0s_L10_E158_TS.root
 BKG_PATH: ../Data/K0S_L10_E158/fntBkg_K0s_L10_E158_TS.root
-MC_PATH_FULL: ../Data/K0S_L10_E158/fntBkg_K0s_Full_L10_E158_TS.root
-DATA_SIG_PATH: ['../Data/K0S_L10_E158/fntSig_K0s_L10_E158_Data.root']
-DATA_BKG_PATH: ['../Data/K0S_L10_E158/fntBkg_K0s_L10_E158_Data.root']
-DATA_PATH: ['../Data/K0S_L10_E158/fntBkg_K0s_Full_L10_E158_Data.root']
 EVENT_PATH: ['../Data/K0S_L10_E158/Bkg-histos_K0s_L10_E158_Data.root']
-EVENT_PATH_FULL: ['../Data/K0S_L10_E158/Bkg-histos_K0s_Full_L10_E158_Data.root']
+EVENT_PATH: ['../Data/K0S_L10_E158/Bkg-histos_K0s_Full_L10_E158_Data.root']
 
 PRESELECTION: cosp > 0.99
+STD_SELECTION: pt<3 and dist > 5 and cosp > 0.999988 and dcaD < 0.007 and dca<0.015 and cospD > 0.999
 
-LARGE_DATA: True
 GAUSS: False
 
 XGBOOST_PARAMS:
@@ -69,7 +61,4 @@ TRAINING_COLUMNS:
   - dist
   - dca
   - d0prod
-  - d01 
-  - d02
-  - ptMin
   - rapidity
