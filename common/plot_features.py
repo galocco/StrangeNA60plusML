@@ -38,7 +38,7 @@ FILE_PREFIX = params['FILE_PREFIX']
 signal_path = os.path.expandvars(params['MC_PATH'])
 bkg_path = os.path.expandvars(params['BKG_PATH'])
     
-results_dir = os.environ[f'HYPERML_RESULTS']+"/"+FILE_PREFIX
+results_dir = os.environ['RESULTS']+"/"+FILE_PREFIX
 
 ###############################################################################
 start_time = time.time()                          # for performances evaluation

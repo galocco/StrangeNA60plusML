@@ -4,7 +4,7 @@ import os
 import time
 import warnings
 from array import array
-
+import uproot
 import numpy as np
 import yaml
 import math
@@ -38,8 +38,8 @@ gROOT.SetBatch()
 
 ###############################################################################
 parser = argparse.ArgumentParser()
-parser.add_argument('-p', '--peak', help='Take signal from the gaussian fit', action='store_true')
 parser.add_argument('config', help='Path to the YAML configuration file')
+parser.add_argument('-t', '--test', help='Test mode', action='store_true')
 parser.add_argument('-s', '--scale', help='Scale the results to a complete run', action='store_true')
 args = parser.parse_args()
 
@@ -54,111 +54,161 @@ with open(os.path.expandvars(args.config), 'r') as stream:
 # define analysis global variables
 PDG_CODE = params['PDG']
 FILE_PREFIX = params['FILE_PREFIX']
-GAUSS = params['GAUSS']
 MASS_WINDOW = params['MASS_WINDOW']
 PT_BINS = params['PT_BINS']
 EINT = params['EINT']
+NBINS = params['NBINS']
 BKG_MODELS = params['BKG_MODELS']
-STD_SELECTION = params['STD_SELECTION']
+SIG_MODELS = params['SIG_MODELS']
 T = params['T']
-
-PEAK_MODE = args.peak
+MULTIPLICITY = params['MULTIPLICITY']
+bratio = params['BRATIO']
 SCALE = args.scale
+TEST = args.test
+results_dir = os.environ['RESULTS']
+mc_file_name = params['MC_PATH']
 
-for index in range(0,len(params['EVENT_PATH'])):
-
-    ###############################################################################
-    # define paths for loading data
-    data_path = os.path.expandvars(params['DATA_PATH'][index])
-    event_path = os.path.expandvars(params['EVENT_PATH'][index])
-    BKG_MODELS = params['BKG_MODELS']
-
-    results_dir = f"../Results"
-
-    ###############################################################################
-    start_time = time.time()                          # for performances evaluation
-
-    resultsSysDir = os.environ['HYPERML_RESULTS']
-
+if TEST:
+    file_name = results_dir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_sig_only_results.root'
+    STD_SELECTION = "pt < 3"
+else:
     file_name = results_dir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_std_results.root'
-    results_file = TFile(file_name, 'recreate')
+    STD_SELECTION = params['STD_SELECTION']
 
-    mass = TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
-    cv = ROOT.TCanvas("cv","cv")
+mc_fit_file_name = results_dir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_mc_fit.root'
+mc_fit_file = TFile(mc_fit_file_name,"read")
 
-    background_file = ROOT.TFile(event_path)
-    hist_ev = background_file.Get('hNevents')
-    n_ev = hist_ev.GetBinContent(1)
-    background_file.Close()
-    rate = 75000 #hz
-    running_time = 30#days
-    if SCALE:
-        n_run = rate*running_time*24*60*60*5
-    else:
-        n_run = n_ev
+results_file = TFile(file_name, 'recreate')
+binning = array("d", PT_BINS)
 
-    hnsparse = au.get_skimmed_large_data_std_hsp(mass, data_path, PT_BINS, STD_SELECTION, MASS_WINDOW)
-    results_file.cd()
-    hnsparse.Write()
+h1PreselEff = ROOT.TH1D("PreselEff",";#it{p}_{T} (GeV/#it{c}); efficiency",len(binning)-1,binning)
+h1Gen = ROOT.TH1D("h1Gen",";#it{p}_{T} (GeV/#it{c}); efficiency",len(binning)-1,binning)
+df_rec = uproot.open(mc_file_name)['ntcand'].arrays(library="pd").query(STD_SELECTION)
+for pt in df_rec['pt']:
+    h1PreselEff.Fill(pt)
+
+del df_rec
+df_gen = uproot.open(mc_file_name)['ntgen'].arrays(library="pd")
+
+for pt in df_gen['pt']:
+    h1Gen.Fill(pt)
+
+h1PreselEff.Divide(h1Gen)
+del df_gen
+
+if TEST:
+    STD_SELECTION += " and true > 0.5"
+
+resultsSysDir = os.environ['RESULTS']+"/"+FILE_PREFIX
+
+mass = TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
+pt_distr_gen = TF1("pt_distr_gen", "x*exp(-TMath::Sqrt(x**2+[1]**2)/[0])",PT_BINS[0],PT_BINS[-1])
+pt_distr_gen.FixParameter(0,T)
+pt_distr_gen.FixParameter(1,mass)
+pt_range_factor = au.get_pt_integral(pt_distr_gen, PT_BINS[0],PT_BINS[-1])/au.get_pt_integral(pt_distr_gen)
+
+###############################################################################
+# define paths for loading data
+data_path = os.path.expandvars(params['DATA_PATH'])
+NEVENTS = params['NEVENTS']
+BKG_MODELS = params['BKG_MODELS']
 
 
-    resultsSysDir = os.environ['HYPERML_RESULTS']+"/"+FILE_PREFIX
-    file_name = resultsSysDir + '/' + FILE_PREFIX + '_results_fit.root'
-    efficiency_file = TFile(file_name, 'read')
+###############################################################################
+start_time = time.time()                          # for performances evaluation
 
-    h1PreselEff = efficiency_file.Get('0-5/PreselEff')
+cv = ROOT.TCanvas("cv","cv")
+
+rate = 75000 #hz
+running_time = 30#days
+if SCALE:
+    n_run = rate*running_time*24*60*60*5
+else:
+    n_run = NEVENTS
 
 
-    MT_BINS = au.pt_array_to_mt_m0_array(PT_BINS, mass)
-    binning = array('d',MT_BINS)
-    pt_binning = array('d',PT_BINS)
-    mt_distr = TF1("mt_distr", "[0]*exp(-x/[1])",MT_BINS[0],MT_BINS[-1])
-    mt_distr.SetParameter(1,T)
-    mt_distr.SetParLimits(1,T*0.8,T*1.2)
 
-    pt_distr = TF1("pt_distr", "[0]*x*exp(-TMath::Sqrt(x**2+[2]**2)/[1])",PT_BINS[0],PT_BINS[-1])
-    pt_distr.SetParameter(1,T)
-    pt_distr.SetParLimits(1,T*0.8,T*1.2)
-    pt_distr.FixParameter(2,mass)
+hnsparse = au.get_skimmed_large_data_std_hsp(mass, data_path, PT_BINS, STD_SELECTION, MASS_WINDOW, NBINS)
+results_file.cd()
+hnsparse.Write()
 
-    h1RawCounts = {}
-    h1RawCountsPt = {}
+
+
+MT_BINS = au.pt_array_to_mt_m0_array(PT_BINS, mass)
+MT_BINS_M = au.pt_array_to_mt_array(PT_BINS, mass)
+binning = array('d', MT_BINS)
+pt_binning = array('d', PT_BINS)
+mt_distr = TF1("mt_distr", "[0]*exp(-(x-[2])/[1])",MT_BINS[0],MT_BINS[-1])
+mt_distr.SetParameter(0, 10.)
+mt_distr.SetParameter(1,T)
+mt_distr.SetParLimits(1,T*0.8,T*1.2)
+mt_distr.FixParameter(2,mass)
+
+
+pt_distr = TF1("pt_distr", "[0]*x*exp(-TMath::Sqrt(x**2+[2]**2)/[1])",PT_BINS[0],PT_BINS[-1])
+pt_distr.SetParameter(1,T)
+pt_distr.SetParLimits(1,T*0.8,T*1.2)
+pt_distr.FixParameter(2,mass)
+
+h1RawCounts = {}
+h1RawCountsPt = {}
+
+for sigmodel in SIG_MODELS:
+    h1RawCounts[sigmodel] = {}
+    h1RawCountsPt[sigmodel] = {}
     for bkgmodel in BKG_MODELS:
-        h1RawCounts[bkgmodel] = ROOT.TH1D(f"mt_best_{bkgmodel}",";m_{T}-m_{0} [GeV];1/N_{ev}1/m_{T}dN/dm_{T} [GeV^{-2}]",len(PT_BINS)-1,binning)
-        h1RawCountsPt[bkgmodel] = ROOT.TH1D(f"pt_best_{bkgmodel}",";#it{p}_{T} [GeV/#it{c}];1/N_{ev}dN/d#it{p}_{T} [(GeV/#it{c})^{-1}]",len(PT_BINS)-1,pt_binning)
+        h1RawCounts[sigmodel][bkgmodel] = ROOT.TH1D(f"mt_best_{bkgmodel}",";m_{T}-m_{0} [GeV];1/N_{ev}1/m_{T}dN/dm_{T} [GeV^{-2}]",len(PT_BINS)-1,binning)
+        h1RawCountsPt[sigmodel][bkgmodel] = ROOT.TH1D(f"pt_best_{bkgmodel}",";#it{p}_{T} [GeV/#it{c}];1/N_{ev}dN/d#it{p}_{T} [(GeV/#it{c})^{-1}]",len(PT_BINS)-1,pt_binning)
 
-    cent_dir = results_file.mkdir('0-5')
-    cent_dir.cd()
-    for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
-        sub_dir = cent_dir.mkdir(f'pt_{ptbin[0]}{ptbin[1]}')
-        sub_dir.cd()
-        h1_minv = au.h1_from_sparse_std(hnsparse, ptbin, f'pt_{ptbin[0]}{ptbin[1]}')
-        
+cent_dir = results_file.mkdir('0-5')
+cent_dir.cd()
+iBin = 0
+for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
+    sub_dir = cent_dir.mkdir(f'pt_{ptbin[0]}{ptbin[1]}')
+    sub_dir.cd()
+    h1_minv = au.h1_from_sparse_std(hnsparse, ptbin, f'pt_{ptbin[0]}{ptbin[1]}')
+    
+    for sigmodel in SIG_MODELS:
+        fit_sig_dir = sub_dir.mkdir(sigmodel)
         for bkgmodel in BKG_MODELS:
-            fit_dir = sub_dir.mkdir(bkgmodel)
-            fit_dir.cd()
-            rawcounts, err_rawcounts, _, _, _, _, _, _ = au.fit_hist(h1_minv, ptbin, mass, model=bkgmodel, Eint=EINT, peak_mode=PEAK_MODE, gauss=GAUSS, mass_range=MASS_WINDOW)
+            fit_bkg_dir = fit_sig_dir.mkdir(bkgmodel)
+            fit_bkg_dir.cd()
             index = PT_BINS.index(ptbin[0])+1
-            h1RawCounts[bkgmodel].SetBinContent(index, rawcounts/h1RawCounts[bkgmodel].GetBinWidth(index)/h1PreselEff.GetBinContent(index)/ n_ev)
-            h1RawCountsPt[bkgmodel].SetBinContent(index, rawcounts/h1RawCountsPt[bkgmodel].GetBinWidth(index)/h1PreselEff.GetBinContent(index) / math.sqrt(n_ev*n_run))            
-            h1RawCounts[bkgmodel].SetBinError(index, err_rawcounts/h1RawCounts[bkgmodel].GetBinWidth(index)/h1PreselEff.GetBinContent(index)/ n_ev)
-            h1RawCountsPt[bkgmodel].SetBinError(index, err_rawcounts/h1RawCountsPt[bkgmodel].GetBinWidth(index)/h1PreselEff.GetBinContent(index) / math.sqrt(n_ev*n_run))
+            if TEST:
+                rawcounts = h1_minv.GetEntries()
+                err_rawcounts = ROOT.TMath.Sqrt(rawcounts)
+                h1_minv.Write()
+            else:
+                rawcounts, err_rawcounts, _, _, _, _, _, _ = au.fit_hist(h1_minv, ptbin, mass, sig_model=sigmodel, bkg_model=bkgmodel, Eint=EINT, mass_range=MASS_WINDOW, mc_fit_file=mc_fit_file, directory = fit_bkg_dir, fix_params = False)
+
+
+            h1RawCounts[sigmodel][bkgmodel].SetBinContent(index, rawcounts / h1RawCounts[sigmodel][bkgmodel].GetBinWidth(index) / h1PreselEff.GetBinContent(index) / (MT_BINS_M[iBin]-MT_BINS_M[iBin-1])/ (MT_BINS_M[iBin-1]+MT_BINS_M[iBin])/2 / NEVENTS
+        )
+            h1RawCountsPt[sigmodel][bkgmodel].SetBinContent(index, rawcounts / h1RawCountsPt[sigmodel][bkgmodel].GetBinWidth(index) / h1PreselEff.GetBinContent(index)/ NEVENTS
+        )            
+            h1RawCounts[sigmodel][bkgmodel].SetBinError(index, err_rawcounts / h1RawCounts[sigmodel][bkgmodel].GetBinWidth(index) / h1PreselEff.GetBinContent(index) / (MT_BINS_M[iBin]-MT_BINS_M[iBin-1])/ (MT_BINS_M[iBin-1]+MT_BINS_M[iBin])/2 / NEVENTS
+        )
+            h1RawCountsPt[sigmodel][bkgmodel].SetBinError(index, err_rawcounts / h1RawCountsPt[sigmodel][bkgmodel].GetBinWidth(index) / h1PreselEff.GetBinContent(index) / NEVENTS
+        )
+
         h1_minv.Write()
-    results_file.cd()
+    iBin += 1
+results_file.cd()
+for sigmodel in SIG_MODELS:
     for bkgmodel in BKG_MODELS:
         ####################################################################
         ## 1/Nev*dN/dpt vs pt
         ####################################################################
-        h1RawCountsPt[bkgmodel].Fit(pt_distr, "M0+", "",PT_BINS[0],PT_BINS[-1])
-        fit_function = h1RawCountsPt[bkgmodel].GetFunction("pt_distr")
+        h1RawCountsPt[sigmodel][bkgmodel].Fit(pt_distr, "M0+", "",PT_BINS[0],PT_BINS[-1])
+        fit_function = h1RawCountsPt[sigmodel][bkgmodel].GetFunction("pt_distr")
         fit_function.SetLineColor(kOrangeC)
-        myCv = TCanvas(f"pT_SpectraCv_{bkgmodel}")
+        myCv = TCanvas(f"pT_SpectraCv_{sigmodel}_{bkgmodel}")
         gPad.SetLeftMargin(0.15); 
                     
-        min_value = h1RawCountsPt[bkgmodel].GetMinimum()*0.8
-        max_value = h1RawCountsPt[bkgmodel].GetMaximum()*1.2
+        min_value = h1RawCountsPt[sigmodel][bkgmodel].GetMinimum()*0.8
+        max_value = h1RawCountsPt[sigmodel][bkgmodel].GetMaximum()*1.2
         
-        h1RawCountsPt[bkgmodel].GetYaxis().SetRangeUser(min_value, max_value)
+        h1RawCountsPt[sigmodel][bkgmodel].GetYaxis().SetRangeUser(min_value, max_value)
         pinfo = TPaveText(0.5, 0.65, 0.88, 0.86, "NDC")
         pinfo.SetBorderSize(0)
         pinfo.SetFillStyle(0)
@@ -177,42 +227,57 @@ for index in range(0,len(params['EVENT_PATH'])):
             if pt_distr.GetNDF() != 0:
                 string = f'#chi^{{2}} / NDF = {(pt_distr.GetChisquare() / pt_distr.GetNDF()):.2f}'
             pinfo.AddText(string)
-        h1RawCountsPt[bkgmodel].SetMarkerStyle(20)
-        h1RawCountsPt[bkgmodel].SetMarkerColor(ROOT.kBlue)
-        h1RawCountsPt[bkgmodel].SetLineColor(ROOT.kBlue)
-        h1RawCountsPt[bkgmodel].SetStats(0)
-        h1RawCountsPt[bkgmodel].Draw("ex0same")
+        h1RawCountsPt[sigmodel][bkgmodel].SetMarkerStyle(20)
+        h1RawCountsPt[sigmodel][bkgmodel].SetMarkerColor(ROOT.kBlue)
+        h1RawCountsPt[sigmodel][bkgmodel].SetLineColor(ROOT.kBlue)
+        h1RawCountsPt[sigmodel][bkgmodel].SetStats(0)
+        h1RawCountsPt[sigmodel][bkgmodel].Draw("ex0same")
         pt_distr.Draw("same")
 
+        mult = 0 
+        err_mult = 0
+            
+        iBin = 0
+        for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
+            iBin += 1
+            mult += h1RawCountsPt[sigmodel][bkgmodel].GetBinContent(iBin)*(ptbin[1]-ptbin[0]) 
+            err_mult += h1RawCountsPt[sigmodel][bkgmodel].GetBinError(iBin)*(ptbin[1]-ptbin[0])**2
+        err_mult = ROOT.TMath.Sqrt(err_mult)/pt_range_factor/bratio
+        mult /= pt_range_factor*bratio
+        print("multiplicity: ", mult," +- ",err_mult)
+        print("multiplicity gen: ", MULTIPLICITY)
+        print("z_gauss: ", (MULTIPLICITY-mult)/err_mult)
+        print("**************************************************")
+    
         pinfo.Draw("x0same")
-        myCv.SaveAs(resultsSysDir+"/pT_spectra_"+FILE_PREFIX+"_"+bkgmodel+"_std.png")
-        myCv.SaveAs(resultsSysDir+"/pT_spectra_"+FILE_PREFIX+"_"+bkgmodel+"_std.pdf")
-        tmpSyst = h1RawCountsPt[bkgmodel].Clone("hSyst")
-        corSyst = h1RawCountsPt[bkgmodel].Clone("hCorr")
+        myCv.SaveAs(resultsSysDir+"/pT_spectra_"+FILE_PREFIX+"_"+sigmodel+"_"+bkgmodel+"_std.png")
+        myCv.SaveAs(resultsSysDir+"/pT_spectra_"+FILE_PREFIX+"_"+sigmodel+"_"+bkgmodel+"_std.pdf")
+        tmpSyst = h1RawCountsPt[sigmodel][bkgmodel].Clone("hSyst")
+        corSyst = h1RawCountsPt[sigmodel][bkgmodel].Clone("hCorr")
         tmpSyst.SetFillStyle(0)
         corSyst.SetFillStyle(3345)
-        for iBin in range(1, h1RawCountsPt[bkgmodel].GetNbinsX() + 1):
-            val = h1RawCountsPt[bkgmodel].GetBinContent(iBin)
+        for iBin in range(1, h1RawCountsPt[sigmodel][bkgmodel].GetNbinsX() + 1):
+            val = h1RawCountsPt[sigmodel][bkgmodel].GetBinContent(iBin)
 
         results_file.cd()
-        h1RawCountsPt[bkgmodel].Draw("ex0same")
+        h1RawCountsPt[sigmodel][bkgmodel].Draw("ex0same")
         pinfo.Draw()
         myCv.Write()
-        h1RawCountsPt[bkgmodel].Write()
+        h1RawCountsPt[sigmodel][bkgmodel].Write()
         ####################################################################
         ## 1/(Nev*mT)*dN/dmT vs mT-m0
         ####################################################################
-        h1RawCounts[bkgmodel].Fit(mt_distr, "M0+", "",MT_BINS[0],MT_BINS[-1])
-        fit_function = h1RawCounts[bkgmodel].GetFunction("mt_distr")
+        h1RawCounts[sigmodel][bkgmodel].Fit(mt_distr, "M0+", "",MT_BINS[0],MT_BINS[-1])
+        fit_function = h1RawCounts[sigmodel][bkgmodel].GetFunction("mt_distr")
         fit_function.SetLineColor(kOrangeC)
 
-        myCv = TCanvas(f"mT_SpectraCv_{bkgmodel}")
+        myCv = TCanvas(f"mT_SpectraCv_{sigmodel}_{bkgmodel}")
         gPad.SetLeftMargin(0.15); 
                     
-        min_value = h1RawCounts[bkgmodel].GetMinimum()*0.8
-        max_value = h1RawCounts[bkgmodel].GetMaximum()*1.2
+        min_value = h1RawCounts[sigmodel][bkgmodel].GetMinimum()*0.8
+        max_value = h1RawCounts[sigmodel][bkgmodel].GetMaximum()*1.2
         
-        h1RawCounts[bkgmodel].GetYaxis().SetRangeUser(min_value, max_value)
+        h1RawCounts[sigmodel][bkgmodel].GetYaxis().SetRangeUser(min_value, max_value)
         pinfo = TPaveText(0.5, 0.65, 0.88, 0.86, "NDC")
         pinfo.SetBorderSize(0)
         pinfo.SetFillStyle(0)
@@ -230,27 +295,27 @@ for index in range(0,len(params['EVENT_PATH'])):
         if mt_distr.GetNDF() != 0:
             string = f'#chi^{{2}} / NDF = {(mt_distr.GetChisquare() / mt_distr.GetNDF()):.2f}'
         pinfo.AddText(string)
-        h1RawCounts[bkgmodel].SetMarkerStyle(20)
-        h1RawCounts[bkgmodel].SetMarkerColor(ROOT.kBlue)
-        h1RawCounts[bkgmodel].SetLineColor(ROOT.kBlue)
-        h1RawCounts[bkgmodel].SetStats(0)
-        h1RawCounts[bkgmodel].Draw("ex0same")
+        h1RawCounts[sigmodel][bkgmodel].SetMarkerStyle(20)
+        h1RawCounts[sigmodel][bkgmodel].SetMarkerColor(ROOT.kBlue)
+        h1RawCounts[sigmodel][bkgmodel].SetLineColor(ROOT.kBlue)
+        h1RawCounts[sigmodel][bkgmodel].SetStats(0)
+        h1RawCounts[sigmodel][bkgmodel].Draw("ex0same")
         mt_distr.Draw("same")
 
         pinfo.Draw("x0same")
-        myCv.SaveAs(resultsSysDir+"/mT_spectra_"+FILE_PREFIX+"_"+bkgmodel+"_std.png")
-        myCv.SaveAs(resultsSysDir+"/mT_spectra_"+FILE_PREFIX+"_"+bkgmodel+"_std.pdf")
-        tmpSyst = h1RawCounts[bkgmodel].Clone("hSyst")
-        corSyst = h1RawCounts[bkgmodel].Clone("hCorr")
+        myCv.SaveAs(resultsSysDir+"/mT_spectra_"+FILE_PREFIX+"_"+sigmodel+"_"+bkgmodel+"_std.png")
+        myCv.SaveAs(resultsSysDir+"/mT_spectra_"+FILE_PREFIX+"_"+sigmodel+"_"+bkgmodel+"_std.pdf")
+        tmpSyst = h1RawCounts[sigmodel][bkgmodel].Clone("hSyst")
+        corSyst = h1RawCounts[sigmodel][bkgmodel].Clone("hCorr")
         tmpSyst.SetFillStyle(0)
         corSyst.SetFillStyle(3345)
-        for iBin in range(1, h1RawCounts[bkgmodel].GetNbinsX() + 1):
-            val = h1RawCounts[bkgmodel].GetBinContent(iBin)
+        for iBin in range(1, h1RawCounts[sigmodel][bkgmodel].GetNbinsX() + 1):
+            val = h1RawCounts[sigmodel][bkgmodel].GetBinContent(iBin)
 
-        h1RawCounts[bkgmodel].Draw("ex0same")
+        h1RawCounts[sigmodel][bkgmodel].Draw("ex0same")
         pinfo.Draw()
         myCv.Write()
-        h1RawCounts[bkgmodel].Write()
-    results_file.Close()
+        h1RawCounts[sigmodel][bkgmodel].Write()
+results_file.Close()
 print(f'--- analysis time: {((time.time() - start_time) / 60):.2f} minutes ---')
 

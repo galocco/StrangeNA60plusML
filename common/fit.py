@@ -20,9 +20,7 @@ gROOT.SetBatch()
 ###############################################################################
 parser = argparse.ArgumentParser()
 parser.add_argument('config', help='Path to the YAML configuration file')
-parser.add_argument('-m', '--merged', help='Run on the merged histograms', action='store_true')
-parser.add_argument('-c', '--crystal', help='Fit with the crystalball', action='store_true')
-parser.add_argument('-p', '--peak', help='Take signal from the gaussian fit', action='store_true')
+parser.add_argument('-f', '--fix', help='Fix the parameters taken from the signal-only fit', action='store_true')
 args = parser.parse_args()
 
 with open(os.path.expandvars(args.config), 'r') as stream:
@@ -37,31 +35,32 @@ with open(os.path.expandvars(args.config), 'r') as stream:
 PDG_CODE = params['PDG']
 FILE_PREFIX = params['FILE_PREFIX']
 EINT = pu.get_sNN(params['EINT'])
-GAUSS = params['GAUSS']
 PT_BINS = params['PT_BINS']
 MASS_WINDOW = params['MASS_WINDOW']
 
 EFF_MIN, EFF_MAX, EFF_STEP = params['BDT_EFFICIENCY']
 FIX_EFF_ARRAY = np.arange(EFF_MIN, EFF_MAX, EFF_STEP)
 
+SIG_MODELS = params['SIG_MODELS']
 BKG_MODELS = params['BKG_MODELS']
 
-PEAK_MODE = args.peak
-MERGED = args.merged
-CRYSTAL = args.crystal
+FIX = args.fix
 
-LABELS = [f'{x:.3f}_{y}' for x in FIX_EFF_ARRAY for y in BKG_MODELS]
+LABELS = [f'{x:.3f}_{y}_{z}' for x in FIX_EFF_ARRAY for y in SIG_MODELS for z in BKG_MODELS]
 
 ###############################################################################
 # define paths for loading results
-results_dir = os.environ['HYPERML_RESULTS']
+results_dir = os.environ['RESULTS']
 
-input_file_name = results_dir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_results_merged.root' if MERGED else results_dir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_results.root'
+input_file_name = results_dir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_results.root'
 input_file = TFile(input_file_name, 'read')
 
 output_file_name = results_dir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_results_fit.root'
 output_file = TFile(output_file_name, 'recreate')
 
+mc_fit_file_name = results_dir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_mc_fit.root'
+
+mc_fit_file = TFile(mc_fit_file_name,"read")
 ###############################################################################
 # define dictionaries for storing raw counts and significance
 h1_rawcounts_dict = {}
@@ -101,59 +100,50 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
     # create the subdir in the output file
     output_subdir = cent_dir.mkdir(subdir_name)
     output_subdir.cd()
-
-    for bkgmodel in BKG_MODELS:
+    for sigmodel in SIG_MODELS:
         # create dirs for models
-        fit_dir = output_subdir.mkdir(bkgmodel)
-        fit_dir.cd()
+        fit_sig_dir = output_subdir.mkdir(sigmodel)
+        for bkgmodel in BKG_MODELS:
+            fit_bkg_dir = fit_sig_dir.mkdir(bkgmodel)
+            fit_bkg_dir.cd()
 
-        # loop over all the histo in the dir
-        for key in input_subdir.GetListOfKeys():
-            keff = key.GetName()[-5:]
-            
-            hist = TH1D(key.ReadObj())
-            hist.SetDirectory(0)
-
-            if key == input_subdir.GetListOfKeys()[0] and bkgmodel=="pol2":
-                rawcounts, err_rawcounts, significance, err_significance, mu, mu_err, sigma, sigma_err = au.fit_hist(hist, ptbin, mass, model=bkgmodel, Eint=EINT, peak_mode=PEAK_MODE, gauss=GAUSS, mass_range=MASS_WINDOW, crystal=CRYSTAL)
-                mean_fit.append(mu)
-                mean_fit_error.append(mu_err)
-                sigma_fit.append(sigma)
-                sigma_fit_error.append(sigma_err)
+            # loop over all the histo in the dir
+            for key in input_subdir.GetListOfKeys():
+                keff = key.GetName()[-5:]
                 
-            else:
-                rawcounts, err_rawcounts, significance, err_significance, _, _, _, _ = au.fit_hist(hist, ptbin, mass, model=bkgmodel, Eint=EINT, peak_mode=PEAK_MODE, gauss=GAUSS, mass_range=MASS_WINDOW, crystal=CRYSTAL)
+                hist = TH1D(key.ReadObj())
+                hist.SetDirectory(0)
+                #if float(keff) != 0.98 or bkgmodel == "pol1" or bkgmodel=="pol2" :
+                #    continue
+                #if (float(keff) != 0.97 and float(keff) != 0.98) or ptbin[0] > 0.2:
+                #    continue 
+                print(bkgmodel," ",sigmodel," ",keff)
+                if key == input_subdir.GetListOfKeys()[0] and bkgmodel=="pol2":
+                    rawcounts, err_rawcounts, significance, err_significance, mu, mu_err, sigma, sigma_err = au.fit_hist(hist, ptbin, mass, sig_model=sigmodel, bkg_model=bkgmodel, Eint=EINT, mass_range=MASS_WINDOW, mc_fit_file = mc_fit_file, directory = fit_bkg_dir, fix_params = FIX)
+                    mean_fit.append(mu)
+                    mean_fit_error.append(mu_err)
+                    sigma_fit.append(sigma)
+                    sigma_fit_error.append(sigma_err)
+                    
+                else:
+                    rawcounts, err_rawcounts, significance, err_significance, _, _, _, _ = au.fit_hist(hist, ptbin, mass, sig_model=sigmodel, bkg_model=bkgmodel, Eint=EINT, mass_range=MASS_WINDOW, mc_fit_file = mc_fit_file, directory = fit_bkg_dir, fix_params = FIX)
 
-            dict_key = f'{keff}_{bkgmodel}'
+                dict_key = f'{keff}_{sigmodel}_{bkgmodel}'
 
-            h1_rawcounts_dict[dict_key].SetBinContent(ptbin_index, rawcounts)
-            h1_rawcounts_dict[dict_key].SetBinError(ptbin_index, err_rawcounts)
+                h1_rawcounts_dict[dict_key].SetBinContent(ptbin_index, rawcounts)
+                h1_rawcounts_dict[dict_key].SetBinError(ptbin_index, err_rawcounts)
 
-            significance_dict[dict_key].SetBinContent(ptbin_index, significance)
-            significance_dict[dict_key].SetBinError(ptbin_index, err_significance)
+                significance_dict[dict_key].SetBinContent(ptbin_index, significance)
+                significance_dict[dict_key].SetBinError(ptbin_index, err_significance)
 
-            if key == input_subdir.GetListOfKeys()[0]:
-                h1_BDT_eff.SetBinContent(ptbin_index, float(keff))                           
+                if key == input_subdir.GetListOfKeys()[0]:
+                    h1_BDT_eff.SetBinContent(ptbin_index, float(keff))                           
 
 cent_dir.cd()
 h1_eff.Write()
 h1_BDT_eff.Write()
 for lab in LABELS:
     h1_rawcounts_dict[lab].Write()
-
-hist_mean = h1_eff.Clone("Mean")
-hist_mean.SetTitle("; #it{p}_{T} (GeV/#it{c}); #mu (GeV/#it{c}^{2})")
-hist_sigma = h1_eff.Clone("Sigma")
-hist_sigma.SetTitle( "; #it{p}_{T} (GeV/#it{c}); #sigma (GeV/#it{c}^{2})")
-
-for iBin in range(1, hist_mean.GetNbinsX()+1):
-    hist_mean.SetBinContent(iBin, mean_fit[iBin-1])
-    hist_mean.SetBinError(iBin, mean_fit_error[iBin-1])
-    hist_sigma.SetBinContent(iBin, sigma_fit[iBin-1])
-    hist_sigma.SetBinError(iBin, sigma_fit_error[iBin-1])
-
-hist_mean.Write()
-hist_sigma.Write()
 
 output_file.Close()
 

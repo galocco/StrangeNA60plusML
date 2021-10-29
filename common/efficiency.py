@@ -42,7 +42,7 @@ PRESELECTION = params['PRESELECTION']
 sig_path = os.path.expandvars(params['MC_PATH'])
 bkg_path = os.path.expandvars(params['BKG_PATH'])
     
-results_dir = os.environ[f'HYPERML_RESULTS']+"/"+FILE_PREFIX
+results_dir = os.environ['RESULTS']+"/"+FILE_PREFIX
 
 ###############################################################################
 

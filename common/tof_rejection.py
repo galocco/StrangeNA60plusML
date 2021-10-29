@@ -57,7 +57,7 @@ pt_integral = pt_spectrum.Integral(0, 100, 1e-8)
 ###############################################################################
 start_time = time.time()                          # for performances evaluation
 
-resultsSysDir = os.environ['HYPERML_RESULTS_{}'.format(params['NBODY'])]
+resultsSysDir = os.environ['RESULTS_{}'.format(params['NBODY'])]
 
 file_name = resultsSysDir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_std_results.root'
 input_file = TFile(file_name)

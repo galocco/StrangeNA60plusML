@@ -16,7 +16,7 @@ import math
 import analysis_utils as au
 import plot_utils as pu
 from array import array
-
+import pickle
 class TrainingAnalysis:
 
     def __init__(self, pdg_code, mc_file_name, bkg_file_name, entrystop=10000000, preselection=''):
@@ -48,7 +48,7 @@ class TrainingAnalysis:
         pres_histo.Divide(gen_histo)
 
         if save:
-            path = os.environ['HYPERML_EFFICIENCIES']
+            path = os.environ['EFFICIENCIES']
 
             filename = path + f'/PreselEff{suffix}.root'
             t_file = ROOT.TFile(filename, 'recreate')
@@ -59,7 +59,7 @@ class TrainingAnalysis:
         return pres_histo
 
     def prepare_dataframe(self, training_columns, pt_range, test_size=0.5):
-        data_range = f'{pt_range[0]}<pt<{pt_range[1]}'#' and {cent_class[0]}<=centrality<{cent_class[1]}'
+        data_range = f'{pt_range[0]}<pt<{pt_range[1]}'
 
         sig = self.df_signal.query(data_range)
         bkg = self.df_bkg.query(data_range)
@@ -79,9 +79,9 @@ class TrainingAnalysis:
     def save_ML_analysis(self, model_handler, eff_score_array, pt_range, suffix=''):
         info_string = f'_{pt_range[0]}{pt_range[1]}'
 
-        models_path = os.environ['HYPERML_MODELS']+'/models'
-        handlers_path = os.environ['HYPERML_MODELS']+'/handlers'
-        efficiencies_path = os.environ['HYPERML_EFFICIENCIES']
+        models_path = os.environ['MODELS']+'/models'
+        handlers_path = os.environ['MODELS']+'/handlers'
+        efficiencies_path = os.environ['EFFICIENCIES']
 
         if not os.path.exists(models_path):
             os.makedirs(models_path)
@@ -90,35 +90,22 @@ class TrainingAnalysis:
             os.makedirs(handlers_path)
 
         filename_handler = handlers_path + '/model_handler_' + suffix + info_string + '.pkl'
-        filename_model = models_path + '/BDT' + suffix + info_string + '.model'
+        filename_model = models_path + '/BDT_' + suffix + info_string + '.model'
         filename_efficiencies = efficiencies_path + '/Eff_Score_'+suffix + info_string + '.npy'
         
-        model_handler.dump_model_handler(filename_handler)
+        #model_handler.dump_model_handler(filename_handler)
+        
+        pickle.dump(model_handler, open(filename_handler, "wb"))
         model_handler.dump_original_model(filename_model, xgb_format=True)
         np.save(filename_efficiencies, eff_score_array)
 
         print('ML analysis results saved.\n')
 
-    def save_ML_plots(self, model_handler, data, eff_score_array, pt_range, suffix=''):
-        fig_path = os.environ['HYPERML_FIGURES']
+    def save_feature_importance(self, model_handler, data, pt_range, suffix=''):
+        fig_path = os.environ['FIGURES']
         info_string = f'_{pt_range[0]}{pt_range[1]}'
 
-        bdt_score_dir = fig_path + '/TrainTest'
-        bdt_eff_dir = fig_path + '/Efficiency'
         feat_imp_dir = fig_path + '/FeatureImp'
-
-        bdt_score_plot = plot_utils.plot_output_train_test(model_handler, data, bins=100, log=True)
-        if not os.path.exists(bdt_score_dir):
-            os.makedirs(bdt_score_dir)
-
-        bdt_score_plot.savefig(bdt_score_dir + '/BDT_Score_' + suffix + info_string + '.pdf')
-
-        bdt_eff_plot = plot_utils.plot_bdt_eff(eff_score_array[1], eff_score_array[0])
-        if not os.path.exists(bdt_eff_dir):
-            os.makedirs(bdt_eff_dir)
-
-        bdt_eff_plot.savefig(bdt_eff_dir + '/BDT_Eff_' + suffix + info_string + '.pdf')
-
         feat_imp = plot_utils.plot_feature_imp(data[2][model_handler.get_original_model().get_booster().feature_names], data[3], model_handler)
         if not os.path.exists(feat_imp_dir):
             os.makedirs(feat_imp_dir)
@@ -131,35 +118,22 @@ class TrainingAnalysis:
 
 class ModelApplication:
 
-    def __init__(self, pdg_code, multiplicity, branching_ratio, event_filename, hsparse):
+    def __init__(self, pdg_code, multiplicity, branching_ratio, n_events, hsparse):
 
         print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
         print('\nStarting BDT appplication and signal extraction')
 
         self.mass = ROOT.TDatabasePDG.Instance().GetParticle(pdg_code).Mass()
-        if pdg_code == 310: #K0s
-            self.lifetime = 89.54# ps
-        elif pdg_code == 3122: #Lambda
-            self.lifetime = 263.2# ps
-        elif pdg_code == 3334: #Omega
-            self.lifetime = 82.1# ps
-        elif pdg_code == 3312: #Xi
-            self.lifetime = 163.9# ps
-        else:
-            self.lifetime = ROOT.TDatabasePDG.Instance().GetParticle(pdg_code).Lifetime()*1e+12 #lifetime in ps
         self.multiplicity = multiplicity
         self.branching_ratio = branching_ratio
-        background_file = ROOT.TFile(event_filename,"read")
-        hist_ev = background_file.Get('hNevents')
-        self.n_events = hist_ev.GetBinContent(1)
-        background_file.Close()     
+        self.n_events = n_events    
         self.hnsparse = hsparse
         print('\nNumber of events: ', self.n_events)
 
         print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
 
     def load_preselection_efficiency(self, suffix = ''):
-        efficiencies_path = os.environ['HYPERML_EFFICIENCIES']
+        efficiencies_path = os.environ['EFFICIENCIES']
         filename_efficiencies = efficiencies_path + f'/PreselEff{suffix}.root'
 
         tfile = ROOT.TFile(filename_efficiencies)
@@ -173,8 +147,8 @@ class ModelApplication:
 
         info_string = f'_{pt_range[0]}{pt_range[1]}'
 
-        handlers_path = os.environ['HYPERML_MODELS'] + '/handlers'
-        efficiencies_path = os.environ['HYPERML_EFFICIENCIES']
+        handlers_path = os.environ['MODELS'] + '/handlers'
+        efficiencies_path = os.environ['EFFICIENCIES']
 
         filename_handler = handlers_path + '/model_handler_' + suffix + info_string + '.pkl'
         filename_efficiencies = efficiencies_path + '/Eff_Score_' + suffix + info_string + '.npy'
@@ -183,6 +157,12 @@ class ModelApplication:
 
         model_handler = ModelHandler()
         model_handler.load_model_handler(filename_handler)
+        #self.model = loaded_model.get_original_model()
+        #self.training_columns = loaded_model.get_training_columns()
+        #self.model_params = loaded_model.get_model_params()
+        #self.model.set_params(**self.model_params)
+        #self.model_string = loaded_model.get_model_module()
+        #self._n_classes = loaded_model.get_n_classes()
 
         return eff_score_array, model_handler
 
@@ -202,14 +182,15 @@ class ModelApplication:
         significance = []
         significance_error = []
         for index, tsd in enumerate(threshold_space):
-            histo_name = f'score{tsd:.2f}'
+            histo_name = f'score{tsd:.3f}'
             h1_minv = au.h1_from_sparse(self.hnsparse, pt_range, tsd, name=histo_name)
             fit_tpl = ROOT.TF1('fitTpl', 'pol1(0)', hist_range[0], hist_range[1])
             peak_bins = [h1_minv.GetXaxis().FindBin(peak_range[0]), h1_minv.GetXaxis().FindBin(peak_range[1])]
             for bin in range(peak_bins[0], peak_bins[1]+1):
                 h1_minv.SetBinContent(bin, 0)
+                h1_minv.SetBinError(bin, 0)
 
-            h1_minv.Fit(fit_tpl, "QRL", "")
+            h1_minv.Fit(fit_tpl, "QRL", "", hist_range[0], hist_range[1])
 
             exp_signal = au.expected_signal_counts(
                 pt_spectrum, self.multiplicity, self.branching_ratio, pt_range, pre_selection_efficiency * bdt_efficiency[index],
@@ -248,7 +229,7 @@ class ModelApplication:
 
 def load_mcsigma(cent_class, pt_range, ct_range, split=''):
     info_string = f'_{cent_class[0]}{cent_class[1]}_{pt_range[0]}{pt_range[1]}_{ct_range[0]}{ct_range[1]}'
-    sigma_path = os.environ['HYPERML_UTILS'] + '/FixedSigma'
+    sigma_path = os.environ['UTILS'] + '/FixedSigma'
 
     file_name = f'{sigma_path}/sigma_array{info_string}.npy'
 

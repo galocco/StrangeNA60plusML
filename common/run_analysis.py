@@ -51,6 +51,7 @@ EINT = pu.get_sNN(params['EINT'])
 T = params['T']
 SIGMA = params['SIGMA']
 MASS_WINDOW = params['MASS_WINDOW']
+NBINS = params['NBINS']
 PT_BINS = params['PT_BINS']
 COLUMNS = params['TRAINING_COLUMNS']
 MODEL_PARAMS = params['XGBOOST_PARAMS']
@@ -69,15 +70,14 @@ OPTIMIZE = args.optimize
 APPLICATION = args.application
 CUSTOM_SCAN = args.custom
 SIGNIFICANCE_SCAN = args.significance
-
-EVENT_PATH = os.path.expandvars(params['EVENT_PATH'][0])
+NEVENTS = params['NEVENTS']
 
 ###############################################################################
 # define paths for loading data
 signal_path = os.path.expandvars(params['MC_PATH'])
 bkg_path = os.path.expandvars(params['BKG_PATH'])
     
-results_dir = os.environ[f'HYPERML_RESULTS']+"/"+FILE_PREFIX
+results_dir = os.environ['RESULTS']+"/"+FILE_PREFIX
 if gSystem.AccessPathName(results_dir):
     gSystem.Exec('mkdir '+results_dir)
 
@@ -118,12 +118,9 @@ if TRAIN:
         data[2].insert(0, 'score', y_pred)
         y_pred_test = model_handler.predict(data[0])
         data[0].insert(0, 'score', y_pred_test)
-        d,p = stats.ks_2samp(data[0]['score'],data[2]['score'])
-        print("Kolmogorov-Smirnov test:")
-        print("statistic: ",d," p-value: ",p)
 
         eff, tsd = analysis_utils.bdt_efficiency_array(data[3], y_pred, n_points=1000)
-        score_from_eff_array = analysis_utils.score_from_efficiency_array(data[3], y_pred, FIX_EFF_ARRAY)
+        score_from_eff_array = analysis_utils.score_from_efficiency_array(data[1], y_pred_test, FIX_EFF_ARRAY)
         fixed_eff_array = np.vstack((FIX_EFF_ARRAY, score_from_eff_array))
         
         col = COLUMNS+['m']
@@ -140,8 +137,9 @@ if TRAIN:
         corr_plot[1].savefig(f'../Figures/plot_corr_Bkg_{FILE_PREFIX}.pdf')
 
         ml_analysis.save_ML_analysis(model_handler, fixed_eff_array, pt_range=ptbin, suffix=FILE_PREFIX)
-        ml_analysis.save_ML_plots(model_handler, data, [eff, tsd], pt_range=ptbin, suffix=FILE_PREFIX)
-
+        ml_analysis.save_feature_importance(model_handler, data, pt_range=ptbin, suffix=FILE_PREFIX)
+        au.save_bdt_efficiency(data, ptbin, FILE_PREFIX)
+        au.save_bdt_output_plot(data, ptbin, FILE_PREFIX)
     del ml_analysis
 
     print('')
@@ -150,66 +148,60 @@ if TRAIN:
 if APPLICATION:
     app_time = time.time()
 
-    for index in range(0,len(params['EVENT_PATH'])):
+    data_path = os.path.expandvars(params['DATA_PATH'])
 
-        data_path = os.path.expandvars(params['DATA_PATH'][index])
-        event_path = os.path.expandvars(params['EVENT_PATH'][index])
+    file_name = results_dir + f'/{FILE_PREFIX}_results.root'
+    results_histos_file = TFile(file_name, 'recreate')
 
-        if len(params['EVENT_PATH'])==1:
-            file_name = results_dir + f'/{FILE_PREFIX}_results.root'
-        else:
-            file_name = results_dir + f'/{FILE_PREFIX}_results_{index}.root'
-        results_histos_file = TFile(file_name, 'recreate')
+    sigscan_results = {}    
 
-        sigscan_results = {}    
+    hnsparse = au.get_skimmed_large_data_hsp(mass, data_path, PT_BINS, COLUMNS, FILE_PREFIX, PRESELECTION, MASS_WINDOW, NBINS)
+    ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, NEVENTS, hnsparse)
 
-        hnsparse = au.get_skimmed_large_data_hsp(mass, data_path, PT_BINS, COLUMNS, FILE_PREFIX, PRESELECTION, MASS_WINDOW)
-        ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, event_path, hnsparse)
+    # create output structure
+    cent_dir_histos = results_histos_file.mkdir('0-5')
+    cent_dir_histos.cd()
+    hnsparse.Write()
 
-        # create output structure
-        cent_dir_histos = results_histos_file.mkdir('0-5')
-        cent_dir_histos.cd()
-        hnsparse.Write()
+    th1_efficiency = ml_application.load_preselection_efficiency(FILE_PREFIX)
 
-        th1_efficiency = ml_application.load_preselection_efficiency(FILE_PREFIX)
+    for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
+        ptbin_index = ml_application.presel_histo.GetXaxis().FindBin(0.5 * (ptbin[0] + ptbin[1]))
 
-        for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
-            ptbin_index = ml_application.presel_histo.GetXaxis().FindBin(0.5 * (ptbin[0] + ptbin[1]))
+        print('\n==================================================')
+        print('pT:', ptbin)
+        print('Application and signal extraction ...', end='\r')
 
-            print('\n==================================================')
-            print('pT:', ptbin)
-            print('Application and signal extraction ...', end='\r')
+        presel_eff = ml_application.get_preselection_efficiency(ptbin_index)
+        eff_score_array, model_handler = ml_application.load_ML_analysis(ptbin, FILE_PREFIX)
 
-            presel_eff = ml_application.get_preselection_efficiency(ptbin_index)
-            eff_score_array, model_handler = ml_application.load_ML_analysis(ptbin, FILE_PREFIX)
+        if SIGNIFICANCE_SCAN:
+            pt_spectrum = TF1("fpt","x*exp(-TMath::Sqrt(x**2+[0]**2)/[1])",0,100)
+            pt_spectrum.FixParameter(0, mass)
+            pt_spectrum.FixParameter(1, T)
 
-            if SIGNIFICANCE_SCAN:
-                pt_spectrum = TF1("fpt","x*exp(-TMath::Sqrt(x**2+[0]**2)/[1])",0,100)
-                pt_spectrum.FixParameter(0,mass)
-                pt_spectrum.FixParameter(1,T)
+            sigscan_eff, sigscan_tsd = ml_application.significance_scan(presel_eff, eff_score_array, ptbin, pt_spectrum, suffix=FILE_PREFIX, sigma_mass = SIGMA, custom=CUSTOM_SCAN, mass_range=MASS_WINDOW)
+            eff_score_array = np.append(eff_score_array, [[sigscan_eff], [sigscan_tsd]], axis=1)
 
-                sigscan_eff, sigscan_tsd = ml_application.significance_scan(presel_eff, eff_score_array, ptbin, pt_spectrum, suffix=FILE_PREFIX, sigma_mass = SIGMA, custom=CUSTOM_SCAN, mass_range=MASS_WINDOW)
-                eff_score_array = np.append(eff_score_array, [[sigscan_eff], [sigscan_tsd]], axis=1)
+            sigscan_results[f'pt{ptbin[0]}{ptbin[1]}'] = [sigscan_eff, sigscan_tsd]
 
-                sigscan_results[f'pt{ptbin[0]}{ptbin[1]}'] = [sigscan_eff, sigscan_tsd]
+        # define subdir for saving invariant mass histograms
+        sub_dir_histos = cent_dir_histos.mkdir(f'pt_{ptbin[0]}{ptbin[1]}')
+        for eff, tsd in zip(pd.unique(eff_score_array[0][::-1]), pd.unique(eff_score_array[1][::-1])):
+            sub_dir_histos.cd()
 
-            # define subdir for saving invariant mass histograms
-            sub_dir_histos = cent_dir_histos.mkdir(f'pt_{ptbin[0]}{ptbin[1]}')
-            for eff, tsd in zip(pd.unique(eff_score_array[0][::-1]), pd.unique(eff_score_array[1][::-1])):
-                sub_dir_histos.cd()
+            histo_name = f'eff{eff:.3f}'
+            h1_minv = au.h1_from_sparse(hnsparse, ptbin, tsd, name=histo_name)
+            
+            h1_minv.Write()
+                    
+        print('Application and signal extraction: Done!\n')
 
-                histo_name = f'eff{eff:.3f}'
-                h1_minv = au.h1_from_sparse(hnsparse, ptbin, tsd, name=histo_name)
-                
-                h1_minv.Write()
-                        
-            print('Application and signal extraction: Done!\n')
-
-        cent_dir_histos.cd()
-        th1_efficiency.Write()
-        print (f'--- ML application time: {((time.time() - app_time) / 60):.2f} minutes ---')
-        
-        results_histos_file.Close()
+    cent_dir_histos.cd()
+    th1_efficiency.Write()
+    print (f'--- ML application time: {((time.time() - app_time) / 60):.2f} minutes ---')
+    
+    results_histos_file.Close()
 
     print(f'--- analysis time: {((time.time() - start_time) / 60):.2f} minutes ---')
 

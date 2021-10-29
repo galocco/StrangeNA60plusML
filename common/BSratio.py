@@ -39,7 +39,6 @@ FILE_PREFIX = params['FILE_PREFIX']
 MULTIPLICITY = params['MULTIPLICITY']
 BRATIO = params['BRATIO']
 SIGMA = params['SIGMA']
-EFF = params['EFF']
 EINT = pu.get_sNN(params['EINT'])
 GAUSS = params['GAUSS']
 PT_BINS = params['PT_BINS']
@@ -56,7 +55,7 @@ LABELS = [f'{x:.2f}_{y}' for x in FIX_EFF_ARRAY for y in BKG_MODELS]
 
 ###############################################################################
 # define paths for loading results
-results_dir = os.environ['HYPERML_RESULTS_{}'.format(N_BODY)]
+results_dir = os.environ['RESULTS']
 
 input_file_name = results_dir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_results_merged.root' if MERGED else results_dir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_results.root'
 input_file = TFile(input_file_name, 'read')

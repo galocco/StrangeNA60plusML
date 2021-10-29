@@ -1,28 +1,28 @@
-FILE_PREFIX: 'K0S_L5_E40_analysis'
+FILE_PREFIX: 'ANTILAMBDA_L5_E40_analysis'
 
-PDG: 310
+PDG: 3312
 EINT: 40
-MULTIPLICITY: 39.15
-BRATIO: 0.692
-T: 0.22745
-SIGMA: 0.003
-MASS_WINDOW: 0.06
+MULTIPLICITY: 0.68
+BRATIO: 0.639
+T: 0.301
+SIGMA: 0.0007
+MASS_WINDOW: 0.015
 NBINS: 60
+PT_BINS: [0, 3.]
 NEVENTS: 9000000
-#
-PT_BINS: [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.,1.2,1.4,1.6,1.8,2.0,2.25,2.5,2.75, 3.0]
 
-SIG_MODELS: ['d-gauss', 'kde'] #','gauss', 'd-crystal'
-BKG_MODELS: ['expo', 'pol1', 'pol2']
+SIG_MODELS: ['gauss'] #, 'd-gauss']
+BKG_MODELS: ['pol1', 'pol2']
 
-BDT_EFFICIENCY: [0.8, 1., 0.01] ##min, max ,step
+BDT_EFFICIENCY: [0.80, 1., 0.02] ##min, max ,step
 
-MC_PATH: ../Data/K0S_L5_E40/fntSig_L5_E40_train.root
-BKG_PATH: ../Data/K0S_L5_E40/fntBkg_K0S_L5_E40_train.root
-DATA_PATH: ../Data/K0S_L5_E40/fntBkg_K0S_L5_E40.root
+MC_PATH: /media/giacomo/Volume/ANTILAMBDA_L5_E40/fntSig_ANTILAMBDA_L5_E40.root
+BKG_PATH: /media/giacomo/Volume/ANTILAMBDA_L5_E40/fntBkg_ANTILAMBDA_L5_E40_train.root
+DATA_PATH: /media/giacomo/Volume/ANTILAMBDA_L5_E40/fntBkg_ANTILAMBDA_L5_E40.root
 
-PRESELECTION: cosp > 0.99975 and pt < 3
-STD_SELECTION: true > 0
+PRESELECTION: pt<3
+STD_SELECTION: pt<3 and dist > 5 and cosp > 0.999988 and dcaD < 0.007 and dca<0.015 and cospD > 0.999
+
 
 XGBOOST_PARAMS:
   # general parameters
@@ -46,7 +46,7 @@ HYPERPARAMS:
 
 HYPERPARAMS_RANGE: #TODO: check if it works without tuples
   # booster parameters
-  max_depth: !!python/tuple [5, 20] # defines the maximum depth of a single tree (regularization)
+  max_depth: !!python/tuple [5, 20] # defines the maANTILAMBDAmum depth of a single tree (regularization)
   learning_rate: !!python/tuple [0.01, 0.3] # learning rate
   n_estimators: !!python/tuple [50, 500] # number of boosting trees
   gamma: !!python/tuple [0.3, 1.1] # specifies the minimum loss reduction required to make a split

@@ -53,7 +53,7 @@ def plot_efficiency_significance(tsd, significance, efficiency, data_range_array
 
     fig.tight_layout()
 
-    fig_eff_path = os.environ['HYPERML_FIGURES']+'/Significance'
+    fig_eff_path = os.environ['FIGURES']+'/Significance'
     if not os.path.exists(fig_eff_path):
         os.makedirs(fig_eff_path)
 
@@ -94,7 +94,8 @@ def plot_significance_scan_hsp(
 
     for bin in range(peak_bins[0], peak_bins[1]+1):
         h1_minv.SetBinContent(bin, 0)
-    h1_minv.Fit(bkg_tpl_l, "QR")#, "", hist_range[0], peak_bins[1])
+        h1_minv.SetBinError(bin, 0)
+    h1_minv.Fit(bkg_tpl_l, "QRM", "", hist_range[0], hist_range[1])
     bkg_tpl_l.SetRange(hist_range[0], peak_range[0])
     h1_peak = h1_minv.Clone()
     h1_peak.SetName("peak")
@@ -107,16 +108,15 @@ def plot_significance_scan_hsp(
     cv_inv = ROOT.TCanvas("cv_iv","cv", 1024, 768)
     cv_inv.cd()
     ROOT.gStyle.SetOptStat(0)
-    h1_minv.SetTitle(r'%0.2f #leq #it{p}_{T} #leq %0.2f GeV/#it{c}  Cut Score=%0.2f  Significance=%0.2f  Raw yield=%1f' % (
-        data_range_array[0], data_range_array[1], max_score,  significance[max_index], expected_signal[max_index]))
-    h1_peak.SetTitle(r'%0.2f #leq #it{p}_{T} #leq %0.2f GeV/#it{c}  Cut Score=%0.2f  Significance=%0.2f  Raw yield=%1f' % (
-        data_range_array[0], data_range_array[1], max_score,  significance[max_index], expected_signal[max_index]))
+    h1_minv.SetTitle(f'{data_range_array[0]:.2f} #leq'+' #it{p}_{T}'+f' #leq {data_range_array[1]:.2f}'+' GeV/#it{c}  '+f'Cut Score={max_score:0.2f}  Significance={significance[max_index]:.2f}  Raw yield={expected_signal[max_index]:.0f}')
+    h1_peak.SetTitle(f'{data_range_array[0]:.2f} #leq'+' #it{p}_{T}'+f' #leq {data_range_array[1]:.2f}'+' GeV/#it{c}  '+f'Cut Score={max_score:0.2f}  Significance={significance[max_index]:.2f}  Raw yield={expected_signal[max_index]:.0f}')
     
     for bin in range(1, h1_minv.GetNbinsX()+1):
         if peak_bins[0] <= bin <= peak_bins[1]:
             h1_peak.SetBinContent(bin, fit_tpl.Eval(h1_minv.GetBinCenter(bin)))
         else:
-            h1_peak.SetBinContent(bin, 0)
+            h1_peak.SetBinContent(bin, 0.001)
+            h1_peak.SetBinError(bin, 0.001)
     
     h1_minv.SetMarkerColor(ROOT.kBlue)
     h1_peak.SetMarkerColor(ROOT.kRed)
@@ -127,6 +127,7 @@ def plot_significance_scan_hsp(
     legend.AddEntry(fit_tpl,"Signal model (Gauss)","l")
     legend.AddEntry(h1_minv,"Data","pe")
     legend.AddEntry(h1_peak,"Pseudo data","pe")
+    h1_peak.GetYaxis().SetRangeUser(0.1, h1_peak.GetMaximum()*1.3)
     h1_peak.Draw("e")
     h1_minv.Draw("e same")
     fit_tpl.Draw("same")
@@ -149,8 +150,7 @@ def plot_significance_scan_hsp(
     h1_sign = ROOT.TGraphErrors(len(score_list)-1 ,score_binning, sgn_binning, score_err_binning, score_err_binning)
     h1_sign_err = ROOT.TGraphErrors(len(score_list)-1 ,score_binning, sgn_binning, score_err_binning, sgn_err_binning)
 
-    h1_sign_err.SetTitle(r'%0.2f #leq #it{p}_{T} #leq %0.2f GeV/#it{c}  Cut Score=%0.2f  Significance=%0.2f  Raw yield=%1f' % (
-        data_range_array[0], data_range_array[1], max_score,  significance[max_index], expected_signal[max_index]))
+    h1_sign_err.SetTitle(f'{data_range_array[0]:.2f} #leq'+' #it{p}_{T}'+f' #leq {data_range_array[1]:.2f}'+' GeV/#it{c}  '+f'Cut Score={max_score:0.2f}  Significance={significance[max_index]:.2f}  Raw yield={expected_signal[max_index]:.0f}')
     h1_sign_err.GetXaxis().SetTitle("score")
     h1_sign_err.GetXaxis().SetRangeUser(score_list[::-1][0], score_list[::-1][-1])
     h1_sign_err.GetYaxis().SetTitle(label)
@@ -160,27 +160,19 @@ def plot_significance_scan_hsp(
     h1_sign_err.SetMarkerColor(1)
     h1_sign.SetMarkerColor(1)
 
-    h1_sign_err.Draw("AL E4")
-    h1_sign.Draw("L same")
+    h1_sign_err.Draw("ACP E4")
+    h1_sign.Draw("C same")
     #h1_sign_err.GetYAxis().SetRangeUser(-6,6)
     #h1_sign.GetYAxis().SetRangeUser(-6,6)
-    fig_name = 'Significance_pT{}{}_{}.png'.format(
-        data_range_array[0],
-        data_range_array[1],
-        suffix)
-
-    fig_sig_path = os.environ['HYPERML_FIGURES']+'/Significance'
+    fig_name = f'Significance_pT{data_range_array[0]:.2f}{data_range_array[1]:.2f}_{suffix}.pdf'
+    fig_sig_path = os.environ['FIGURES']+'/Significance'
     
     if not os.path.exists(fig_sig_path):
         os.makedirs(fig_sig_path)
 
     cv_sig.SaveAs(fig_sig_path + '/' + fig_name)
 
-    fig_name = 'InvMass_pT{}{}_{}.png'.format(
-        data_range_array[0],
-        data_range_array[1],
-        suffix)
-
+    fig_name = f'InvMass_pTpT{data_range_array[0]:.2f}{data_range_array[1]:.2f}_{suffix}.pdf'
     cv_inv.SaveAs(fig_sig_path + '/' + fig_name)
 
 def plot_confusion_matrix(y_true, df, score,
@@ -240,7 +232,7 @@ def plot_confusion_matrix(y_true, df, score,
 
     fig.tight_layout()
 
-    fig_sig_path = os.environ['HYPERML_FIGURES']+'/Confusion'
+    fig_sig_path = os.environ['FIGURES']+'/Confusion'
     if not os.path.exists(fig_sig_path):
         os.makedirs(fig_sig_path)
 
@@ -270,3 +262,7 @@ def get_decimal(error):
         error *= 10
         decimal += 1
     return decimal
+
+def set_to_decimal(value):
+    decimal = get_decimal(value)
+    return round(value, decimal)

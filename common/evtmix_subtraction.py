@@ -1,0 +1,557 @@
+from StrangeNA60plusML.common.distribution_analysis_pt import PDG_CODE
+import uproot
+import ROOT
+import os
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-dg', '--dgauss', help='Fit with two gaussians', action='store_true')
+parser.add_argument("config", help="Path to the YAML configuration file")
+args = parser.parse_args()
+
+with open(os.path.expandvars(args.config), 'r') as stream:
+    try:
+        params = yaml.full_load(stream)
+    except yaml.YAMLError as exc:
+        print(exc)
+
+################################################################################
+inputFile = params["INPUT_FILE"]  # inputFile ="/home/giacomo/Results_L5_E40.root"
+effFile = params["EFF_FILE"]  #effFile ="/home/giacomo/PHI_L5_E40_nev1000000_2245517281+"/Signal_histos_"+suffix+".root""
+suffix = params["FILE_PREFIX"] #"L5_E40"
+dgauss = args.dgauss  
+signal_file = params["signalFile"] #"/home/giacomo/StrangeNA60plusML/Data/PHI_L5_E40/fntSig_PHI_L5_E40.root"):
+fig_path = os.environ['DATA'] + '/PHI_'+suffix
+T = params["T"]
+PDG_CODE = params["PDG_CODE"]
+MASS_MIN = params["MASS_MIN"]
+MASS_MAX = params["MASS_MAX"]
+BRATIO = params["BRATIO"]
+################################################################################
+full_run = 10**10
+input = ROOT.TFile(inputFile)
+hist_data = input.Get("data")
+hist_data_sig = input.Get("data_sig")
+hist_data_bkg = input.Get("data_bkg")
+hist_mix = input.Get("mix")
+hist_ev = input.Get("ev")
+nev = hist_ev.GetBinContent(1)
+print("nev: ",nev)
+output = ROOT.TFile(fig_path+"event_mixing_phi_"+suffix+".root", "recreate")
+counts_data = 0
+counts_mix = 0
+normalization = 0
+
+bin_min = 0
+bin_max = 0
+dir_mix = output.mkdir("event mixing")
+dir_sub = output.mkdir("subtraction")
+dir_sub_no_sig = output.mkdir("subtraction no signal")
+dir_sig = output.mkdir("signal")
+dir_scale = output.mkdir("scaled")
+dir_data = output.mkdir("data")
+dir_ratio = output.mkdir("ratio")
+hist_raw = ROOT.TH1D("hist_raw", ";#it{p}_{T} (GeV/#it{c});dN/d#it{p}_{T} [(GeV/#it{c})^{-1}]",30, 0, 3)
+hist_pt = ROOT.TH1D("hist_pt", ";#it{p}_{T} (GeV/#it{c});1/N_{ev}dN/d#it{p}_{T} [(GeV/#it{c})^{-1}]", 30, 0, 3)
+hist_raw_mc = ROOT.TH1D("hist_raw_mc", ";#it{p}_{T} (GeV/#it{c});dN/d#it{p}_{T} [(GeV/#it{c})^{-1}]", 30, 0, 3)
+hist_pt_mc = ROOT.TH1D("hist_pt_mc", ";#it{p}_{T} (GeV/#it{c});1/N_{ev}dN/d#it{p}_{T} [(GeV/#it{c})^{-1}]", 30, 0, 3)
+hist_mass = ROOT.TH1D("hist_mass", ";#it{p}_{T} (GeV/#it{c}); mass (GeV/#it{c}^{2})", 30, 0, 3)
+
+effFile = ROOT.TFile(effFile)
+
+hist_eff = effFile.Get("hPtEff")
+mass = ROOT.TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
+
+pt_distr = ROOT.TF1("pt_distr", "[0]*x*exp(-TMath::Sqrt(x**2+[2]**2)/[1])", 0, 2.5)
+
+pt_distr.SetParameter(1, T)
+pt_distr.SetParLimits(1, T*0.8, T*1.2)
+pt_distr.FixParameter(2, mass)
+
+########################
+
+for bin in range(1, hist_data.GetNbinsX()):
+    fit_tpl = ROOT.TF1("fit_tpl", "pol1(0)+TMath::Voigt(x-[3],[4],[5])*[2]", MASS_MIN, MASS_MAX)
+    if dgauss:
+        fit_tpl = ROOT.TF1("fit_tpl","gausn(2)+gausn(5)+pol1(0)", MASS_MIN, MASS_MAX)
+    lifetime = ROOT.TDatabasePDG.Instance().GetParticle(333).Lifetime()
+    fit_tpl.FixParameter(5,ROOT.TMath.Hbar()*6.242*ROOT.TMath.Power(10,9)/lifetime)
+    fit_tpl.SetNpx(600)
+    fit_bkg = ROOT.TF1("fit_bkg","pol1(0)",MASS_MIN,MASS_MAX)
+    fit_bkg.SetLineColor(ROOT.kBlue)
+    fit_bkg.SetLineStyle(2)
+    ptbin_lw = hist_data.GetXaxis().GetBinLowEdge(bin)
+    ptbin_up = hist_data.GetXaxis().GetBinUpEdge(bin)
+    proj_data = hist_data.ProjectionY(f'{hist_data.GetName()}_pt_{ptbin_lw:.1f}_{ptbin_up:.1f}', bin,bin)
+    proj_data.SetMarkerStyle(20)
+    proj_data_sig = hist_data_sig.ProjectionY(f'{hist_data_sig.GetName()}_pt_{ptbin_lw:.1f}_{ptbin_up:.1f}', bin,bin)
+    proj_data_sig.SetMarkerStyle(20)
+    dir_sig.cd()
+    proj_data_sig.Write()
+
+    if bin<=hist_raw_mc.GetNbinsX():
+        hist_raw_mc.SetBinContent(bin, proj_data_sig.GetEntries())
+        hist_raw_mc.SetBinError(bin, ROOT.TMath.Sqrt(proj_data_sig.GetEntries()))
+    
+
+    proj_data_bkg = hist_data_bkg.ProjectionY(f'{hist_data_bkg.GetName()}_pt_{ptbin_lw:.1f}_{ptbin_up:.1f}', bin,bin)
+    proj_data_bkg.SetMarkerStyle(20)
+    proj_mix = hist_mix.ProjectionY(f'{hist_mix.GetName()}_pt_{ptbin_lw:.1f}_{ptbin_up:.1f}', bin,bin)
+    proj_mix.SetMarkerStyle(20)
+
+    counts_data = 0
+    counts_mix = 0
+
+    bin_min = proj_data.GetXaxis().FindBin(1.06)
+    bin_max = proj_data.GetXaxis().FindBin(1.10)
+
+    for bin_pro in range(bin_min, bin_max+1):
+        counts_data += proj_data.GetBinContent(bin_pro)
+        counts_mix += proj_mix.GetBinContent(bin_pro)
+    if counts_mix==0:
+        normalization = 0
+    else:
+        normalization = counts_data/counts_mix
+    
+
+    proj_sub = proj_data.Clone()
+    proj_sub_bkg = proj_data_bkg.Clone()
+    
+    proj_sub.SetName(f'sub_pt_{ptbin_lw:.1f}_{ptbin_up:.1f}')
+    proj_sub_bkg.SetName(f'sub_bkg_pt_{ptbin_lw:.1f}_{ptbin_up:.1f}')
+    for set in range(1, proj_sub.GetNbinsX()+1):
+        delta = proj_data.GetBinContent(set)-normalization*normalization*proj_mix.GetBinContent(set)
+        delta_bkg = proj_data.GetBinContent(set)-normalization*normalization*proj_mix.GetBinContent(set)
+        proj_sub.SetBinError(set, ROOT.TMath.Sqrt(delta))
+        proj_sub_bkg.SetBinError(set, ROOT.TMath.Sqrt(delta_bkg))
+        proj_mix.SetBinContent(set, int(normalization*proj_mix.GetBinContent(set)))
+    
+    range_min = proj_mix.GetXaxis().GetBinLowEdge(8)
+    range_max = proj_mix.GetXaxis().GetBinUpEdge(proj_mix.GetNbinsX()-4)
+    proj_sub.Add(proj_mix, -1)
+    proj_sub_bkg.Add(proj_mix, -1)
+    dir_sub_no_sig.cd()
+    proj_sub_bkg.GetXaxis().SetRangeUser(range_min, range_max)
+    proj_sub_bkg.Write()
+    if bin==1:
+        proj_sub_tot = proj_sub.Clone()
+        proj_sub_tot.SetMarkerStyle(20)
+        proj_sub_tot.SetName("sub_tot")
+    else:
+        proj_sub_tot.Add(proj_sub)
+    
+    proj_ratio = proj_data.Clone()
+    proj_ratio.SetName(f'ratio_pt_{ptbin_lw:.1f}_{ptbin_lw:.1f}')
+    proj_ratio.Divide(proj_mix)
+
+    range_min_y = MASS_MAX*proj_sub.GetMinimum()  if proj_sub.GetMinimum()<0 else   0.8*proj_sub.GetMinimum()
+    print("range y: ",range_min_y)
+    print("hist min: ",proj_sub.GetMinimum())
+    range_max_y = 1.3*proj_sub.GetMaximum()
+    dir_mix.cd()
+    proj_mix.GetXaxis().SetRangeUser(range_min, range_max)
+    proj_mix.Write()
+
+    dir_data.cd()
+    proj_data.GetXaxis().SetRangeUser(range_min, range_max)
+    proj_data.GetYaxis().SetTitle(f'Counts/{1000*proj_data.GetBinWidth(1):.2f}'+' MeV/#it{c}^{2}')
+    proj_data.GetXaxis().SetTitle("m (GeV/#it{c}^{2})")
+    proj_data.Write()
+
+    dir_sub.cd()
+    proj_sub.GetXaxis().SetRangeUser(range_min, range_max)
+    if dgauss:
+        fit_tpl.SetParameter(3, mass)
+        fit_tpl.SetParLimits(3, mass-0.0003,mass+0.0003)
+        fit_tpl.SetParameter(6, mass)
+        fit_tpl.SetParLimits(6, mass-0.0003,mass+0.0003)
+        fit_tpl.SetParameter(4, 0.002)
+        fit_tpl.SetParameter(7, 0.002)
+        fit_tpl.SetParLimits(4, 0.001,0.004)
+        fit_tpl.SetParLimits(7, 0.001,0.004)
+    else:
+        fit_tpl.SetParameter(0, -1.47832e+03)
+        fit_tpl.SetParameter(1, 1.82557e+03)
+        fit_tpl.SetParameter(2, 2000)
+        #fit_tpl.SetParLimits(2, 10,7000)
+        fit_tpl.SetParameter(3, mass)
+        fit_tpl.SetParLimits(3, mass-0.001,mass+0.001)
+        fit_tpl.SetParameter(4, 0.0012)
+        fit_tpl.SetParLimits(4, 0.00085,0.002)
+    #proj_sub.Fit("fit_func","MQ+")
+    proj_sub.Fit("fit_tpl","MIRQ+","",MASS_MIN,MASS_MAX)
+    proj_sub.GetYaxis().SetRangeUser(range_min_y, range_max_y)
+    #proj_sub.DrawMarker()
+    proj_sub.SetMarkerStyle(20)
+    proj_sub.Write()
+    if bin<=hist_mass.GetNbinsX():
+        hist_mass.SetBinContent(bin, fit_tpl.GetParameter(3))
+        hist_mass.SetBinError(bin, fit_tpl.GetParError(3))#/ROOT.TMath.Sqrt(full_run/nev))
+    #for i in range(0,8):
+    #    print("par ",i," : ",fit_tpl.GetParameter(i))
+    if bin<=hist_raw.GetNbinsX():
+        #hist_mass.SetBinContent(bin, fit_tpl.GetParameter(3))
+        #hist_mass.SetBinError(bin, fit_tpl.GetParError(3)/ROOT.TMath.Sqrt(full_run/nev))
+        #hist_raw.SetBinContent(bin, fit_tpl.GetParameter(2)*full_run/nev)
+        #hist_raw.SetBinError(bin, TMath::Sqrt(fit_tpl.GetParameter(2))*TMath::Sqrt(full_run/nev))
+        if not dgauss:
+            hist_raw.SetBinContent(bin, fit_tpl.GetParameter(2)/proj_sub.GetBinWidth(1))
+            hist_raw.SetBinError(bin, fit_tpl.GetParError(2)/proj_sub.GetBinWidth(1))
+        else:
+            hist_raw.SetBinContent(bin, (fit_tpl.GetParameter(2)+fit_tpl.GetParameter(5)))
+            hist_raw.SetBinError(bin, ROOT.TMath.Sqrt(fit_tpl.GetParError(2)**2+fit_tpl.GetParError(5)**2))
+        hist_count = 0
+
+        for i in range(1, proj_sub.GetNbinsX()+1):
+            hist_count += proj_sub.GetBinContent(i)
+        
+        #integral = full_run/nev*fit_bkg.Integral(range_min, range_max)/proj_sub.GetBinWidth(2)
+        #hist_raw.SetBinContent(bin, hist_count-integral);
+        #hist_raw.SetBinError(bin, TMath::Sqrt(fit_tpl.GetParameter(2))*TMath::Sqrt(full_run/nev));
+    proj_sub_scale = proj_data.Clone()
+    if dgauss:
+        fit_tpl.SetParameter(0, fit_tpl.GetParameter(0)*full_run/nev)
+        fit_tpl.SetParameter(1, fit_tpl.GetParameter(1)*full_run/nev)
+        fit_tpl.SetParameter(2, fit_tpl.GetParameter(2)*full_run/nev)
+        fit_tpl.SetParameter(4, fit_tpl.GetParameter(5)*full_run/nev)
+    else:
+        fit_tpl.SetParameter(0, fit_tpl.GetParameter(0)*full_run/nev)
+        fit_tpl.SetParameter(1, fit_tpl.GetParameter(1)*full_run/nev)
+        fit_tpl.SetParameter(2, fit_tpl.GetParameter(2)*full_run/nev)
+        #fit_func.SetParameter(4, fit_func.GetParameter(4)*full_run/nev)
+    fit_bkg.SetParameter(0, fit_tpl.GetParameter(0))
+    fit_bkg.SetParameter(1, fit_tpl.GetParameter(1))
+    
+    for i in range(1, proj_sub_scale.GetNbinsX()+1):
+        val = proj_sub_scale.GetXaxis().GetBinCenter(i)
+        proj_sub_scale.SetBinContent(i,fit_tpl.Eval(val))
+        proj_sub_scale.SetBinError(i,proj_sub.GetBinError(i)*ROOT.TMath.Sqrt(full_run/nev))
+    
+    #proj_sub_scale.GetYaxis().SetRangeUser(range_min_y*full_run/nev, range_max_y*full_run/nev)
+    proj_sub_scale.GetListOfFunctions().Add(fit_tpl)
+    proj_sub_scale.GetListOfFunctions().Add(fit_bkg)
+
+    cv_sub_or = ROOT.TCanvas("cv_sub_or","cv_sub_or")
+
+    cv_sub_or.SetLeftMargin(0.12)
+    cv_sub_or.cd()
+
+    ROOT.gStyle.SetOptStat(0)
+
+    proj_sub.GetXaxis().SetRangeUser(MASS_MIN6,1.06)
+    proj_sub.SetTitle("") 
+    #cv_sub_or.SetOptStat(0)
+    proj_sub.GetYaxis().SetRangeUser(proj_sub.GetMinimum()*1.5,proj_sub.GetMaximum()*1.5)  
+    proj_sub.Draw("e")
+    pinfo_sub = ROOT.TPaveText(0.5, 0.5, 0.91, 0.9, "NDC")
+    pinfo_sub.SetBorderSize(0)
+    pinfo_sub.SetFillStyle(0)
+    pinfo_sub.SetTextAlign(30+3)
+    pinfo_sub.SetTextFont(42)
+    pinfo_sub.AddText("Pb-Pb #sqrt{s_{NN}} = 8.8 GeV, centrality 0-5%")
+    pinfo_sub.AddText(f'{(bin-1):.1f}'+' #leq #it{p}_{T} <'+f' {(bin):.1f}'+' GeV/#it{c}')
+    pinfo_sub.Draw()
+    cv_sub_or.SaveAs(f'no_scale_{suffix}_{(bin-1):.1f}_{(bin):.1f}.pdf')
+
+    cv_sub = ROOT.TCanvas("cv_sub","cv_sub")
+    cv_sub.SetLeftMargin(0.12)
+    cv_sub.cd()
+    ROOT.gStyle.SetOptStat(0)
+    proj_sub_scale.GetXaxis().SetRangeUser(MASS_MIN,1.06)
+    proj_sub_scale.SetTitle("")
+    proj_sub_scale.Draw("e")
+    #print fit info on the canvas
+
+    signal = fit_tpl.GetParameter(2) / proj_sub_scale.GetBinWidth(1)
+    errsignal = fit_tpl.GetParError(2) / proj_sub_scale.GetBinWidth(1)
+
+    pinfo_sub.AddText(f'S {signal:.0f} #pm {errsignal:.0f}')
+    pinfo_sub.Draw()
+    if bin <= 30:
+        cv_sub.SaveAs(f'scale_{suffix}_{(bin-1):.1f}_{(bin):.1f}.pdf')
+    dir_scale.cd()
+    proj_sub_scale.Write()
+    dir_ratio.cd()
+    proj_ratio.GetXaxis().SetRangeUser(range_min, range_max)
+    proj_ratio.Write()
+
+output.cd()
+hist_raw.Write()
+hist_raw_mc.Write()
+ROOT.gStyle.SetOptStat(0)
+proj_data_int = hist_data.ProjectionY(f'{hist_data.GetName()}_all_pt', 1, hist_data.GetNbinsY())
+proj_data_int.Write()
+proj_mix_int = hist_mix.ProjectionY(f'{hist_mix.GetName()}_all_pt', 1, hist_mix.GetNbinsY())
+counts_data = 0
+counts_mix = 0
+bin_min = proj_data_int.GetXaxis().FindBin(1.06)
+bin_max = proj_data_int.GetXaxis().FindBin(MASS_MAX)
+for bin_pro in range(bin_min, bin_max+1):
+    counts_data += proj_data_int.GetBinContent(bin_pro)
+    counts_mix += proj_mix_int.GetBinContent(bin_pro)
+
+normalization = counts_data/counts_mix
+
+for bin_pro in range(1, proj_data_int.GetNbinsX()+1):
+    proj_data_int.SetBinContent(bin_pro, full_run/nev*proj_data_int.GetBinContent(bin_pro))
+    proj_mix_int.SetBinContent(bin_pro, full_run/nev*normalization*proj_mix_int.GetBinContent(bin_pro))
+    proj_sub_tot.SetBinContent(bin_pro, full_run/nev*proj_sub_tot.GetBinContent(bin_pro))
+
+
+cv_mix = ROOT.TCanvas("cv_mix","cv_mix")
+cv_mix.cd()
+range_min = proj_mix_int.GetXaxis().GetBinLowEdge(8)
+range_max = proj_mix_int.GetXaxis().GetBinUpEdge(proj_mix_int.GetNbinsX()-4)
+
+proj_mix_int.GetXaxis().SetRangeUser(range_min, range_max)
+proj_mix_int.SetTitle("Event Mixing;m (GeV/#it{c}^{2});")
+proj_mix_int.GetYaxis().SetTitle(f'Counts/{1000*proj_mix_int.GetBinWidth(1):.2f}'+' MeV/#it{c}^{2}')
+proj_mix_int.SetMarkerStyle(20)
+proj_mix_int.Draw("e")
+cv_mix.Write()
+cv_mix.SaveAs(f'mix_{suffix}.png')
+cv_mix.SaveAs(f'mix_{suffix}.pdf')
+cv_data = ROOT.TCanvas("cv_data","cv_data")
+cv_data.cd()
+proj_data_int.GetXaxis().SetRangeUser(range_min, range_max)
+proj_data_int.SetTitle("Generated Data;m (GeV/#it{c}^{2});")
+proj_data_int.GetYaxis().SetTitle(f'Counts/{1000*proj_data_int.GetBinWidth(1):.2f}'+' MeV/#it{c}^{2}')
+proj_data_int.SetMarkerStyle(20)
+proj_data_int.Draw("e")
+cv_data.Write()
+cv_data.SaveAs(f'data_{suffix}.png')
+cv_data.SaveAs(f'data_{suffix}.pdf')
+
+proj_sub_tot.Write()
+proj_mix_int.Write()
+proj_sub_int = proj_data_int.Clone()
+proj_sub_int.SetName("sub_all_pt")
+proj_sub_int.Add(proj_mix_int, -1)
+
+cv_sub = ROOT.TCanvas("cv_sub","cv_sub")
+cv_sub.cd()
+
+range_min_y = MASS_MAX*proj_sub_int.GetMinimum() if (proj_sub_int.GetMinimum()<0) else 0.8*proj_sub_int.GetMinimum()
+range_max_y = 1.3*proj_sub_int.GetMaximum()
+proj_sub_int.GetXaxis().SetRangeUser(range_min, range_max)
+proj_sub_int.GetYaxis().SetRangeUser(range_min_y, range_max_y)
+proj_sub_int.SetTitle(';m (GeV/#it{c}^{2});')
+proj_sub_int.GetYaxis().SetTitle(f'Counts/{1000*proj_sub_int.GetBinWidth(1):.2f}'+' MeV/#it{c}^{2}')
+proj_sub_int.SetMarkerStyle(20)
+proj_sub_int.Fit(fit_tpl,"MR+","", MASS_MIN, MASS_MAX)
+
+fit_bkg.SetParameter(0, fit_tpl.GetParameter(0))
+fit_bkg.SetParameter(1, fit_tpl.GetParameter(1))
+
+proj_sub_int.GetListOfFunctions().Add(fit_bkg)
+proj_sub_int.Draw("e")
+cv_sub.Write()
+proj_scale = proj_sub_int.Clone()
+
+cv_scale = ROOT.TCanvas("cv_scale","cv_scale")
+cv_scale.cd()
+
+for bin_pro in range(1, proj_scale.GetNbinsX()+1):
+    val = proj_scale.GetXaxis().GetBinCenter(bin_pro)
+    proj_scale.SetBinContent(bin_pro,fit_tpl.Eval(val))
+    proj_scale.SetBinError(bin_pro,ROOT.TMath.Sqrt(ROOT.TMath.Abs(fit_tpl.Eval(val)))*5./4.)
+
+proj_scale.GetListOfFunctions().Add(fit_tpl)
+proj_scale.GetListOfFunctions().Add(fit_bkg)
+proj_scale.Draw("e")
+
+#print fit info on the canvas
+pinfo_m = ROOT.TPaveText(0.5, 0.5, 0.91, 0.9, "NDC")
+pinfo_m.SetBorderSize(0)
+pinfo_m.SetFillStyle(0)
+pinfo_m.SetTextAlign(30+3)
+pinfo_m.SetTextFont(42)
+
+
+
+signal = fit_tpl.GetParameter(2) / proj_scale.GetBinWidth(1)
+errsignal = fit_tpl.GetParError(2) / proj_scale.GetBinWidth(1)
+bkg = 0#fit_bkg.Integral(range_min, range_max) / proj_scale.GetBinWidth(1)
+
+for bin_pro in range(1, proj_scale.GetNbinsX()+1):
+    val = proj_scale.GetXaxis().GetBinCenter(bin_pro)
+    bkg += fit_bkg.Eval(val)/proj_scale.GetBinWidth(1)
+
+signif = signal/ROOT.TMath.Sqrt(signal+bkg)
+pinfo_m.AddText("Pb-Pb #sqrt{s_{NN}} = 8.8 GeV, centrality 0-5%")
+pinfo_m.AddText("0.0 #leq #it{p}_{T} < 3.0 GeV/#it{c}")
+#pinfo_m.AddText(Form("Significance %0.1f",signif))
+pinfo_m.AddText(f'S {signal} #pm {errsignal}')
+#pinfo_m.AddText(Form("B %0.f #pm %0.f",bkg,TMath::Sqrt(bkg)))
+
+#if bkg > 0:
+#    ratio = signal/bkg;
+    #pinfo_m.AddText(Form("S/B %0.4f",ratio));
+
+pinfo_m.Draw()
+
+cv_scale.Write()
+#cv_scale.SaveAs(Form("mass_%s.png",suffix))
+cv_scale.SaveAs(f'mass_{suffix}.pdf')
+
+proj_ratio_int = proj_data_int.Clone()
+proj_ratio_int.SetName("ratio_all_pt")
+proj_ratio_int.Divide(proj_mix_int)
+
+proj_sub_int.Write()
+proj_ratio_int.Write()
+
+hist_eff.Write()
+for bin_pro in range(1, hist_pt.GetNbinsX()+1):
+    eff = hist_eff.GetBinContent(bin_pro)
+    if eff==0:
+        eff = 1
+    counts = hist_raw.GetBinContent(bin_pro)/hist_pt.GetBinWidth(bin_pro)/nev
+    err = hist_raw.GetBinError(bin_pro)/hist_pt.GetBinWidth(bin_pro)/nev
+    hist_pt.SetBinContent(bin_pro, counts/eff)
+    hist_pt.SetBinError(bin_pro, err/eff)
+
+
+
+for bin_pro in range(1, hist_pt_mc.GetNbinsX()+1):
+    eff = hist_eff.GetBinContent(bin_pro)
+    if eff==0 :
+        eff = 1
+    counts = hist_raw_mc.GetBinContent(bin_pro)/hist_pt_mc.GetBinWidth(bin_pro)/nev
+    err = hist_raw_mc.GetBinError(bin_pro)/hist_pt_mc.GetBinWidth(bin_pro)/nev
+    hist_pt_mc.SetBinContent(bin_pro, counts/eff)
+    hist_pt_mc.SetBinError(bin_pro, err/eff)
+
+#effFile.Close();
+hist_pt.Fit("pt_distr","IMR+","",0.2,2.3)
+cv = ROOT.TCanvas("cv","cv")
+pinfo = ROOT.TPaveText(0.5, 0.65, 0.88, 0.86, "NDC")
+pinfo.SetBorderSize(0)
+pinfo.SetFillStyle(0)
+pinfo.SetTextAlign(30+3)
+pinfo.SetTextFont(42)
+pinfo.AddText("Pb-Pb #sqrt{#it{s}_{NN}} = 8.8 GeV, 0-5%")
+pinfo.AddText(f'T = {pt_distr.GetParameter(1)*1000:.1f} #pm {pt_distr.GetParError(1)*1000:.1f} MeV')
+pinfo.AddText('T_{gen} = 244.6 MeV')
+hist_pt.SetMarkerStyle(20)
+hist_pt.SetMarkerColor(ROOT.kBlue)
+hist_pt.Draw("e")
+pinfo.Draw()
+cv.Write()
+cv.SaveAs("pt_"+suffix+".png")
+cv.SaveAs("pt_"+suffix+".pdf")
+
+scale_factor = ROOT.TMath.Sqrt(nev/full_run)
+hist_pt_scaled = hist_pt.Clone("hist_pt_scaled")
+for bin_pro in range(1, hist_pt_mc.GetNbinsX()+1):
+    hist_pt_scaled.SetBinError(bin_pro, hist_pt.GetBinError(bin_pro)*scale_factor)
+    if bin_pro < 3 or bin_pro > 23:
+        hist_pt_scaled.SetBinContent(bin_pro, 0)
+        hist_pt_scaled.SetBinError(bin_pro, 0)
+        
+#scaled
+hist_pt_scaled.Fit("pt_distr","IMR+","",0.2,2.3)
+
+for bin_pro in range(1, hist_pt_mc.GetNbinsX()+1):
+    hist_pt_scaled.SetBinContent(bin_pro, pt_distr.Eval(hist_pt_scaled.GetBinCenter(bin_pro)))
+    if bin_pro < 3 or bin_pro > 23:
+        hist_pt_scaled.SetBinContent(bin_pro, 0)
+        hist_pt_scaled.SetBinError(bin_pro, 0)
+hist_pt_scaled.GetXaxis().SetRangeUser(0.2,2.3)
+cv_scaled = ROOT.TCanvas("cv_scaled","cv_scaled")
+pinfo_scaled = ROOT.TPaveText(0.5, 0.65, 0.88, 0.86, "NDC")
+pinfo_scaled.SetBorderSize(0)
+pinfo_scaled.SetFillStyle(0)
+pinfo_scaled.SetTextAlign(30+3)
+pinfo_scaled.SetTextFont(42)
+pinfo_scaled.AddText("Pb-Pb #sqrt{#it{s}_{NN}} = 8.8 GeV, 0-5%")
+pinfo_scaled.AddText(f'T = {pt_distr.GetParameter(1)*1000:.2f} #pm {pt_distr.GetParError(1)*1000:.2f} MeV')
+hist_pt_scaled.SetMarkerStyle(20)
+hist_pt_scaled.SetMarkerColor(ROOT.kBlue)
+hist_pt_scaled.Draw("e")
+pinfo_scaled.Draw()
+cv_scaled.Write()
+cv_scaled.SaveAs("pt_"+suffix+"_scaled.png")
+cv_scaled.SaveAs("pt_"+suffix+"_scaled.pdf")
+cv_scaled.SetLogy()
+cv_scaled.SaveAs("pt_"+suffix+"_scaled_logy.png")
+cv_scaled.SaveAs("pt_"+suffix+"_scaled_logy.pdf")
+hist_pt_scaled.Write()
+
+#monte carlo
+hist_pt_mc.Fit("pt_distr","IMR+","",0.,3.0)
+cv_mc = ROOT.TCanvas("cv_mc","cv_mc")
+pinfo_mc = ROOT.TPaveText(0.5, 0.65, 0.88, 0.86, "NDC")
+pinfo_mc.SetBorderSize(0)
+pinfo_mc.SetFillStyle(0)
+pinfo_mc.SetTextAlign(30+3)
+pinfo_mc.SetTextFont(42)
+pinfo_mc.AddText("Pb-Pb #sqrt{#it{s}_{NN}} = 8.8 GeV, 0-5%")
+pinfo_mc.AddText(f'T = {pt_distr.GetParameter(1)*1000:.2f} #pm {pt_distr.GetParError(1)*1000:.2f} MeV')
+pinfo.AddText('T_{gen} = 244.6 MeV')
+hist_pt_mc.SetMarkerStyle(20)
+hist_pt_mc.SetMarkerColor(ROOT.kBlue)
+hist_pt_mc.Draw("e")
+pinfo_mc.Draw()
+cv_mc.Write()
+cv_mc.SaveAs("pt_"+suffix+"_mc.png")
+cv_mc.SaveAs("pt_"+suffix+"_mc.pdf")
+hist_pt_mc.Write()
+
+
+#mass
+df_rec = uproot.open(signal_file)["ntcand"].arrays(library="pd")
+hist2d_shift = ROOT.TH2D("hist2d_shift", ";#it{p}_{T} (GeV/#it{c}); #Delta m (GeV/#it{c}^{2}); Counts", 30, 0, 3, 600, -0.03, 0.03)
+hist_shift = ROOT.TH1D("hist_shift", ";#it{p}_{T} (GeV/#it{c}); #Delta m (GeV/#it{c}^{2})", 30, 0, 3)
+hist_mass_corr = hist_mass.Clone("hist_mass_corr")
+
+for index, row in df_rec.iterrows():
+    hist2d_shift.Fill(row["pt"],row["m"]-mass)
+for bin in range(1, hist_shift.GetNbinsX()+1):
+    hist_tmp = hist2d_shift.ProjectionY(f'mass_shift_pt_{ptbin_lw:.1f}_{ptbin_up:.1f}', bin, bin)
+    hist_shift.SetBinContent(bin, hist_tmp.GetMean())
+    hist_shift.SetBinError(bin, hist_tmp.GetMeanError())
+    hist_mass_corr.SetBinContent(bin, hist_mass_corr.GetBinContent(bin)-hist_tmp.GetMean())
+hist_shift.Write()
+hist2d_shift.Write()
+hist_mass.Write()
+fit_mass = ROOT.TF1("fit_mass","pol0",0.2,2.3)
+hist_mass_corr.Fit(fit_mass,"MR+")
+cv_mass = ROOT.TCanvas("cv_mass","cv_mass")
+pinfo_mass = ROOT.TPaveText(0.5, 0.65, 0.88, 0.86, "NDC")
+pinfo_mass.SetBorderSize(0)
+pinfo_mass.SetFillStyle(0)
+pinfo_mass.SetTextAlign(30+3)
+pinfo_mass.SetTextFont(42)
+pinfo_mass.AddText("Pb-Pb #sqrt{#it{s}_{NN}} = 8.8 GeV, 0-5%")
+pinfo_mass.AddText(f'm = {fit_mass.GetParameter(0):.5f} #pm {fit_mass.GetParError(0):.5f} '+'GeV/#it{c}^{2}')
+pinfo_mass.AddText('m_{gen} = '+f'{mass} MeV')
+hist_mass_corr.SetMarkerStyle(20)
+hist_mass_corr.SetMarkerColor(ROOT.kBlue)
+hist_mass_corr.Draw("e")
+pinfo_mass.Draw()
+cv_mass.Write()
+cv_mass.SaveAs("mass_"+suffix+".pdf")
+hist_mass_corr.Write()
+
+for bin in range(1, hist_shift.GetNbinsX()+1):
+    hist_mass_corr.SetBinError(bin, hist_mass_corr.GetBinError(bin)*ROOT.TMath.Sqrt(nev/full_run))
+hist_mass_corr.Fit(fit_mass,"MR+")
+hist_mass_corr.SetName("hist_mass_scaled")
+cv_mass_scaled = ROOT.TCanvas("cv_mass_scaled","cv_mass_scaled")
+pinfo_mass_scaled = ROOT.TPaveText(0.5, 0.65, 0.88, 0.86, "NDC")
+pinfo_mass_scaled.SetBorderSize(0)
+pinfo_mass_scaled.SetFillStyle(0)
+pinfo_mass_scaled.SetTextAlign(30+3)
+pinfo_mass_scaled.SetTextFont(42)
+pinfo_mass_scaled.AddText("Pb-Pb #sqrt{#it{s}_{NN}} = 8.8 GeV, 0-5%")
+pinfo_mass_scaled.AddText(f'm = {fit_mass.GetParameter(0):.7f} #pm {fit_mass.GetParError(0):.7f} '+'GeV/#it{c}^{2}')
+pinfo_mass_scaled.AddText('m_{gen} = '+f'{mass} MeV')
+hist_mass_corr.SetMarkerStyle(20)
+hist_mass_corr.SetMarkerColor(ROOT.kBlue)
+hist_mass_corr.Draw("e")
+pinfo_mass_scaled.Draw()
+cv_mass_scaled.Write()
+cv_mass_scaled.SaveAs("mass_"+suffix+"_scaled.pdf")
+hist_mass_corr.Write()
+output.Close()
+

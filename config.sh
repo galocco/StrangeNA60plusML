@@ -1,24 +1,21 @@
 #!/bin/bash
+DATA="$PWD/Data"
+FIGURES="$PWD/Figures"
+RESULTS="$PWD/Results"
+MODELS="$PWD/Models"
+CODE="$PWD"
+COMMON="$CODE/common"
 
-[ -z "$ALICE_PHYSICS" ] && echo "AliPhysics environment required! Load it before sourcing this." && return
+export PYTHONPATH="${PYTHONPATH}:$COMMON/TrainingAndTesting:$COMMON/Utils"
 
-HYPERML_DATA="$PWD/Data"
-HYPERML_FIGURES="$PWD/Figures"
-HYPERML_RESULTS="$PWD/Results"
-HYPERML_MODELS="$PWD/Models"
-HYPERML_CODE="$PWD"
-HYPERML_COMMON="$HYPERML_CODE/common"
+export DATA="$DATA"
+export FIGURES="$FIGURES"
+export MODELS="$MODELS"
+export RESULTS="$RESULTS"
+export EFFICIENCIES="$RESULTS/Efficiencies"
 
-export PYTHONPATH="${PYTHONPATH}:$HYPERML_COMMON/TrainingAndTesting:$HYPERML_COMMON/Utils"
-
-export HYPERML_DATA="$HYPERML_DATA"
-export HYPERML_FIGURES="$HYPERML_FIGURES"
-export HYPERML_MODELS="$HYPERML_MODELS"
-export HYPERML_RESULTS="$HYPERML_RESULTS"
-export HYPERML_EFFICIENCIES="$HYPERML_RESULTS/Efficiencies"
-
-[ ! -d "$HYPERML_DATA" ] && mkdir -p $HYPERML_DATA
-[ ! -d "$HYPERML_FIGURES" ] && mkdir -p $HYPERML_FIGURES
-[ ! -d "$HYPERML_MODELS" ] && mkdir -p $HYPERML_MODELS
-[ ! -d "$HYPERML_EFFICIENCIES" ] && mkdir -p $HYPERML_EFFICIENCIES
-[ ! -d "$HYPERML_RESULTS" ] && mkdir -p $HYPERML_RESULTS
+[ ! -d "$DATA" ] && mkdir -p $DATA
+[ ! -d "$FIGURES" ] && mkdir -p $FIGURES
+[ ! -d "$MODELS" ] && mkdir -p $MODELS
+[ ! -d "$EFFICIENCIES" ] && mkdir -p $EFFICIENCIES
+[ ! -d "$RESULTS" ] && mkdir -p $RESULTS
