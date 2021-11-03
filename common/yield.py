@@ -54,6 +54,7 @@ PDG_CODE = params['PDG']
 PT_BINS = params['PT_BINS']
 EFF_MIN, EFF_MAX, EFF_STEP = params['BDT_EFFICIENCY']
 NEVENTS = params['NEVENTS']
+BRATIO = params["BRATIO"]
 
 SIG_MODELS = params['SIG_MODELS']
 BKG_MODELS = params['BKG_MODELS']
@@ -94,8 +95,8 @@ h1BDTEff = results_file.Get(f'{inDirName}/BDTeff')
 
 best_sig = np.round(np.array(h1BDTEff)[1:-1], 3)
 sig_ranges = []
-eff_m = 0.10
-eff_p = 0.10
+eff_m = 0.03
+eff_p = 0.03
 for i in best_sig:
     if EFF_MAX < i+eff_p:
         eff_p = EFF_MAX-i
@@ -136,7 +137,7 @@ for sigmodel in SIG_MODELS:
         h1RawCountsPt[sigmodel][bkgmodel] = ROOT.TH1D(f"pt_best_{sigmodel}_{bkgmodel}",";#it{p}_{T} [GeV/#it{c}];1/N_{ev}dN/d#it{p}_{T} [(GeV/#it{c})^{-1}]",len(PT_BINS)-1,pt_binning)
 
 
-pt_distr = TF1("pt_distr", "x*exp(-TMath::Sqrt(x**2+[1]**2)/[0])", PT_BINS[0], PT_BINS[-4])
+pt_distr = TF1("pt_distr", "x*exp(-TMath::Sqrt(x**2+[1]**2)/[0])", PT_BINS[0], PT_BINS[-1])
 pt_distr.FixParameter(0, T)
 pt_distr.FixParameter(1, mass)
 
@@ -180,14 +181,13 @@ for sigmodel in SIG_MODELS:
         max_value = h1RawCountsPt[sigmodel][bkgmodel].GetMaximum()*1.2
         
         h1RawCountsPt[sigmodel][bkgmodel].GetYaxis().SetRangeUser(min_value, max_value)
-        bratio = 0.489
         mult=0
         err_mult=0
         for i in range(1,h1RawCountsPt[sigmodel][bkgmodel].GetNbinsX()+1):
             mult += h1RawCountsPt[sigmodel][bkgmodel].GetBinContent(i)
             err_mult += h1RawCountsPt[sigmodel][bkgmodel].GetBinError(i)**2
-        err_mult = ROOT.TMath.Sqrt(err_mult)/bratio/pt_range_factor
-        mult /= bratio
+        err_mult = ROOT.TMath.Sqrt(err_mult)/BRATIO/pt_range_factor
+        mult /= BRATIO
         mult /= pt_range_factor
         print("sig model: ",sigmodel,"bkg model: ",bkgmodel)
         print("multiplicity: ", mult," +- ",err_mult)
@@ -214,7 +214,7 @@ syst = TH1D("syst", ";Yield;Entries", 800, MULTIPLICITY*0.6, MULTIPLICITY*1.4)
 tmpCt = hRawCounts[0].Clone("tmpCt")
 
 combinations = set()
-size = 20000
+size = 10000
 count=0
 for _ in range(size):
     tmpCt.Reset()
@@ -229,8 +229,8 @@ for _ in range(size):
     combo = (x for x in comboList)
     if combo in combinations:
         continue
-    mult/=bratio
-    err_mult = ROOT.TMath.Sqrt(err_mult)/bratio
+    mult/=BRATIO
+    err_mult = ROOT.TMath.Sqrt(err_mult)/BRATIO
     combinations.add(combo)
     syst.Fill(mult)
 

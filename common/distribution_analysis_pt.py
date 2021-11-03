@@ -107,8 +107,8 @@ h1BDTEff = results_file.Get(f'{inDirName}/BDTeff')
 
 best_sig = np.round(np.array(h1BDTEff)[1:-1], 3)
 sig_ranges = []
-eff_m = 0.1
-eff_p = 0.1
+eff_m = 0.03
+eff_p = 0.03
 for i in best_sig:
     if EFF_MAX < i+eff_p:
         eff_p = EFF_MAX-i
@@ -237,7 +237,7 @@ for sigmodel in SIG_MODELS:
         h1RawCountsPt[sigmodel][bkgmodel].Fit(pt_distr, "M0R+", "",PT_BINS[0],PT_BINS[-2])
         fit_function = h1RawCountsPt[sigmodel][bkgmodel].GetFunction("pt_distr")
         fit_function.SetLineColor(kOrangeC)
-        h1RawCountsPt[sigmodel][bkgmodel].GetXaxis().SetRangeUser(0,2.75)
+        h1RawCountsPt[sigmodel][bkgmodel].GetXaxis().SetRangeUser(PT_BINS[0],PT_BINS[-1])
         h1RawCountsPt[sigmodel][bkgmodel].Write()
         hRawCounts.append(h1RawCountsPt[sigmodel][bkgmodel])
 
@@ -319,7 +319,7 @@ for _ in range(size):
         continue
     pt_distr.SetParameter(0, 1.15104e+03)
     combinations.add(combo)
-    tmpCt.Fit(pt_distr, "QR0+","",PT_BINS[0],PT_BINS[-7])
+    tmpCt.Fit(pt_distr, "QR0+","",PT_BINS[0],PT_BINS[-2])
     prob.Fill(pt_distr.GetProb())
     syst.Fill(pt_distr.GetParameter(1)*1000)
     pars.Fill(pt_distr.GetParameter(1)*1000, pt_distr.GetParameter(0))

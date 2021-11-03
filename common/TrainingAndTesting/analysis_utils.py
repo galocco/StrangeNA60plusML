@@ -20,6 +20,8 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 def least_significant_digit(num_list):
     lsd = -1
     for num in num_list:
+        if num == 0:
+            continue
         num_string = str(num)
         #num_string = str(num_string)
         if '.' in num_string:
@@ -35,6 +37,7 @@ def least_significant_digit(num_list):
             lsd_i = int(num_string[-power-1])*10**(power)
         if lsd == -1 or lsd > lsd_i:
             lsd = lsd_i
+    print(lsd)
     return lsd
         
 
@@ -78,7 +81,7 @@ def get_skimmed_large_data_hsp(mass, data_path, pt_bins, training_columns, suffi
 
     pt_min = pt_bins[0]
     pt_max = pt_bins[-1]
-    minimum_pt_bins = int((pt_max-pt_min)/least_significant_digit(pt_bins))
+    minimum_pt_bins = int((pt_max-pt_min)/0.05) #least_significant_digit(pt_bins))
 
     nbins = array('i', [mass_bins, minimum_pt_bins, 4000])
     xmin  = array('d', [mass*(1-range), pt_min, -20])
@@ -316,8 +319,10 @@ def fit_hist(
             mc_function = mc_fit_file.Get(f'fit/{sig_model}_{pt_range[0]:.2f}_{pt_range[1]:.2f}')
             for param in range(0, n_sigpars):
                 if param not in norm_params:
-                    #print(n_bkgpars + param,param, mc_function.GetParameter(param))
-                    fit_tpl.FixParameter(n_bkgpars + param, mc_function.GetParameter(param))
+                    if fix_params:
+                        fit_tpl.FixParameter(n_bkgpars + param, mc_function.GetParameter(param))
+                    else:
+                        fit_tpl.SetParameter(n_bkgpars + param, mc_function.GetParameter(param))
                 #else:
                     #fit_tpl.FixParameter(n_bkgpars + param, 100000)#histo.Integral(1, histo.GetNbinsX())/histo.GetBinWidth(1))
                     #fit_tpl.SetParameter(n_bkgpars + param,0 )# histo.Integral(1, histo.GetNbinsX()))
@@ -333,6 +338,13 @@ def fit_hist(
         #fit_tpl.SetParLimits(6, 1, 4)
     elif sig_model == "d-gauss":    
         fit_tpl = TF1('fitTpl', f'{bkg_model}(0) + gausn({n_bkgpars}) + gausn({n_bkgpars+3})', 0, 5)
+        mc_function = mc_fit_file.Get(f'fit/{sig_model}_{pt_range[0]:.2f}_{pt_range[1]:.2f}')
+        for param in range(0, n_sigpars):
+            if param not in norm_params:
+                if fix_params:
+                    fit_tpl.FixParameter(n_bkgpars + param, mc_function.GetParameter(param))
+                else:
+                    fit_tpl.SetParameter(n_bkgpars + param, mc_function.GetParameter(param))
     else:
         fit_tpl = TF1('fitTpl', f'{bkg_model}(0) + gausn({n_bkgpars})', 0, 5)
     
@@ -349,22 +361,23 @@ def fit_hist(
     #    fit_tpl.FixParameter(n_bkgpars,100)
     #if fix_params:
     #else:
-    if sig_model == 'd-gauss':
-        fit_tpl.SetParameter(n_bkgpars, histo.GetMaximum())
-        fit_tpl.SetParameter(n_bkgpars+3, histo.GetMaximum())
-        fit_tpl.SetParameter(n_bkgpars+1, mass)
-        fit_tpl.SetParameter(n_bkgpars+2, 0.0015)
-        fit_tpl.SetParameter(n_bkgpars+4, mass)
-        fit_tpl.SetParameter(n_bkgpars+5, 0.0025)
-        fit_tpl.SetParLimits(n_bkgpars+1, mass-0.001, mass+0.001)
-        fit_tpl.SetParLimits(n_bkgpars+2, 0.0005, 0.003)
-        fit_tpl.SetParLimits(n_bkgpars+4, mass-0.001, mass+0.001)
-        fit_tpl.SetParLimits(n_bkgpars+5, 0.0005, 0.003)
-    elif sig_model == 'gauss':
-        fit_tpl.SetParameter(n_bkgpars+1, mass)
-        fit_tpl.SetParameter(n_bkgpars+2, 0.002)
-        fit_tpl.SetParLimits(n_bkgpars+1, mass-0.001, mass+0.001)
-        fit_tpl.SetParLimits(n_bkgpars+2, 0.0005, 0.003)
+    
+    #if sig_model == 'd-gauss':
+        #fit_tpl.SetParameter(n_bkgpars, histo.GetMaximum())
+        #fit_tpl.SetParameter(n_bkgpars+3, histo.GetMaximum())
+        #fit_tpl.SetParameter(n_bkgpars+1, mass)
+        #fit_tpl.SetParameter(n_bkgpars+2, 0.0015)
+        #fit_tpl.SetParameter(n_bkgpars+4, mass)
+        #fit_tpl.SetParameter(n_bkgpars+5, 0.0025)
+        #fit_tpl.SetParLimits(n_bkgpars+1, mass-0.001, mass+0.001)
+        #fit_tpl.SetParLimits(n_bkgpars+2, 0.0005, 0.003)
+        #fit_tpl.SetParLimits(n_bkgpars+4, mass-0.001, mass+0.001)
+        #fit_tpl.SetParLimits(n_bkgpars+5, 0.0005, 0.003)
+    #elif sig_model == 'gauss':
+        #fit_tpl.SetParameter(n_bkgpars+1, mass)
+        #fit_tpl.SetParameter(n_bkgpars+2, 0.002)
+        #fit_tpl.SetParLimits(n_bkgpars+1, mass-0.001, mass+0.001)
+        #fit_tpl.SetParLimits(n_bkgpars+2, 0.0005, 0.003)
 
     # plotting stuff for fit_tpl
     fit_tpl.SetNpx(300)
@@ -486,7 +499,6 @@ def fit_hist(
     cv.Write()
 
     return (signal, errsignal, signif, errsignif, mu, muErr, sigma, sigmaErr)
-    return (signal, errsignal, signif, errsignif, sigma, sigmaErr)
 
 def rename_df_columns(df):
     rename_dict = {}

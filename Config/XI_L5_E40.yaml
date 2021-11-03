@@ -2,23 +2,23 @@ FILE_PREFIX: 'XI_L5_E40_analysis'
 
 PDG: 3312
 EINT: 40
-MULTIPLICITY: 2.42
-BRATIO: 0.486
-T: 0.233
-SIGMA: 0.0025
+MULTIPLICITY: 2.96
+BRATIO: 0.638
+T: 0.222
+SIGMA: 0.0008
 MASS_WINDOW: 0.01
 NBINS: 40
-PT_BINS: [0, 3.]
+PT_BINS: [0., 3.]
+NEVENTS: 2180000
 
-SIG_MODELS: ['gauss'] #, 'd-gauss']
-BKG_MODELS: ['pol1', 'pol2']
+SIG_MODELS: ['d-gauss',"kde"]
+BKG_MODELS: ['pol1', 'pol2', 'expo']
 
-BDT_EFFICIENCY: [0.80, 1., 0.02] ##min, max ,step
+BDT_EFFICIENCY: [0.40, 1., 0.01] ##min, max ,step
 
-MC_PATH: ../Data/XI_L5_E40/fntSig_XI_L5_E40.root
-BKG_PATH: ../Data/XI_L5_E40/fntBkg_XI_L5_E40_train.root
-DATA_PATH: ../Data/XI_L5_E40/fntBkg_XI_L5_E40.root
-EVENT_PATH: ../Data/XI_L5_E40/merged_ev.root
+MC_PATH: /media/giacomo/Volume/XI_L5_E40/fntSig_XI_L5_E40.root
+BKG_PATH: /media/giacomo/Volume/XI_L5_E40/fntBkg_XI_L5_E40_train.root
+DATA_PATH: /media/giacomo/Volume/XI_L5_E40/fntBkg_XI_L5_E40.root
 
 PRESELECTION: cosp > 0.9999 and pt<3
 STD_SELECTION: pt<3 and dist > 5 and cosp > 0.999988 and dcaD < 0.007 and dca<0.015 and cospD > 0.999
@@ -60,8 +60,8 @@ TRAINING_COLUMNS:
   - cosp
   - cospD
   - dist
-  - bxy
+#  - bxy
 #  - dca
   - dcaD
-  - bxyD
+#  - bxyD
 #  - distD

@@ -38,7 +38,7 @@ FIX_EFF_ARRAY = np.arange(EFF_MIN, EFF_MAX, EFF_STEP)
 
 ###############################################################################
 # define paths for loading results
-results_dir = os.environ['HYPERML_RESULTS']
+results_dir = os.environ['RESULTS']
 input_file_list = []
 for index in range(0,len(DATA_LIST)):
     input_file_name = results_dir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_results_{index}'+'.root'
