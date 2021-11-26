@@ -41,6 +41,7 @@ PDG_CODE = params["PDG"]
 MASS_MIN = params["MASS_MIN"]
 MASS_MAX = params["MASS_MAX"]
 BRATIO = params["BRATIO"]
+REBIN = params["REBIN"]
 ###############################################################################
 
 full_run = 10**10
@@ -48,6 +49,7 @@ input = ROOT.TFile(inputFile)
 hist_data = input.Get("data")
 hist_data_sig = input.Get("data_sig")
 hist_data_bkg = input.Get("data_bkg")
+pt_bin_width = hist_data.GetXaxis().GetBinWidth(1)
 hist_mix = input.Get("mix")
 hist_ev = input.Get("ev")
 nev = hist_ev.GetBinContent(1)
@@ -67,13 +69,15 @@ dir_sig = output.mkdir("signal")
 dir_scale = output.mkdir("scaled")
 dir_data = output.mkdir("data")
 dir_ratio = output.mkdir("ratio")
-hist_raw = ROOT.TH1D("hist_raw", ";#it{p}_{T} (GeV/#it{c});dN/d#it{p}_{T} [(GeV/#it{c})^{-1}]",30, 0, 3)
-hist_pt = ROOT.TH1D("hist_pt", ";#it{p}_{T} (GeV/#it{c});1/N_{ev}dN/d#it{p}_{T} [(GeV/#it{c})^{-1}]", 30, 0, 3)
-hist_raw_mc = ROOT.TH1D("hist_raw_mc", ";#it{p}_{T} (GeV/#it{c});dN/d#it{p}_{T} [(GeV/#it{c})^{-1}]", 30, 0, 3)
-hist_pt_mc = ROOT.TH1D("hist_pt_mc", ";#it{p}_{T} (GeV/#it{c});1/N_{ev}dN/d#it{p}_{T} [(GeV/#it{c})^{-1}]", 30, 0, 3)
-hist_mass = ROOT.TH1D("hist_mass", ";#it{p}_{T} (GeV/#it{c}); mass (GeV/#it{c}^{2})", 30, 0, 3)
+nbins = int((PT_BINS[-1]-PT_BINS[0])/pt_bin_width/REBIN)
+#print(PT_BINS[-1])
+hist_raw = ROOT.TH1D("hist_raw", ";#it{p}_{T} (GeV/#it{c});dN/d#it{p}_{T} [(GeV/#it{c})^{-1}]",nbins, PT_BINS[0], PT_BINS[-1])
+hist_pt = ROOT.TH1D("hist_pt", ";#it{p}_{T} (GeV/#it{c});1/N_{ev}dN/d#it{p}_{T} [(GeV/#it{c})^{-1}]", nbins, PT_BINS[0], PT_BINS[-1])
+hist_raw_mc = ROOT.TH1D("hist_raw_mc", ";#it{p}_{T} (GeV/#it{c});dN/d#it{p}_{T} [(GeV/#it{c})^{-1}]", nbins, PT_BINS[0], PT_BINS[-1])
+hist_pt_mc = ROOT.TH1D("hist_pt_mc", ";#it{p}_{T} (GeV/#it{c});1/N_{ev}dN/d#it{p}_{T} [(GeV/#it{c})^{-1}]", nbins, PT_BINS[0], PT_BINS[-1])
+hist_mass = ROOT.TH1D("hist_mass", ";#it{p}_{T} (GeV/#it{c}); mass (GeV/#it{c}^{2})", nbins, PT_BINS[0], PT_BINS[-1])
 
-effFile = ROOT.TFile(effFile)
+#effFile = ROOT.TFile(effFile)
 
 #hist_eff = effFile.Get("hPtEff")
 mass = ROOT.TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
@@ -88,7 +92,7 @@ pt_distr.FixParameter(2, mass)
 # loop over the pT bins to extract the signal
 #################################################
 
-for bin in range(1, hist_data.GetNbinsX()):
+for bin in range(1, hist_data.GetNbinsX()*REBIN):
     
     fit_tpl = ROOT.TF1("fit_tpl", "pol1(0)+TMath::Voigt(x-[3],[4],[5])*[2]", MASS_MIN, MASS_MAX)
     if dgauss:
@@ -102,11 +106,11 @@ for bin in range(1, hist_data.GetNbinsX()):
     fit_bkg.SetLineColor(ROOT.kBlue)
     fit_bkg.SetLineStyle(2)
     
-    ptbin_lw = hist_data.GetXaxis().GetBinLowEdge(bin)
-    ptbin_up = hist_data.GetXaxis().GetBinUpEdge(bin)
-    proj_data = hist_data.ProjectionY(f'{hist_data.GetName()}_pt_{ptbin_lw:.1f}_{ptbin_up:.1f}', bin,bin)
+    ptbin_lw = hist_data.GetXaxis().GetBinLowEdge((bin-1)*REBIN+1)
+    ptbin_up = hist_data.GetXaxis().GetBinUpEdge(bin*REBIN)
+    proj_data = hist_data.ProjectionY(f'{hist_data.GetName()}_pt_{ptbin_lw:.1f}_{ptbin_up:.1f}', (bin-1)*REBIN+1, bin*REBIN)
     proj_data.SetMarkerStyle(20)
-    proj_data_sig = hist_data_sig.ProjectionY(f'{hist_data_sig.GetName()}_pt_{ptbin_lw:.1f}_{ptbin_up:.1f}', bin,bin)
+    proj_data_sig = hist_data_sig.ProjectionY(f'{hist_data_sig.GetName()}_pt_{ptbin_lw:.1f}_{ptbin_up:.1f}', (bin-1)*REBIN+1, bin*REBIN)
     proj_data_sig.SetMarkerStyle(20)
     dir_sig.cd()
     proj_data_sig.Write()
@@ -116,9 +120,9 @@ for bin in range(1, hist_data.GetNbinsX()):
         hist_raw_mc.SetBinError(bin, ROOT.TMath.Sqrt(proj_data_sig.GetEntries()))
     
 
-    proj_data_bkg = hist_data_bkg.ProjectionY(f'{hist_data_bkg.GetName()}_pt_{ptbin_lw:.1f}_{ptbin_up:.1f}', bin,bin)
+    proj_data_bkg = hist_data_bkg.ProjectionY(f'{hist_data_bkg.GetName()}_pt_{ptbin_lw:.1f}_{ptbin_up:.1f}', (bin-1)*REBIN+1, bin*REBIN)
     proj_data_bkg.SetMarkerStyle(20)
-    proj_mix = hist_mix.ProjectionY(f'{hist_mix.GetName()}_pt_{ptbin_lw:.1f}_{ptbin_up:.1f}', bin,bin)
+    proj_mix = hist_mix.ProjectionY(f'{hist_mix.GetName()}_pt_{ptbin_lw:.1f}_{ptbin_up:.1f}', (bin-1)*REBIN+1, bin*REBIN)
     proj_mix.SetMarkerStyle(20)
 
     counts_data = 0
@@ -288,9 +292,9 @@ for bin in range(1, hist_data.GetNbinsX()):
     pinfo_sub.SetTextAlign(30+3)
     pinfo_sub.SetTextFont(42)
     pinfo_sub.AddText("Pb-Pb #sqrt{s_{NN}} = 8.8 GeV, centrality 0-5%")
-    pinfo_sub.AddText(f'{(bin-1):.1f}'+' #leq #it{p}_{T} <'+f' {(bin):.1f}'+' GeV/#it{c}')
+    pinfo_sub.AddText(f'{(bin-1)*pt_bin_width:.1f}'+' #leq #it{p}_{T} <'+f' {(bin)*pt_bin_width:.1f}'+' GeV/#it{c}')
     pinfo_sub.Draw()
-    cv_sub_or.SaveAs(results_path+f'/no_scale_{suffix}_{(bin-1):.1f}_{(bin):.1f}.pdf')
+    cv_sub_or.SaveAs(results_path+f'/no_scale_{suffix}_{(bin-1)*pt_bin_width:.1f}_{(bin)*pt_bin_width:.1f}.pdf')
 
     cv_sub = ROOT.TCanvas("cv_sub","cv_sub")
     cv_sub.SetLeftMargin(0.12)
@@ -306,7 +310,7 @@ for bin in range(1, hist_data.GetNbinsX()):
     pinfo_sub.AddText(f'S {signal:.0f} #pm {errsignal:.0f}')
     pinfo_sub.Draw()
     if bin <= 30:
-        cv_sub.SaveAs(results_path+f'/scale_{suffix}_{(bin-1):.1f}_{(bin):.1f}.pdf')
+        cv_sub.SaveAs(results_path+f'/scale_{suffix}_{(bin-1)*pt_bin_width:.1f}_{(bin)*pt_bin_width:.1f}.pdf')
     dir_scale.cd()
     proj_sub_scale.Write()
 
@@ -453,8 +457,8 @@ def preselection_efficiency(self, pt_bins, save=True, suffix=''):
             t_file.Close()
 
 binning = array("d", PT_BINS)
-hist_eff = ROOT.TH1D("hist_eff",";#it{p}_{T} (GeV/#it{c}); Efficiency x Acceptance", len(binning)-1, binning)
-hist_gen = ROOT.TH1D("hist_gen",";#it{p}_{T} (GeV/#it{c}); Counts", len(binning)-1, binning)
+hist_eff = ROOT.TH1D("hist_eff",";#it{p}_{T} (GeV/#it{c}); Efficiency x Acceptance", nbins, PT_BINS[0],PT_BINS[-1])
+hist_gen = ROOT.TH1D("hist_gen",";#it{p}_{T} (GeV/#it{c}); Counts", nbins, PT_BINS[0],PT_BINS[-1])
 
 df_rec = uproot.open(signal_file)["ntcand"].arrays(library="pd")
 df_gen = uproot.open(signal_file)["ntgen"].arrays(library="pd")
@@ -465,9 +469,9 @@ for pt in df_rec['pt']:#.to_records(index=False)
 for pt in df_gen['pt']:#.to_records(index=False)
     hist_gen.Fill(pt)
 
-for bin in range(1, len(binning)):
+for bin in range(1, nbins+1):
     rec = hist_eff.GetBinContent(bin)
-    gen = hist_eff.GetBinContent(bin)
+    gen = hist_gen.GetBinContent(bin)
     if gen < 1:
         gen = 1
     eff = rec/gen
@@ -476,8 +480,8 @@ for bin in range(1, len(binning)):
     hist_eff.SetBinContent(bin, eff)
     hist_eff.SetBinError(bin, ROOT.TMath.Sqrt(eff*(1-eff)/gen))
     
-hist2d_shift = ROOT.TH2D("hist2d_shift", ";#it{p}_{T} (GeV/#it{c}); #Delta m (GeV/#it{c}^{2}); Counts", 30, 0, 3, 600, -0.03, 0.03)
-hist_shift = ROOT.TH1D("hist_shift", ";#it{p}_{T} (GeV/#it{c}); #Delta m (GeV/#it{c}^{2})", 30, 0, 3)
+hist2d_shift = ROOT.TH2D("hist2d_shift", ";#it{p}_{T} (GeV/#it{c}); #Delta m (GeV/#it{c}^{2}); Counts", nbins, PT_BINS[0], PT_BINS[-1], 600, -0.03, 0.03)
+hist_shift = ROOT.TH1D("hist_shift", ";#it{p}_{T} (GeV/#it{c}); #Delta m (GeV/#it{c}^{2})", nbins, PT_BINS[0], PT_BINS[-1])
 hist_mass_corr = hist_mass.Clone("hist_mass_corr")
 
 for index, row in df_rec.iterrows():
@@ -491,7 +495,7 @@ for index, row in df_rec.iterrows():
 
 mult = 0
 err_mult = 0
-pt_range_factor = au.get_pt_integral(pt_distr, PT_BINS[0],PT_BINS[-1])/au.get_pt_integral(pt_distr)
+pt_range_factor = 1 #au.get_pt_integral(pt_distr, PT_BINS[0],PT_BINS[-1])/au.get_pt_integral(pt_distr)
 hist_eff.Write()
 for bin_pro in range(1, hist_pt.GetNbinsX()+1):
     eff = hist_eff.GetBinContent(bin_pro)
@@ -587,7 +591,7 @@ for bin_pro in range(1, hist_pt_mc.GetNbinsX()+1):
     hist_pt_mc.SetBinContent(bin_pro, counts/eff)
     hist_pt_mc.SetBinError(bin_pro, err/eff)
 
-hist_pt_mc.Fit("pt_distr","IMR+","",0.,3.0)
+hist_pt_mc.Fit("pt_distr","IR+","",0.,3.0)
 cv_mc = ROOT.TCanvas("cv_mc","cv_mc")
 pinfo_mc = ROOT.TPaveText(0.5, 0.65, 0.88, 0.86, "NDC")
 pinfo_mc.SetBorderSize(0)

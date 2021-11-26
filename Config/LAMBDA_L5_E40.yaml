@@ -5,14 +5,16 @@ EINT: 40
 MULTIPLICITY: 43.1
 BRATIO: 0.639
 T: 0.258
-SIGMA: 0.0007
+SIGMA: 0.001
 MASS_WINDOW: 0.015
 NBINS: 60
-PT_BINS: [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.,1.2,1.4,1.6,1.8,2.0,2.25,2.5,2.75, 3.0,3.25,3.5,3.75, 4.0]
+PT_BINS: [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.,1.2,1.4,1.6,1.8,2.0,2.25,2.5,2.75, 3.0,3.25,3.5,3.75]
 NEVENTS: 9000000
 
 SIG_MODELS: ['d-gauss','kde']
 BKG_MODELS: ['pol1', 'pol2']
+
+EFF_RANGE_SYST: [0.05, 0.05]
 
 BDT_EFFICIENCY: [0.60, 1., 0.01] ##min, max ,step
 
@@ -20,7 +22,7 @@ MC_PATH: /media/giacomo/Volume/LAMBDA_L5_E40/fntSig_LAMBDA_L5_E40.root
 BKG_PATH: /media/giacomo/Volume/LAMBDA_L5_E40/fntBkg_LAMBDA_L5_E40_train.root
 DATA_PATH: /media/giacomo/Volume/LAMBDA_L5_E40/fntBkg_LAMBDA_L5_E40.root
 
-PRESELECTION: pt<4 and cosp > 0.9999
+PRESELECTION: pt<3.75 and cosp > 0.9999
 STD_SELECTION: pt<3 and dist > 5 and cosp > 0.999988 and dcaD < 0.007 and dca<0.015 and cospD > 0.999
 
 

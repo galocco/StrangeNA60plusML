@@ -15,11 +15,13 @@ PT_BINS: [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.,1.2,1.4,1.6,1.8,2.0,2.25,2.5,
 SIG_MODELS: ['d-gauss', 'kde'] #','gauss', 'd-crystal'
 BKG_MODELS: ['expo', 'pol1', 'pol2']
 
+EFF_RANGE_SYST: [0.05, 0.05]
+
 BDT_EFFICIENCY: [0.8, 1., 0.01] ##min, max ,step
 
-MC_PATH: ../Data/K0S_L5_E40/fntSig_L5_E40_train.root
-BKG_PATH: ../Data/K0S_L5_E40/fntBkg_K0S_L5_E40_train.root
-DATA_PATH: ../Data/K0S_L5_E40/fntBkg_K0S_L5_E40.root
+MC_PATH: /media/giacomo/Volume/K0S_L5_E40/fntSig_L5_E40_train.root
+BKG_PATH: /media/giacomo/Volume/K0S_L5_E40/fntBkg_K0S_L5_E40_train.root
+DATA_PATH: /media/giacomo/Volume/K0S_L5_E40/fntBkg_K0S_L5_E40.root
 
 PRESELECTION: cosp > 0.99975 and pt < 3
 STD_SELECTION: true > 0

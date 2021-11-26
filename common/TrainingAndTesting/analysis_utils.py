@@ -1,3 +1,4 @@
+from itertools import count
 import math
 from concurrent.futures import ThreadPoolExecutor
 from math import floor, log10
@@ -41,7 +42,7 @@ def least_significant_digit(num_list):
     return lsd
         
 
-def get_skimmed_large_data_std_hsp(mass, data_path, pt_bins, preselection='', range=0.04, mass_bins=40):
+def get_skimmed_large_data_std_hsp(mass, data_path, pt_bins, preselection='', range=0.04, mass_bins=40, split_sig = False):
     print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
     print('\nStarting BDT appplication on large data')
 
@@ -49,11 +50,14 @@ def get_skimmed_large_data_std_hsp(mass, data_path, pt_bins, preselection='', ra
     pt_max = pt_bins[-1]
     minimum_pt_bins = int((pt_max-pt_min)/least_significant_digit(pt_bins))
     
-    nbins = array('i', [mass_bins, minimum_pt_bins])
-    xmin  = array('d', [mass*(1-range), pt_min])
-    xmax  = array('d', [mass*(1+range), pt_max])
+    mass_range_min = mass*(1-range)
+    mass_range_max = mass*(1+range)
 
-    hsparse = THnSparseD('sparse_m_pt', ';mass (GeV/#it{c}^{2});#it{p}_{T} (GeV/#it{c});counts', 2, nbins, xmin, xmax)
+    nbins = array('i', [mass_bins, minimum_pt_bins, 2])
+    xmin  = array('d', [mass_range_min, pt_min, -0.5])
+    xmax  = array('d', [mass_range_max, pt_max,  1.5])
+    nvar = 3 if split_sig else 2
+    hsparse = THnSparseD('sparse_m_pt', ';mass (GeV/#it{c}^{2});#it{p}_{T} (GeV/#it{c});true;counts', nvar, nbins, xmin, xmax)
 
     executor = ThreadPoolExecutor()
     data_tree_name = data_path + ":/ntcand"
@@ -66,27 +70,29 @@ def get_skimmed_large_data_std_hsp(mass, data_path, pt_bins, preselection='', ra
         print ('start entry chunk: {}, stop entry chunk: {}'.format(data.index[0], data.index[-1]))
         
         for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
-            data_range = f'{ptbin[0]}<pt<{ptbin[1]}'
+            data_range = f'{ptbin[0]}<pt<{ptbin[1]} and {mass_range_min}<m<{mass_range_max}'
             df_tmp = data.query(data_range+preselection)
 
             for ind in df_tmp.index:
-                x = array('d', [df_tmp['m'][ind], df_tmp['pt'][ind]])
+                x = array('d', [df_tmp['m'][ind], df_tmp['pt'][ind], df_tmp['true'][ind]])
                 hsparse.Fill(x)
 
     return hsparse 
 
-def get_skimmed_large_data_hsp(mass, data_path, pt_bins, training_columns, suffix='', preselection='', range=0.04, mass_bins=40):
+def get_skimmed_large_data_hsp(mass, data_path, pt_bins, training_columns, suffix='', preselection='', range=0.04, mass_bins=40, split_sig = False):
     print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
     print ('\nStarting BDT appplication on large data')
 
     pt_min = pt_bins[0]
     pt_max = pt_bins[-1]
     minimum_pt_bins = int((pt_max-pt_min)/0.05) #least_significant_digit(pt_bins))
-
-    nbins = array('i', [mass_bins, minimum_pt_bins, 4000])
-    xmin  = array('d', [mass*(1-range), pt_min, -20])
-    xmax  = array('d', [mass*(1+range), pt_max,  20])
-    hsparse = THnSparseD('sparse_m_pt_s', ';mass (GeV/#it{c}^{2});#it{p}_{T} (GeV/#it{c});score;counts', 3, nbins, xmin, xmax)
+    mass_range_min = mass*(1-range)
+    mass_range_max = mass*(1+range)
+    nbins = array('i', [mass_bins, minimum_pt_bins, 1500,2])
+    xmin  = array('d', [mass_range_min, pt_min, -15, -0.5])
+    xmax  = array('d', [mass_range_max, pt_max,  15,  1.5])
+    nvar = 4 if split_sig else 3
+    hsparse = THnSparseD('sparse_m_pt_s', ';mass (GeV/#it{c}^{2});#it{p}_{T} (GeV/#it{c});score;true;counts', nvar, nbins, xmin, xmax)
 
     handlers_path = "../Models/handlers"
     efficiencies_path = "../Results/Efficiencies"
@@ -115,13 +121,13 @@ def get_skimmed_large_data_hsp(mass, data_path, pt_bins, training_columns, suffi
             eff_score_array = np.load(filename_efficiencies)
             tsd = eff_score_array[1][-1]
 
-            data_range = f'{ptbin[0]}<pt<{ptbin[1]}'
+            data_range = f'{ptbin[0]}<pt<{ptbin[1]} and {mass_range_min}<m<{mass_range_max}'
             df_tmp = data.query(data_range+preselection)
             df_tmp.insert(0, 'score', model_handler.predict(df_tmp[training_columns]))
             df_tmp = df_tmp.query('score>@tsd')
 
             for ind in df_tmp.index:
-                x = array('d', [df_tmp['m'][ind], df_tmp['pt'][ind], df_tmp['score'][ind]])
+                x = array('d', [df_tmp['m'][ind], df_tmp['pt'][ind], df_tmp['score'][ind], df_tmp['true'][ind]])
                 hsparse.Fill(x)
 
     return hsparse
@@ -210,6 +216,59 @@ def h1_from_sparse(hnsparse, pt_range, score, name=''):
     th1.SetDirectory(0)
     return th1
 
+def bdt_efficiency_from_sparse(hnsparse, pt_range, name=''):
+    hnsparse_clone = hnsparse.Clone()
+    hnsparse_clone.GetAxis(3).SetRange(2,2)
+
+    n_pt_bins = hnsparse.GetAxis(1).GetNbins()
+    pt_min = hnsparse.GetAxis(1).GetBinLowEdge(1)
+    pt_max = hnsparse.GetAxis(1).GetBinUpEdge(1)
+    step = (pt_max-pt_min)/n_pt_bins/2.
+    ptbin_min = hnsparse_clone.GetAxis(1).FindBin(pt_range[0]+step)
+    ptbin_max = hnsparse_clone.GetAxis(1).FindBin(pt_range[1]-step)
+    if ptbin_max > hnsparse_clone.GetAxis(1).GetNbins():
+        ptbin_max = hnsparse_clone.GetAxis(1).GetNbins()
+    hnsparse_clone.GetAxis(1).SetRange(ptbin_min, ptbin_max)
+
+    th1 = hnsparse_clone.Projection(2)
+    entries = th1.GetEntries()
+    counts = th1.GetBinContent(th1.GetNbinsX())
+    eff = counts/entries
+    th1.SetBinContent(th1.GetNbinsX(), eff)
+    th1.SetBinError(th1.GetNbinsX(), ROOT.TMath.Sqrt(eff*(1-eff)/entries))
+    #print("***********************************************")
+    ##print("bin: ",ibin)
+    #print("counts: ",counts)
+    #print("eff: ", eff)
+    #print("err: ", ROOT.TMath.Sqrt(eff*(1-eff)/entries))
+    for ibin in range(th1.GetNbinsX()-1, 0, -1):
+        counts += th1.GetBinContent(ibin)
+        eff = counts/entries
+        if eff > 1:
+            eff = 1
+        th1.SetBinContent(ibin, eff)
+        th1.SetBinError(ibin, ROOT.TMath.Sqrt(eff*(1-eff)/entries))
+    th1.SetName(name)
+    th1.GetYaxis().SetTitle('BDT efficiency')
+    th1.SetTitle('')
+    th1.SetDirectory(0)
+    return th1
+
+def bdt_efficiency_train(eff_score_array, name=''):
+    th1 = ROOT.TH1D(name,";score;BDT efficiency",1000,eff_score_array[1][-1],eff_score_array[1][0])
+    for ibin in range(1, len(eff_score_array[0])+1):
+        score_bin = th1.GetXaxis().FindBin(eff_score_array[1][ibin-1])
+        th1.SetBinContent(score_bin, eff_score_array[0][ibin-1])
+        th1.SetBinError(score_bin, 0)
+    eff = eff_score_array[0][-1]
+    for ibin in range(1, th1.GetNbinsX()+1):
+        if th1.GetBinContent(ibin) > 0 and th1.GetBinContent(ibin)<eff:
+            eff = th1.GetBinContent(ibin)
+        else:
+            th1.SetBinContent(ibin,eff)
+
+    return th1
+
 def h1_from_sparse_std(hnsparse, pt_range, name=''):
     hnsparse_clone = hnsparse.Clone()
     step = 3.0/3000.0/2.
@@ -250,7 +309,7 @@ def get_ctbin_index(th2, ctbin):
 
 
 def fit_hist(
-        histo, pt_range, mass, directory, mc_fit_file, nsigma=3, sig_model="gauss", bkg_model="pol2", mass_range=0.04, Eint=17.3, fix_params = False):
+        histo, pt_range, mass, directory, mc_fit_file, peak_width=3, sig_model="gauss", bkg_model="pol2", mass_range=0.04, Eint=17.3, fix_params = False):
     hist_range = [mass*(1-mass_range),mass*(1+mass_range)]
     # canvas for plotting the invariant mass distribution
     cv = TCanvas(f'cv_{histo.GetName()}')
@@ -415,8 +474,7 @@ def fit_hist(
     muErr = fit_tpl.GetParError(n_bkgpars+1)
     sigma = 0.002#fit_tpl.GetParameter(n_bkgpars+2)
     sigmaErr = 0#fit_tpl.GetParError(n_bkgpars+2)
-    bkg = bkg_tpl.Integral(mu - nsigma * sigma, mu +
-                           nsigma * sigma) / histo.GetBinWidth(1)
+    bkg = bkg_tpl.Integral(mu - peak_width, mu + peak_width) / histo.GetBinWidth(1)
     
     signal = 0
     errsignal = 0
@@ -428,8 +486,8 @@ def fit_hist(
     else:
         for param in norm_params:
             signal += fit_tpl.GetParameter(n_bkgpars+param) / histo.GetBinWidth(1)
-            errsignal += fit_tpl.GetParError(n_bkgpars+param)**2 / histo.GetBinWidth(1)
-        errsignal += math.sqrt(errsignal)
+            errsignal += fit_tpl.GetParError(n_bkgpars+param)**2
+        errsignal += math.sqrt(errsignal) / histo.GetBinWidth(1)
     
     #print("signal = ",signal," +- ",errsignal)
     #else:
@@ -470,18 +528,18 @@ def fit_hist(
     string = f'{pt_range[0]:.2f}'+' #leq #it{p}_{T} < '+f'{pt_range[1]:.2f}'+' GeV/#it{c} '
     pinfo2.AddText(string)
 
-    #string = f'Significance ({nsigma:.0f}#sigma) {signif:.1f} #pm {errsignif:.1f} '
+    #string = f'Significance {signif:.1f} #pm {errsignif:.1f} '
     #pinfo2.AddText(string)
 
-    string = f'S ({nsigma:.0f}#sigma) {signal:.0f} #pm {errsignal:.0f}'
+    string = f'S {signal:.0f} #pm {errsignal:.0f}'
     pinfo2.AddText(string)
 
-    #string = f'B ({nsigma:.0f}#sigma) {bkg:.0f} #pm {errbkg:.0f}'
+    #string = f'B {bkg:.0f} #pm {errbkg:.0f}'
     #pinfo2.AddText(string)
 
     #if bkg > 0:
     #    ratio = signal/bkg
-    #    string = f'S/B ({nsigma:.0f}#sigma) {ratio:.4f}'
+    #    string = f'S/B {ratio:.4f}'
 
     #pinfo2.AddText(string)
     pinfo2.Draw()

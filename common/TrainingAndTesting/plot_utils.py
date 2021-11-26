@@ -114,6 +114,7 @@ def plot_significance_scan_hsp(
     for bin in range(1, h1_minv.GetNbinsX()+1):
         if peak_bins[0] <= bin <= peak_bins[1]:
             h1_peak.SetBinContent(bin, fit_tpl.Eval(h1_minv.GetBinCenter(bin)))
+            h1_peak.SetBinContent(bin, ROOT.TMath.Sqrt(fit_tpl.Eval(h1_minv.GetBinCenter(bin))))
         else:
             h1_peak.SetBinContent(bin, 0.001)
             h1_peak.SetBinError(bin, 0.001)

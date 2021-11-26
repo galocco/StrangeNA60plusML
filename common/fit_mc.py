@@ -44,7 +44,7 @@ PT_BINS = params['PT_BINS']
 PRESELECTION = params['PRESELECTION']
 MASS_WINDOW = params['MASS_WINDOW']
 SIGMA = params['SIGMA']
-
+NBINS = params['NBINS']
 def parameter_finder(hist):
     exp_l = TF1("exp_l","exp([0]*x-[1])", mass*(1-MASS_WINDOW), 0.485)
     exp_r = TF1("exp_l","exp([0]*x-[1])", 0.505, mass*(1+MASS_WINDOW))
@@ -240,7 +240,6 @@ fits_file = TFile(file_name, 'recreate')
 
 columns = ['m','pt']
 df_signal = uproot.open(mc_file_name)['ntcand'].arrays(library="pd").query(PRESELECTION)[columns]
-nbins = 40
 fits_file.cd()
 plot_dir = fits_file.mkdir("plot")
 fit_dir = fits_file.mkdir("fit")
@@ -261,16 +260,16 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
     df_selected = df_signal.query("pt<@ptbin[1] and pt>@ptbin[0]")
     x_train = df_selected['m'].to_numpy().reshape(-1,1)
 
-    counts, _ = np.histogram(df_selected['m'], bins=nbins, range=[mass*(1-MASS_WINDOW), mass*(1+MASS_WINDOW)])
-    hist = TH1D(f'hist_mc_{ptbin[0]}_{ptbin[1]}', ';m (GeV/#it{c}^{2});Counts',nbins,mass*(1-MASS_WINDOW), mass*(1+MASS_WINDOW))
+    counts, _ = np.histogram(df_selected['m'], bins=NBINS, range=[mass*(1-MASS_WINDOW), mass*(1+MASS_WINDOW)])
+    hist = TH1D(f'hist_mc_{ptbin[0]}_{ptbin[1]}', ';m (GeV/#it{c}^{2});Counts',NBINS,mass*(1-MASS_WINDOW), mass*(1+MASS_WINDOW))
     hist.SetMarkerStyle(20)
     fit_dir.cd()
-    for index in range(0, nbins):
+    for index in range(0, NBINS):
         hist.SetBinContent(index+1, counts[index])
         hist.SetBinError(index + 1, math.sqrt(counts[index]))
 
     if CRYSTAL:
-        fit_dict['CRYSTAL'].SetParameters(1, 2.5, mass, hist.GetRMS()/2, hist.Integral(1, hist.GetNbinsX()), 1, 2.5)
+        fit_dict['CRYSTAL'].SetParameters(1, 2.5, mass, hist.GetRMS()/2, hist.Integral(1, hist.GetNBINSX()), 1, 2.5)
 
         fit_dict['CRYSTAL'].SetParLimits(0, 0.5, 2.5)
         fit_dict['CRYSTAL'].SetParLimits(1, 0.5, 4)

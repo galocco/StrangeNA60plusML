@@ -6,21 +6,23 @@ MULTIPLICITY: 2.96
 BRATIO: 0.638
 T: 0.222
 SIGMA: 0.0008
-MASS_WINDOW: 0.01
-NBINS: 40
-PT_BINS: [0., 3.]
-NEVENTS: 2180000
+MASS_WINDOW: 0.012
+NBINS: 35
+PT_BINS: [0.,0.5,0.8,1.,1.25,1.5, 2.5]
+NEVENTS: 9000000
 
-SIG_MODELS: ['d-gauss',"kde"]
-BKG_MODELS: ['pol1', 'pol2', 'expo']
+SIG_MODELS: ['d-gauss']
+BKG_MODELS: ['pol1', 'expo']
 
-BDT_EFFICIENCY: [0.40, 1., 0.01] ##min, max ,step
+EFF_RANGE_SYST: [0.05, 0.05]
 
-MC_PATH: /media/giacomo/Volume/XI_L5_E40/fntSig_XI_L5_E40.root
-BKG_PATH: /media/giacomo/Volume/XI_L5_E40/fntBkg_XI_L5_E40_train.root
-DATA_PATH: /media/giacomo/Volume/XI_L5_E40/fntBkg_XI_L5_E40.root
+BDT_EFFICIENCY: [0.70, 1., 0.01] ##min, max ,step
 
-PRESELECTION: cosp > 0.9999 and pt<3
+MC_PATH: /home/giacomo/StrangeNA60plusML/Data/XI_L5_E40/fntSig_XI_L5_E40.root
+BKG_PATH: /home/giacomo/StrangeNA60plusML/Data/XI_L5_E40/fntBkg_XI_L5_E40_train.root
+DATA_PATH: /home/giacomo/StrangeNA60plusML/Data/XI_L5_E40/fntBkg_XI_L5_E40.root
+
+PRESELECTION: cosp > 0.9999 and pt<2.5
 STD_SELECTION: pt<3 and dist > 5 and cosp > 0.999988 and dcaD < 0.007 and dca<0.015 and cospD > 0.999
 
 
@@ -58,10 +60,8 @@ HYPERPARAMS_RANGE: #TODO: check if it works without tuples
 
 TRAINING_COLUMNS: 
   - cosp
-  - cospD
-  - dist
-#  - bxy
-#  - dca
+  - bxy
+  - bxyD
+  - dca
   - dcaD
-#  - bxyD
-#  - distD
+  - dist

@@ -7,18 +7,20 @@ BRATIO: 0.638
 T: 0.255
 SIGMA: 0.0008
 MASS_WINDOW: 0.01
-NBINS: 40
-PT_BINS: [0, 3.]
-NEVENTS: 1340000
+NBINS: 35
+PT_BINS: [0., 3.]
+NEVENTS: 1690000
 
 SIG_MODELS: ['d-gauss',"kde"]
 BKG_MODELS: ['pol1', 'pol2']
 
+EFF_RANGE_SYST: [0.05, 0.05]
+
 BDT_EFFICIENCY: [0.40, 1., 0.01] ##min, max ,step
 
-MC_PATH: /media/giacomo/Volume/ANTIXI_L5_E40/fntSig_ANTIXI_L5_E40.root
-BKG_PATH: /media/giacomo/Volume/ANTIXI_L5_E40/fntBkg_ANTIXI_L5_E40_train.root
-DATA_PATH: /media/giacomo/Volume/ANTIXI_L5_E40/fntBkg_ANTIXI_L5_E40.root
+MC_PATH: /home/giacomo/StrangeNA60plusML/Data/ANTIXI_L5_E40/fntSig_ANTIXI_L5_E40.root
+BKG_PATH: /home/giacomo/StrangeNA60plusML/Data/ANTIXI_L5_E40/fntBkg_ANTIXI_L5_E40_train.root
+DATA_PATH: /home/giacomo/StrangeNA60plusML/Data/ANTIXI_L5_E40/fntBkg_ANTIXI_L5_E40.root
 
 PRESELECTION: cosp > 0.9999 and pt<3
 STD_SELECTION: pt<3 and dist > 5 and cosp > 0.999988 and dcaD < 0.007 and dca<0.015 and cospD > 0.999
@@ -58,10 +60,8 @@ HYPERPARAMS_RANGE: #TODO: check if it works without tuples
 
 TRAINING_COLUMNS: 
   - cosp
-  - cospD
+  - bxy
+  - bxyD
+  - dca
   - dist
-#  - bxy
-#  - dca
-  - dcaD
-#  - bxyD
-#  - distD
+  - distD

@@ -30,6 +30,7 @@ parser.add_argument('-o', '--optimize', help='Run the optimization', action='sto
 parser.add_argument('-a', '--application', help='Apply ML predictions on data', action='store_true')
 parser.add_argument('-c', '--custom', help='Run the custom significance optimisation studies', action='store_true')
 parser.add_argument('-s', '--significance', help='Run the significance optimisation studies', action='store_true')
+parser.add_argument('-checks', '--checks', help='Perform further checks', action='store_true')
 
 parser.add_argument('config', help='Path to the YAML configuration file')
 args = parser.parse_args()
@@ -70,6 +71,7 @@ OPTIMIZE = args.optimize
 APPLICATION = args.application
 CUSTOM_SCAN = args.custom
 SIGNIFICANCE_SCAN = args.significance
+CHECKS = args.checks
 NEVENTS = params['NEVENTS']
 
 ###############################################################################
@@ -155,44 +157,46 @@ if APPLICATION:
 
     sigscan_results = {}    
 
-    hnsparse = au.get_skimmed_large_data_hsp(mass, data_path, PT_BINS, COLUMNS, FILE_PREFIX, PRESELECTION, MASS_WINDOW, NBINS)
+    hnsparse = au.get_skimmed_large_data_hsp(mass, data_path, PT_BINS, COLUMNS, FILE_PREFIX, PRESELECTION, MASS_WINDOW, NBINS, CHECKS)
+    hnsparse.Write()    
     ml_application = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, NEVENTS, hnsparse)
 
     # create output structure
     cent_dir_histos = results_histos_file.mkdir('0-5')
     cent_dir_histos.cd()
-    hnsparse.Write()
 
     th1_efficiency = ml_application.load_preselection_efficiency(FILE_PREFIX)
 
     for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
+        # define subdir for saving invariant mass histograms
+        sub_dir_histos = cent_dir_histos.mkdir(f'pt_{ptbin[0]}{ptbin[1]}')
+        sub_dir_histos.cd()
         ptbin_index = ml_application.presel_histo.GetXaxis().FindBin(0.5 * (ptbin[0] + ptbin[1]))
-
         print('\n==================================================')
         print('pT:', ptbin)
         print('Application and signal extraction ...', end='\r')
 
         presel_eff = ml_application.get_preselection_efficiency(ptbin_index)
         eff_score_array, model_handler = ml_application.load_ML_analysis(ptbin, FILE_PREFIX)
-
+        
+        if CHECKS:
+            bdt_eff_sparse = au.bdt_efficiency_from_sparse(hnsparse, ptbin, f'bdt_eff_{ptbin[0]}_{ptbin[1]}_sparse')
+            bdt_eff_sparse.Write()
+            bdt_eff_train = au.bdt_efficiency_train(eff_score_array,f'bdt_eff_{ptbin[0]}_{ptbin[1]}_train')
+            bdt_eff_train.Write()
+        
         if SIGNIFICANCE_SCAN:
-            pt_spectrum = TF1("fpt","x*exp(-TMath::Sqrt(x**2+[0]**2)/[1])",0,100)
+            pt_spectrum = TF1("fpt"," x*exp(-TMath::Sqrt(x**2+[0]**2)/[1])", 0, 100)
             pt_spectrum.FixParameter(0, mass)
             pt_spectrum.FixParameter(1, T)
 
             sigscan_eff, sigscan_tsd = ml_application.significance_scan(presel_eff, eff_score_array, ptbin, pt_spectrum, suffix=FILE_PREFIX, sigma_mass = SIGMA, custom=CUSTOM_SCAN, mass_range=MASS_WINDOW)
             eff_score_array = np.append(eff_score_array, [[sigscan_eff], [sigscan_tsd]], axis=1)
-
             sigscan_results[f'pt{ptbin[0]}{ptbin[1]}'] = [sigscan_eff, sigscan_tsd]
 
-        # define subdir for saving invariant mass histograms
-        sub_dir_histos = cent_dir_histos.mkdir(f'pt_{ptbin[0]}{ptbin[1]}')
         for eff, tsd in zip(pd.unique(eff_score_array[0][::-1]), pd.unique(eff_score_array[1][::-1])):
-            sub_dir_histos.cd()
-
             histo_name = f'eff{eff:.3f}'
             h1_minv = au.h1_from_sparse(hnsparse, ptbin, tsd, name=histo_name)
-            
             h1_minv.Write()
                     
         print('Application and signal extraction: Done!\n')

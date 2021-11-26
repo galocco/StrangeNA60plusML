@@ -37,7 +37,7 @@ FILE_PREFIX = params['FILE_PREFIX']
 EINT = pu.get_sNN(params['EINT'])
 PT_BINS = params['PT_BINS']
 MASS_WINDOW = params['MASS_WINDOW']
-
+SIGMA = params['SIGMA']
 EFF_MIN, EFF_MAX, EFF_STEP = params['BDT_EFFICIENCY']
 FIX_EFF_ARRAY = np.arange(EFF_MIN, EFF_MAX, EFF_STEP)
 
@@ -66,10 +66,6 @@ mc_fit_file = TFile(mc_fit_file_name,"read")
 h1_rawcounts_dict = {}
 significance_dict = {}
 
-mean_fit = []
-mean_fit_error = []
-sigma_fit = []
-sigma_fit_error = []
 count=0
 ###############################################################################
 start_time = time.time()                          # for performances evaluation
@@ -113,20 +109,12 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
                 
                 hist = TH1D(key.ReadObj())
                 hist.SetDirectory(0)
-                #if float(keff) != 0.98 or bkgmodel == "pol1" or bkgmodel=="pol2" :
+                #if float(keff) < 0.7:
                 #    continue
                 #if (float(keff) != 0.97 and float(keff) != 0.98) or ptbin[0] > 0.2:
                 #    continue 
-                print(bkgmodel," ",sigmodel," ",keff)
-                if key == input_subdir.GetListOfKeys()[0] and bkgmodel=="pol2":
-                    rawcounts, err_rawcounts, significance, err_significance, mu, mu_err, sigma, sigma_err = au.fit_hist(hist, ptbin, mass, sig_model=sigmodel, bkg_model=bkgmodel, Eint=EINT, mass_range=MASS_WINDOW, mc_fit_file = mc_fit_file, directory = fit_bkg_dir, fix_params = FIX)
-                    mean_fit.append(mu)
-                    mean_fit_error.append(mu_err)
-                    sigma_fit.append(sigma)
-                    sigma_fit_error.append(sigma_err)
-                    
-                else:
-                    rawcounts, err_rawcounts, significance, err_significance, _, _, _, _ = au.fit_hist(hist, ptbin, mass, sig_model=sigmodel, bkg_model=bkgmodel, Eint=EINT, mass_range=MASS_WINDOW, mc_fit_file = mc_fit_file, directory = fit_bkg_dir, fix_params = FIX)
+                print("fit model: ",bkgmodel,"+",sigmodel," BDT efficiency: ",keff)
+                rawcounts, err_rawcounts, significance, err_significance, _, _, _, _ = au.fit_hist(hist, ptbin, mass, sig_model=sigmodel, bkg_model=bkgmodel, Eint=EINT, mass_range=MASS_WINDOW, mc_fit_file = mc_fit_file, directory = fit_bkg_dir, fix_params = FIX, peak_width=SIGMA*3)
 
                 dict_key = f'{keff}_{sigmodel}_{bkgmodel}'
 

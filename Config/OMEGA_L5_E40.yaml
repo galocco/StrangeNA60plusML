@@ -14,6 +14,8 @@ PT_BINS: [0, 3.]
 SIG_MODELS: ['gauss'] #, 'd-gauss']
 BKG_MODELS: ['pol1', 'pol2']
 
+EFF_RANGE_SYST: [0.05, 0.05]
+
 BDT_EFFICIENCY: [0.80, 1., 0.02] ##min, max ,step
 
 MC_PATH: ../Data/OMEGA_L5_E40/fntSig_OMEGA_L5_E40.root

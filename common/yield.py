@@ -95,8 +95,8 @@ h1BDTEff = results_file.Get(f'{inDirName}/BDTeff')
 
 best_sig = np.round(np.array(h1BDTEff)[1:-1], 3)
 sig_ranges = []
-eff_m = 0.03
-eff_p = 0.03
+eff_m = params["EFF_RANGE_SYST"][0]
+eff_p = params["EFF_RANGE_SYST"][1]
 for i in best_sig:
     if EFF_MAX < i+eff_p:
         eff_p = EFF_MAX-i
@@ -143,7 +143,7 @@ pt_distr.FixParameter(1, mass)
 
 
 pt_range_factor = au.get_pt_integral(pt_distr, PT_BINS[0],PT_BINS[-1])/au.get_pt_integral(pt_distr)
-
+print("pt_range_factor: ",pt_range_factor)
 for sigmodel in SIG_MODELS:
     for bkgmodel in BKG_MODELS:
 
@@ -157,9 +157,6 @@ for sigmodel in SIG_MODELS:
             errs.append([])
 
             for eff in np.arange(ranges['SCAN'][iBin - 1][0], ranges['SCAN'][iBin - 1][1], ranges['SCAN'][iBin - 1][2]):
-                if eff >= EFF_MAX:
-                    continue
-                
                 h1Counts = results_file.Get(f'{inDirName}/RawCounts{eff:.3f}_{sigmodel}_{bkgmodel}')
                 raws[iBin-1].append(h1Counts.GetBinContent(iBin) / h1PreselEff.GetBinContent(iBin) / eff/ NEVENTS)
                 errs[iBin-1].append(h1Counts.GetBinError(iBin) / h1PreselEff.GetBinContent(iBin) / eff/ math.sqrt(NEVENTS*n_run) )
@@ -229,8 +226,8 @@ for _ in range(size):
     combo = (x for x in comboList)
     if combo in combinations:
         continue
-    mult/=BRATIO
-    err_mult = ROOT.TMath.Sqrt(err_mult)/BRATIO
+    mult/=BRATIO*pt_range_factor
+    err_mult = ROOT.TMath.Sqrt(err_mult)/BRATIO/pt_range_factor
     combinations.add(combo)
     syst.Fill(mult)
 

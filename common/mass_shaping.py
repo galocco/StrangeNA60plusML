@@ -49,9 +49,9 @@ FIX_EFF_ARRAY = np.arange(EFF_MIN, EFF_MAX, EFF_STEP)
 ###############################################################################
 # define paths for loading data
 
-data_path = os.path.expandvars(params['DATA_PATH'][0])
-event_path = os.path.expandvars(params['EVENT_PATH'][0])
-
+data_path = os.path.expandvars(params['BKG_PATH'])
+mc_path = os.path.expandvars(params['MC_PATH'])
+NEVENTS = params["NEVENTS"]
 handlers_path = '../Models/handlers'
 ###############################################################################
 
@@ -59,19 +59,16 @@ resultsSysDir = os.environ['RESULTS']
 file_name =  '../Results/' + FILE_PREFIX + '/' + FILE_PREFIX + '_mass_shaping.root'
 results_file = TFile(file_name,"recreate")
 
-file_name = '../Results/' + FILE_PREFIX + '/' + FILE_PREFIX + '_results_fit.root'
-eff_file = TFile(file_name, 'read')
-
 results_file.cd()
 #efficiency from the significance scan
 
 mass = TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
 
 hnsparse_bkg = au.get_skimmed_large_data_hsp(mass, data_path, PT_BINS, COLUMNS, FILE_PREFIX, PRESELECTION + " and true < 0.5", MASS_WINDOW)
-ml_application_bkg = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, event_path, hnsparse_bkg)
+ml_application_bkg = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, NEVENTS, hnsparse_bkg)
 
-hnsparse_sig = au.get_skimmed_large_data_hsp(mass, data_path, PT_BINS, COLUMNS, FILE_PREFIX, PRESELECTION + " and true > 0.5", MASS_WINDOW)
-ml_application_sig = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, event_path, hnsparse_sig)
+#hnsparse_sig = au.get_skimmed_large_data_hsp(mass, mc_path, PT_BINS, COLUMNS, FILE_PREFIX, PRESELECTION, MASS_WINDOW)
+#ml_application_sig = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, NEVENTS, hnsparse_sig)
 
 shift_bin = 1
 eff_index=0
@@ -103,9 +100,9 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
         hbkg_sel = au.h1_from_sparse(hnsparse_bkg, ptbin, tsd, name=histo_name)
         hbkg_sel.Write()
         
-        sig_dir_histos.cd()
-        histo_name = f"eff{eff:.3f}"
-        hsig_sel = au.h1_from_sparse(hnsparse_sig, ptbin, tsd, name=histo_name)
-        hsig_sel.Write()
+        #sig_dir_histos.cd()
+        #histo_name = f"eff{eff:.3f}"
+        #hsig_sel = au.h1_from_sparse(hnsparse_sig, ptbin, tsd, name=histo_name)
+        #hsig_sel.Write()
             
 results_file.Close()

@@ -79,7 +79,7 @@ mt_distr.SetParameter(1, T)
 mt_distr.SetParLimits(1, T*0.6, T*1.2)
 mt_distr.FixParameter(2, mass)
 
-pt_distr = TF1("pt_distr", "[0]*x*exp(-TMath::Sqrt(x**2+[2]**2)/[1])",PT_BINS[0],PT_BINS[-7])
+pt_distr = TF1("pt_distr", "[0]*x*exp(-TMath::Sqrt(x**2+[2]**2)/[1])",PT_BINS[0],PT_BINS[-1])
 pt_distr.SetParameter(1, T)
 pt_distr.SetParLimits(1, T*0.6, T*1.2)
 pt_distr.FixParameter(2, mass)
@@ -107,8 +107,8 @@ h1BDTEff = results_file.Get(f'{inDirName}/BDTeff')
 
 best_sig = np.round(np.array(h1BDTEff)[1:-1], 3)
 sig_ranges = []
-eff_m = 0.03
-eff_p = 0.03
+eff_m = params["EFF_RANGE_SYST"][0]
+eff_p = params["EFF_RANGE_SYST"][1]
 for i in best_sig:
     if EFF_MAX < i+eff_p:
         eff_p = EFF_MAX-i
@@ -162,11 +162,8 @@ for sigmodel in SIG_MODELS:
             
             raws.append([])
             errs.append([])
-
+            print(ranges['SCAN'][iBin - 1][0]," ", ranges['SCAN'][iBin - 1][1]," ", ranges['SCAN'][iBin - 1][2])
             for eff in np.arange(ranges['SCAN'][iBin - 1][0], ranges['SCAN'][iBin - 1][1], ranges['SCAN'][iBin - 1][2]):
-                if eff >= EFF_MAX:
-                    continue
-                
                 h1Counts = results_file.Get(f'{inDirName}/RawCounts{eff:.3f}_{sigmodel}_{bkgmodel}')
                # h1Counts.GetBinContent(iBin) / h1PreselEff.GetBinContent(iBin) / ranges['BEST'][iBin-1] / h1RawCountsPt[sigmodel][bkgmodel].GetBinWidth(iBin) / NEVENTS
                 raws[iBin-1].append(h1Counts.GetBinContent(iBin) / h1PreselEff.GetBinContent(iBin) / eff / h1RawCountsPt[sigmodel][bkgmodel].GetBinWidth(iBin)/ NEVENTS)
