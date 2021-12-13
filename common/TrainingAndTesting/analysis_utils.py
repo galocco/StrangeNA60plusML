@@ -5,6 +5,7 @@ from math import floor, log10
 import warnings
 
 import aghast
+from matplotlib.pyplot import axis
 import numpy as np
 import uproot
 from hipe4ml.model_handler import ModelHandler
@@ -44,12 +45,13 @@ def least_significant_digit(num_list):
 
 def get_skimmed_large_data_std_hsp(mass, data_path, pt_bins, preselection='', range=0.04, mass_bins=40, split_sig = False):
     print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
-    print('\nStarting BDT appplication on large data')
+    print('\nStarting standard selections appplication')
 
     pt_min = pt_bins[0]
     pt_max = pt_bins[-1]
-    minimum_pt_bins = int((pt_max-pt_min)/least_significant_digit(pt_bins))
+    #minimum_pt_bins = int((pt_max-pt_min)/least_significant_digit(pt_bins))
     
+    minimum_pt_bins = int((pt_max-pt_min)/0.01) #least_significant_digit(pt_bins))
     mass_range_min = mass*(1-range)
     mass_range_max = mass*(1+range)
 
@@ -81,16 +83,16 @@ def get_skimmed_large_data_std_hsp(mass, data_path, pt_bins, preselection='', ra
 
 def get_skimmed_large_data_hsp(mass, data_path, pt_bins, training_columns, suffix='', preselection='', range=0.04, mass_bins=40, split_sig = False):
     print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
-    print ('\nStarting BDT appplication on large data')
+    print ('\nStarting BDT appplication')
 
     pt_min = pt_bins[0]
     pt_max = pt_bins[-1]
-    minimum_pt_bins = int((pt_max-pt_min)/0.05) #least_significant_digit(pt_bins))
+    minimum_pt_bins = int((pt_max-pt_min)/0.01) #least_significant_digit(pt_bins))
     mass_range_min = mass*(1-range)
     mass_range_max = mass*(1+range)
-    nbins = array('i', [mass_bins, minimum_pt_bins, 1500,2])
+    nbins = array('i', [mass_bins, minimum_pt_bins, 1400,2])
     xmin  = array('d', [mass_range_min, pt_min, -15, -0.5])
-    xmax  = array('d', [mass_range_max, pt_max,  15,  1.5])
+    xmax  = array('d', [mass_range_max, pt_max,  13,  1.5])
     nvar = 4 if split_sig else 3
     hsparse = THnSparseD('sparse_m_pt_s', ';mass (GeV/#it{c}^{2});#it{p}_{T} (GeV/#it{c});score;true;counts', nvar, nbins, xmin, xmax)
 
@@ -104,30 +106,41 @@ def get_skimmed_large_data_hsp(mass, data_path, pt_bins, training_columns, suffi
     if preselection != "":
         preselection = " and "+preselection
 
+    model_handler_list = []
+    eff_score_array_list = []
+    for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
+        pt_index = pt_bins.index(ptbin[0])
+
+        info_string = f'_{ptbin[0]}{ptbin[1]}'
+        filename_handler = handlers_path + '/model_handler_' +suffix+ info_string + '.pkl'
+        filename_efficiencies = efficiencies_path + '/Eff_Score_' + suffix + info_string + '.npy'
+
+        model_handler_list.append(ModelHandler())
+                
+                
+        model_handler_list[pt_index].load_model_handler(filename_handler)
+
+        eff_score_array_list.append(np.load(filename_efficiencies))
+
     for data in iterator:
         print ('start entry chunk: {}, stop entry chunk: {}'.format(data.index[0], data.index[-1]))
         
+        data_range = f'{mass_range_min}<m<{mass_range_max}'
+        data = data.query(data_range+preselection)
         for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
-            info_string = f'_{ptbin[0]}{ptbin[1]}'
+            pt_index = pt_bins.index(ptbin[0])
+            tsd = eff_score_array_list[pt_index][1][-1]
 
-            filename_handler = handlers_path + '/model_handler_' +suffix+ info_string + '.pkl'
-            filename_efficiencies = efficiencies_path + '/Eff_Score_' + suffix + info_string + '.npy'
-
-            model_handler = ModelHandler()
-            
-            
-            model_handler.load_model_handler(filename_handler)
-
-            eff_score_array = np.load(filename_efficiencies)
-            tsd = eff_score_array[1][-1]
-
-            data_range = f'{ptbin[0]}<pt<{ptbin[1]} and {mass_range_min}<m<{mass_range_max}'
-            df_tmp = data.query(data_range+preselection)
-            df_tmp.insert(0, 'score', model_handler.predict(df_tmp[training_columns]))
+            data_range = f'{ptbin[0]}<pt<{ptbin[1]}'
+            df_tmp = data.query(data_range)
+            df_tmp.insert(0, 'score', model_handler_list[pt_index].predict(df_tmp[training_columns]))
             df_tmp = df_tmp.query('score>@tsd')
 
             for ind in df_tmp.index:
-                x = array('d', [df_tmp['m'][ind], df_tmp['pt'][ind], df_tmp['score'][ind], df_tmp['true'][ind]])
+                if nvar == 3:
+                    x = array('d', [df_tmp['m'][ind], df_tmp['pt'][ind], df_tmp['score'][ind]])
+                else:
+                    x = array('d', [df_tmp['m'][ind], df_tmp['pt'][ind], df_tmp['score'][ind], df_tmp['true'][ind]])
                 hsparse.Fill(x)
 
     return hsparse
@@ -193,22 +206,24 @@ def h1_invmass(counts, pt_range, name=''):
     return th1
 
 def h1_from_sparse(hnsparse, pt_range, score, name=''):
-    hnsparse_clone = hnsparse.Clone()
     n_pt_bins = hnsparse.GetAxis(1).GetNbins()
     pt_min = hnsparse.GetAxis(1).GetBinLowEdge(1)
     pt_max = hnsparse.GetAxis(1).GetBinUpEdge(1)
     step = (pt_max-pt_min)/n_pt_bins/2.
-    ptbin_min = hnsparse_clone.GetAxis(1).FindBin(pt_range[0]+step)
-    ptbin_max = hnsparse_clone.GetAxis(1).FindBin(pt_range[1]-step)
-    if ptbin_max > hnsparse_clone.GetAxis(1).GetNbins():
-        ptbin_max = hnsparse_clone.GetAxis(1).GetNbins()
-    scorebin_min = hnsparse_clone.GetAxis(2).FindBin(score)
-    scorebin_max = hnsparse_clone.GetAxis(2).GetNbins()
+    ptbin_min = hnsparse.GetAxis(1).FindBin(pt_range[0]+step)
+    ptbin_max = hnsparse.GetAxis(1).FindBin(pt_range[1]-step)
+    if ptbin_max > hnsparse.GetAxis(1).GetNbins():
+        ptbin_max = hnsparse.GetAxis(1).GetNbins()
+    scorebin_min = hnsparse.GetAxis(2).FindBin(score)
+    scorebin_max = hnsparse.GetAxis(2).GetNbins()
     if scorebin_min > scorebin_max:
         scorebin_min = scorebin_max
-    hnsparse_clone.GetAxis(1).SetRange(ptbin_min, ptbin_max)
-    hnsparse_clone.GetAxis(2).SetRange(scorebin_min, scorebin_max)
-    th1 = hnsparse_clone.Projection(0)
+    hnsparse.GetAxis(1).SetRange(ptbin_min, ptbin_max)
+    hnsparse.GetAxis(2).SetRange(scorebin_min, scorebin_max)
+    th1 = hnsparse.Projection(0)
+    #restore old setting
+    hnsparse.GetAxis(1).SetRange(1, hnsparse.GetAxis(1).GetNbins())
+    hnsparse.GetAxis(2).SetRange(1, scorebin_max)
     th1.SetName(name)
     width = th1.GetBinWidth(1)*1000 #to MeV
     th1.GetYaxis().SetTitle(r'Counts/%0.1f MeV' % (width))
@@ -382,28 +397,15 @@ def fit_hist(
                         fit_tpl.FixParameter(n_bkgpars + param, mc_function.GetParameter(param))
                     else:
                         fit_tpl.SetParameter(n_bkgpars + param, mc_function.GetParameter(param))
-                #else:
-                    #fit_tpl.FixParameter(n_bkgpars + param, 100000)#histo.Integral(1, histo.GetNbinsX())/histo.GetBinWidth(1))
-                    #fit_tpl.SetParameter(n_bkgpars + param,0 )# histo.Integral(1, histo.GetNbinsX()))
-                    #fit_tpl.SetParLimits(n_bkgpars + param, 0, 5*histo.Integral(1, histo.GetNbinsX()))
-                    #print(n_bkgpars + param, " -- ", mc_function.GetParameter(param))
-
-        #fit_tpl.SetParameters(1, 2.5, mass, histo.GetRMS()/2, histo.Integral(1, histo.GetNbinsX()), 1, 2.5)
-
-        #fit_tpl.SetParLimits(0, 0.5, 2.5)
-        #fit_tpl.SetParLimits(1, 0.5, 4)
-        #fit_tpl.SetParLimits(2, mass-0.002/2., mass+0.002/2.)
-        #fit_tpl.SetParLimits(5, 0.5, 2)
-        #fit_tpl.SetParLimits(6, 1, 4)
     elif sig_model == "d-gauss":    
-        fit_tpl = TF1('fitTpl', f'{bkg_model}(0) + gausn({n_bkgpars}) + gausn({n_bkgpars+3})', 0, 5)
+        fit_tpl = TF1('fitTpl', f'{bkg_model}(0) + [{n_bkgpars+6}]*(gausn({n_bkgpars}) + gausn({n_bkgpars+3}))', 0, 5)
         mc_function = mc_fit_file.Get(f'fit/{sig_model}_{pt_range[0]:.2f}_{pt_range[1]:.2f}')
         for param in range(0, n_sigpars):
-            if param not in norm_params:
-                if fix_params:
-                    fit_tpl.FixParameter(n_bkgpars + param, mc_function.GetParameter(param))
-                else:
-                    fit_tpl.SetParameter(n_bkgpars + param, mc_function.GetParameter(param))
+            #if param not in norm_params:
+            if fix_params:
+                fit_tpl.FixParameter(n_bkgpars + param, mc_function.GetParameter(param))
+            else:
+                fit_tpl.SetParameter(n_bkgpars + param, mc_function.GetParameter(param))
     else:
         fit_tpl = TF1('fitTpl', f'{bkg_model}(0) + gausn({n_bkgpars})', 0, 5)
     
@@ -413,31 +415,10 @@ def fit_hist(
         histo_bkg.SetBinContent(bin, 0)
         histo_bkg.SetBinError(bin, 0)
     bkg_tpl = TF1('bkgTpl', f'{bkg_model}(0)', 0, 5)
-    histo_bkg.Fit(bkg_tpl, "R0Q","", mass*(1-mass_range), mass*(1+mass_range))
+    histo_bkg.Fit(bkg_tpl, "R0QL","", mass*(1-mass_range), mass*(1+mass_range))
     for param in range(0,n_bkgpars):
         fit_tpl.SetParameter(param, bkg_tpl.GetParameter(param))
-    #if sig_model=="kde":
-    #    fit_tpl.FixParameter(n_bkgpars,100)
-    #if fix_params:
-    #else:
     
-    #if sig_model == 'd-gauss':
-        #fit_tpl.SetParameter(n_bkgpars, histo.GetMaximum())
-        #fit_tpl.SetParameter(n_bkgpars+3, histo.GetMaximum())
-        #fit_tpl.SetParameter(n_bkgpars+1, mass)
-        #fit_tpl.SetParameter(n_bkgpars+2, 0.0015)
-        #fit_tpl.SetParameter(n_bkgpars+4, mass)
-        #fit_tpl.SetParameter(n_bkgpars+5, 0.0025)
-        #fit_tpl.SetParLimits(n_bkgpars+1, mass-0.001, mass+0.001)
-        #fit_tpl.SetParLimits(n_bkgpars+2, 0.0005, 0.003)
-        #fit_tpl.SetParLimits(n_bkgpars+4, mass-0.001, mass+0.001)
-        #fit_tpl.SetParLimits(n_bkgpars+5, 0.0005, 0.003)
-    #elif sig_model == 'gauss':
-        #fit_tpl.SetParameter(n_bkgpars+1, mass)
-        #fit_tpl.SetParameter(n_bkgpars+2, 0.002)
-        #fit_tpl.SetParLimits(n_bkgpars+1, mass-0.001, mass+0.001)
-        #fit_tpl.SetParLimits(n_bkgpars+2, 0.0005, 0.003)
-
     # plotting stuff for fit_tpl
     fit_tpl.SetNpx(300)
     fit_tpl.SetLineWidth(2)
@@ -459,7 +440,7 @@ def fit_hist(
     histo.SetMarkerColor(1)
     histo.SetTitle(ax_titles)
     histo.SetMaximum(1.5 * histo.GetMaximum())
-    histo.Fit(fit_tpl, "QR", "", hist_range[0], hist_range[1])
+    histo.Fit(fit_tpl, "QRL", "", hist_range[0], hist_range[1])
     histo.SetDrawOption("e")
     histo.GetXaxis().SetRangeUser(hist_range[0], hist_range[1])
     # represent the bkg_model separately
@@ -483,11 +464,14 @@ def fit_hist(
         background = bkg_tpl.Integral(mass*(1-mass_range), mass*(1+mass_range)) / histo.GetBinWidth(1)
         errsignal = math.sqrt(signal)
         signal -= background
+    elif sig_model == 'd-gauss':
+        signal = (fit_tpl.GetParameter(n_bkgpars+6)*(fit_tpl.GetParameter(n_bkgpars)+fit_tpl.GetParameter(n_bkgpars+3))) / histo.GetBinWidth(1)
+        errsignal = (fit_tpl.GetParError(n_bkgpars+6)*(fit_tpl.GetParameter(n_bkgpars)+fit_tpl.GetParameter(n_bkgpars+3))) / histo.GetBinWidth(1)
     else:
         for param in norm_params:
             signal += fit_tpl.GetParameter(n_bkgpars+param) / histo.GetBinWidth(1)
             errsignal += fit_tpl.GetParError(n_bkgpars+param)**2
-        errsignal += math.sqrt(errsignal) / histo.GetBinWidth(1)
+        errsignal = math.sqrt(errsignal) / histo.GetBinWidth(1)
     
     #print("signal = ",signal," +- ",errsignal)
     #else:
@@ -555,7 +539,7 @@ def fit_hist(
     directory.cd()
     histo.Write()
     cv.Write()
-
+    
     return (signal, errsignal, signif, errsignif, mu, muErr, sigma, sigmaErr)
 
 def rename_df_columns(df):

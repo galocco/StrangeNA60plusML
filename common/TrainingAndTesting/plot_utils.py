@@ -77,7 +77,6 @@ def plot_significance_scan_hsp(
     peak_range = [mass-3*sigma_mass, mass+3*sigma_mass]
 
     h1_minv = au.h1_from_sparse(hnsparse, data_range_array, score_list[max_index], name="max_sig")
-    
     hist_range = [h1_minv.GetXaxis().GetXmin(), h1_minv.GetXaxis().GetXmax()]
     
     mass_bins = h1_minv.GetNbinsX()
@@ -86,7 +85,7 @@ def plot_significance_scan_hsp(
     bkg_tpl_r = ROOT.TF1('fitBkg_r', 'pol1(0)', peak_range[1], hist_range[1])
     bkg_tpl_l.SetLineColor(ROOT.kGreen+2)
     bkg_tpl_r.SetLineColor(ROOT.kGreen+2)
-    fit_tpl = ROOT.TF1('fitTpl','pol1(0)+gausn(2)', peak_range[0], peak_range[1])
+    fit_tpl = ROOT.TF1('fitTpl','pol1(0)+gausn(2)', peak_range[0], peak_range[1])#
 
     fit_tpl.SetLineColor(ROOT.kOrange+4)
     peak_bins = [h1_minv.GetXaxis().FindBin(peak_range[0]), h1_minv.GetXaxis().FindBin(peak_range[1])]
@@ -95,10 +94,12 @@ def plot_significance_scan_hsp(
     for bin in range(peak_bins[0], peak_bins[1]+1):
         h1_minv.SetBinContent(bin, 0)
         h1_minv.SetBinError(bin, 0)
+
     h1_minv.Fit(bkg_tpl_l, "QRM", "", hist_range[0], hist_range[1])
     bkg_tpl_l.SetRange(hist_range[0], peak_range[0])
     h1_peak = h1_minv.Clone()
     h1_peak.SetName("peak")
+
     for par in range(2):
         fit_tpl.SetParameter(par, bkg_tpl_l.GetParameter(par))
         bkg_tpl_r.SetParameter(par, bkg_tpl_l.GetParameter(par))
@@ -113,8 +114,9 @@ def plot_significance_scan_hsp(
     
     for bin in range(1, h1_minv.GetNbinsX()+1):
         if peak_bins[0] <= bin <= peak_bins[1]:
-            h1_peak.SetBinContent(bin, fit_tpl.Eval(h1_minv.GetBinCenter(bin)))
-            h1_peak.SetBinContent(bin, ROOT.TMath.Sqrt(fit_tpl.Eval(h1_minv.GetBinCenter(bin))))
+            val = fit_tpl.Eval(h1_minv.GetBinCenter(bin))
+            h1_peak.SetBinContent(bin, val)
+            h1_peak.SetBinError(bin, ROOT.TMath.Sqrt(val))
         else:
             h1_peak.SetBinContent(bin, 0.001)
             h1_peak.SetBinError(bin, 0.001)
@@ -128,7 +130,10 @@ def plot_significance_scan_hsp(
     legend.AddEntry(fit_tpl,"Signal model (Gauss)","l")
     legend.AddEntry(h1_minv,"Data","pe")
     legend.AddEntry(h1_peak,"Pseudo data","pe")
-    h1_peak.GetYaxis().SetRangeUser(0.1, h1_peak.GetMaximum()*1.3)
+    if h1_peak.GetMaximum() > h1_minv.GetMaximum():
+        h1_peak.GetYaxis().SetRangeUser(0.1, h1_peak.GetMaximum()*1.3)
+    else:
+        h1_peak.GetYaxis().SetRangeUser(0.1, h1_minv.GetMaximum()*1.3)
     h1_peak.Draw("e")
     h1_minv.Draw("e same")
     fit_tpl.Draw("same")

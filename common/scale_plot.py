@@ -4,7 +4,6 @@ import argparse
 from inspect import getattr_static
 import math
 import os
-from StrangeNA60plusML.common.run_analysis import NEVENTS
 import plot_utils as pu
 import numpy as np
 import yaml
@@ -69,18 +68,22 @@ for sigmodel in SIG_MODELS:
 
             histo = input_file.Get(f'0-5/pt_{ptbin[0]}{ptbin[1]}/{sigmodel}/{bkgmodel}/eff{best_sig_eff[sig_index]:.3f}')
             fitTpl = histo.GetFunction("fitTpl")
-            #lineshape = TF1('lineshape', '([0]+[1]*x)+[2]*TMath::Exp(-0.5*((x-[3])/[4])*((x-[3])/[4]))/(TMath::Sqrt(2*3.141593)*[4])', 0, 5)
             if sigmodel == "gauss":
                 n_sigpars = 3
                 lineshape = TF1('lineshape', f'{bkgmodel}(0)+gausn({n_bkgpars})', 0, 5)
+            elif sigmodel == "kde":
+                continue
             else:
-                n_sigpars = 6
-                lineshape = TF1('lineshape', f'{bkgmodel}(0)+gausn({n_bkgpars})+gausn({n_bkgpars+3})', 0, 5)
+                n_sigpars = 7
+                lineshape = TF1('lineshape', f'{bkgmodel}(0) + [{n_bkgpars+6}]*(gausn({n_bkgpars}) + gausn({n_bkgpars+3}))', 0, 5)
+            
             for par_index in range(0,n_bkgpars+n_sigpars):
                 print("par(",par_index,") = ",fitTpl.GetParameter(par_index))
                 lineshape.SetParameter(par_index, fitTpl.GetParameter(par_index))
+            
             histo.GetListOfFunctions().Remove(fitTpl)
             cv.SetLeftMargin(0.15)
+            
             for index in range(1,histo.GetNbinsX()+1):
                 mass = histo.GetBinCenter(index)
 
@@ -90,18 +93,18 @@ for sigmodel in SIG_MODELS:
                 histo.SetBinContent(index,count)
                 histo.SetBinError(index,math.sqrt(count))
 
-            true_mass = histo.GetBinCenter(20)
+            true_mass = histo.GetBinCenter(int(histo.GetNbinsX()/2))
             histo.GetYaxis().SetRangeUser(0,1.5*int(lineshape.Eval(true_mass)*full_run/NEVENTS))
             histo.Draw()
 
-            for par_index in range(0,n_bkgpars+1):
-                lineshape.SetParameter(par_index,lineshape.GetParameter(par_index)*full_run/NEVENTS)
+            for par_index in range(0, n_bkgpars):
+                lineshape.SetParameter(par_index, lineshape.GetParameter(par_index)*full_run/NEVENTS)
             if sigmodel == "d-gauss":
-                lineshape.SetParameter(n_bkgpars+3,lineshape.GetParameter(n_bkgpars+3)*full_run/NEVENTS)
+                lineshape.SetParameter(n_bkgpars + 6, lineshape.GetParameter(n_bkgpars + 6)*full_run/NEVENTS)
             
             lineshape.Draw("same")
 
-            bkg_tpl = TF1('fitTpl', f'{bkgmodel}(0)', 0, 5)
+            bkg_tpl = TF1('bkg_tpl', f'{bkgmodel}(0)', 0, 5)
             for par_index in range(0, n_bkgpars):
                 bkg_tpl.SetParameter(par_index, lineshape.GetParameter(par_index))
 
@@ -115,12 +118,12 @@ for sigmodel in SIG_MODELS:
                 sigma = lineshape.GetParameter(n_bkgpars+2)
                 sigmaErr = lineshape.GetParError(n_bkgpars+2)
             else:
-                signal = (lineshape.GetParameter(n_bkgpars)+lineshape.GetParameter(n_bkgpars+3)) / histo.GetBinWidth(1)
-                errsignal = ROOT.TMath.Sqrt(lineshape.GetParError(n_bkgpars)**2+lineshape.GetParError(n_bkgpars+3)**2) / histo.GetBinWidth(1)
+                signal = (lineshape.GetParameter(n_bkgpars)+lineshape.GetParameter(n_bkgpars+3))*lineshape.GetParameter(n_bkgpars+6) / histo.GetBinWidth(1)
+                errsignal = ROOT.TMath.Sqrt(lineshape.GetParError(n_bkgpars+6)) / histo.GetBinWidth(1)
                 sigma = lineshape.GetParameter(n_bkgpars+2)
                 sigmaErr = lineshape.GetParError(n_bkgpars+2)
-            bkg = bkg_tpl.Integral(mu - nsigma * sigma, mu +
-                                    nsigma * sigma) / histo.GetBinWidth(1)
+            bkg = 10#bkg_tpl.Integral(mu - nsigma * sigma, mu +
+                    #                nsigma * sigma) / histo.GetBinWidth(1)
 
             if bkg > 0:
                 errbkg = math.sqrt(bkg)
@@ -153,18 +156,18 @@ for sigmodel in SIG_MODELS:
             string = f'{ptbin[0]:.1f}'+' #leq #it{p}_{T} < '+f'{ptbin[1]:.1f}'+' GeV/#it{c} '
             pinfo2.AddText(string)
 
-            string = f'Significance ({nsigma:.0f}#sigma) {signif:.1f}'
-            pinfo2.AddText(string)
+            #string = f'Significance ({nsigma:.0f}#sigma) {signif:.1f}'
+            #pinfo2.AddText(string)
 
             string = f'S ({nsigma:.0f}#sigma) {signal:.0f} #pm {errsignal:.0f}'
             pinfo2.AddText(string)
                 
-            string = f'B ({nsigma:.0f}#sigma) {bkg:.0f} #pm {errbkg:.0f}'
-            pinfo2.AddText(string)
+            #string = f'B ({nsigma:.0f}#sigma) {bkg:.0f} #pm {errbkg:.0f}'
+            #pinfo2.AddText(string)
 
-            if bkg > 0:
-                ratio = signal/bkg
-                string = f'S/B ({nsigma:.0f}#sigma) {ratio:.4f}'
+            #if bkg > 0:
+            #    ratio = signal/bkg
+            #    string = f'S/B ({nsigma:.0f}#sigma) {ratio:.4f}'
 
             pinfo2.AddText(string)
             

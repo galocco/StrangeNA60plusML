@@ -88,12 +88,13 @@ for pt in df_rec['pt']:
     h1PreselEff.Fill(pt)
 
 del df_rec
-df_gen = uproot.open(mc_file_name)['ntgen'].arrays(library="pd")
+df_gen = uproot.open(mc_file_name)['ntgen'].arrays(library="pd").query(STD_SELECTION)
 
 for pt in df_gen['pt']:
     h1Gen.Fill(pt)
 
 h1PreselEff.Divide(h1Gen)
+h1PreselEff.Write()
 del df_gen
 
 if TEST:
@@ -102,15 +103,19 @@ if TEST:
 resultsSysDir = os.environ['RESULTS']+"/"+FILE_PREFIX
 
 mass = TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
-pt_distr_gen = TF1("pt_distr_gen", "x*exp(-TMath::Sqrt(x**2+[1]**2)/[0])",PT_BINS[0],PT_BINS[-1])
+pt_distr_gen = TF1("pt_distr_gen", "x*exp(-TMath::Sqrt(x**2+[1]**2)/[0])",PT_BINS[0],10)
 pt_distr_gen.FixParameter(0,T)
 pt_distr_gen.FixParameter(1,mass)
 pt_range_factor = au.get_pt_integral(pt_distr_gen, PT_BINS[0],PT_BINS[-1])/au.get_pt_integral(pt_distr_gen)
 
 ###############################################################################
 # define paths for loading data
-data_path = os.path.expandvars(params['DATA_PATH'])
-NEVENTS = params['NEVENTS']
+if TEST:
+    data_path = os.path.expandvars(params['BKG_PATH'])
+    NEVENTS =1000000#params['NEVENTS']
+else:
+    data_path = os.path.expandvars(params['DATA_PATH'])
+    NEVENTS = params['NEVENTS']
 BKG_MODELS = params['BKG_MODELS']
 
 
@@ -180,16 +185,11 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
                 h1_minv.Write()
             else:
                 rawcounts, err_rawcounts, _, _, _, _, _, _ = au.fit_hist(h1_minv, ptbin, mass, sig_model=sigmodel, bkg_model=bkgmodel, Eint=EINT, mass_range=MASS_WINDOW, mc_fit_file=mc_fit_file, directory = fit_bkg_dir, fix_params = False)
-
-
-            h1RawCounts[sigmodel][bkgmodel].SetBinContent(index, rawcounts / h1RawCounts[sigmodel][bkgmodel].GetBinWidth(index) / h1PreselEff.GetBinContent(index) / (MT_BINS_M[iBin]-MT_BINS_M[iBin-1])/ (MT_BINS_M[iBin-1]+MT_BINS_M[iBin])/2 / NEVENTS
-        )
-            h1RawCountsPt[sigmodel][bkgmodel].SetBinContent(index, rawcounts / h1RawCountsPt[sigmodel][bkgmodel].GetBinWidth(index) / h1PreselEff.GetBinContent(index)/ NEVENTS
-        )            
-            h1RawCounts[sigmodel][bkgmodel].SetBinError(index, err_rawcounts / h1RawCounts[sigmodel][bkgmodel].GetBinWidth(index) / h1PreselEff.GetBinContent(index) / (MT_BINS_M[iBin]-MT_BINS_M[iBin-1])/ (MT_BINS_M[iBin-1]+MT_BINS_M[iBin])/2 / NEVENTS
-        )
-            h1RawCountsPt[sigmodel][bkgmodel].SetBinError(index, err_rawcounts / h1RawCountsPt[sigmodel][bkgmodel].GetBinWidth(index) / h1PreselEff.GetBinContent(index) / NEVENTS
-        )
+            
+            h1RawCounts[sigmodel][bkgmodel].SetBinContent(index, rawcounts / h1RawCounts[sigmodel][bkgmodel].GetBinWidth(index) / h1PreselEff.GetBinContent(index) / (MT_BINS_M[iBin]-MT_BINS_M[iBin-1])/ (MT_BINS_M[iBin-1]+MT_BINS_M[iBin])/2 / NEVENTS)
+            h1RawCountsPt[sigmodel][bkgmodel].SetBinContent(index, rawcounts / h1RawCountsPt[sigmodel][bkgmodel].GetBinWidth(index) / h1PreselEff.GetBinContent(index)/ NEVENTS)            
+            h1RawCounts[sigmodel][bkgmodel].SetBinError(index, err_rawcounts / h1RawCounts[sigmodel][bkgmodel].GetBinWidth(index) / h1PreselEff.GetBinContent(index) / (MT_BINS_M[iBin]-MT_BINS_M[iBin-1])/ (MT_BINS_M[iBin-1]+MT_BINS_M[iBin])/2 / NEVENTS)
+            h1RawCountsPt[sigmodel][bkgmodel].SetBinError(index, err_rawcounts / h1RawCountsPt[sigmodel][bkgmodel].GetBinWidth(index) / h1PreselEff.GetBinContent(index) / NEVENTS)
 
         h1_minv.Write()
     iBin += 1
@@ -199,7 +199,7 @@ for sigmodel in SIG_MODELS:
         ####################################################################
         ## 1/Nev*dN/dpt vs pt
         ####################################################################
-        h1RawCountsPt[sigmodel][bkgmodel].Fit(pt_distr, "M0+", "",PT_BINS[0],PT_BINS[-1])
+        h1RawCountsPt[sigmodel][bkgmodel].Fit(pt_distr, "MI0+", "",PT_BINS[0],PT_BINS[-1])
         fit_function = h1RawCountsPt[sigmodel][bkgmodel].GetFunction("pt_distr")
         fit_function.SetLineColor(kOrangeC)
         myCv = TCanvas(f"pT_SpectraCv_{sigmodel}_{bkgmodel}")
@@ -240,8 +240,9 @@ for sigmodel in SIG_MODELS:
         iBin = 0
         for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
             iBin += 1
-            mult += h1RawCountsPt[sigmodel][bkgmodel].GetBinContent(iBin)*(ptbin[1]-ptbin[0]) 
-            err_mult += h1RawCountsPt[sigmodel][bkgmodel].GetBinError(iBin)*(ptbin[1]-ptbin[0])**2
+            mult += h1RawCountsPt[sigmodel][bkgmodel].GetBinContent(iBin)*h1RawCountsPt[sigmodel][bkgmodel].GetBinWidth(iBin) 
+            print(ptbin[1]," ",ptbin[0]," diff: ",ptbin[1]-ptbin[0])
+            err_mult += (h1RawCountsPt[sigmodel][bkgmodel].GetBinError(iBin)*h1RawCountsPt[sigmodel][bkgmodel].GetBinWidth(iBin))**2
         err_mult = ROOT.TMath.Sqrt(err_mult)/pt_range_factor/bratio
         mult /= pt_range_factor*bratio
         print("multiplicity: ", mult," +- ",err_mult)
@@ -267,7 +268,7 @@ for sigmodel in SIG_MODELS:
         ####################################################################
         ## 1/(Nev*mT)*dN/dmT vs mT-m0
         ####################################################################
-        h1RawCounts[sigmodel][bkgmodel].Fit(mt_distr, "M0+", "",MT_BINS[0],MT_BINS[-1])
+        h1RawCounts[sigmodel][bkgmodel].Fit(mt_distr, "MI0+", "",MT_BINS[0],MT_BINS[-1])
         fit_function = h1RawCounts[sigmodel][bkgmodel].GetFunction("mt_distr")
         fit_function.SetLineColor(kOrangeC)
 
