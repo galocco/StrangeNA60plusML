@@ -85,14 +85,35 @@ def get_skimmed_large_data_hsp(mass, data_path, pt_bins, training_columns, suffi
     print('\n++++++++++++++++++++++++++++++++++++++++++++++++++')
     print ('\nStarting BDT appplication')
 
+    model_handler_list = []
+    eff_score_array_list = []
+    tsd_min = 13
+    tsd_max = 13
+    for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
+        pt_index = pt_bins.index(ptbin[0])
+
+        info_string = f'_{ptbin[0]}{ptbin[1]}'
+        filename_handler = handlers_path + '/model_handler_' +suffix+ info_string + '.pkl'
+        filename_efficiencies = efficiencies_path + '/Eff_Score_' + suffix + info_string + '.npy'
+
+        model_handler_list.append(ModelHandler())
+        model_handler_list[pt_index].load_model_handler(filename_handler)
+
+        eff_score_array_list.append(np.load(filename_efficiencies))
+
+        tsd = eff_score_array_list[pt_index][1][-1]
+        if tsd < tsd_min:
+            tsd_min = tsd
+
     pt_min = pt_bins[0]
     pt_max = pt_bins[-1]
     minimum_pt_bins = int((pt_max-pt_min)/0.01) #least_significant_digit(pt_bins))
     mass_range_min = mass*(1-range)
     mass_range_max = mass*(1+range)
-    nbins = array('i', [mass_bins, minimum_pt_bins, 1400,2])
-    xmin  = array('d', [mass_range_min, pt_min, -15, -0.5])
-    xmax  = array('d', [mass_range_max, pt_max,  13,  1.5])
+    nbin_score = 2000
+    nbins = array('i', [mass_bins, minimum_pt_bins, nbin_score,    2])
+    xmin  = array('d', [mass_range_min,     pt_min,    tsd_min, -0.5])
+    xmax  = array('d', [mass_range_max,     pt_max,   tsd_max,   1.5])
     nvar = 4 if split_sig else 3
     hsparse = THnSparseD('sparse_m_pt_s', ';mass (GeV/#it{c}^{2});#it{p}_{T} (GeV/#it{c});score;true;counts', nvar, nbins, xmin, xmax)
 
@@ -106,35 +127,17 @@ def get_skimmed_large_data_hsp(mass, data_path, pt_bins, training_columns, suffi
     if preselection != "":
         preselection = " and "+preselection
 
-    model_handler_list = []
-    eff_score_array_list = []
-    for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
-        pt_index = pt_bins.index(ptbin[0])
-
-        info_string = f'_{ptbin[0]}{ptbin[1]}'
-        filename_handler = handlers_path + '/model_handler_' +suffix+ info_string + '.pkl'
-        filename_efficiencies = efficiencies_path + '/Eff_Score_' + suffix + info_string + '.npy'
-
-        model_handler_list.append(ModelHandler())
-                
-                
-        model_handler_list[pt_index].load_model_handler(filename_handler)
-
-        eff_score_array_list.append(np.load(filename_efficiencies))
 
     for data in iterator:
         print ('start entry chunk: {}, stop entry chunk: {}'.format(data.index[0], data.index[-1]))
         
-        data_range = f'{mass_range_min}<m<{mass_range_max}'
-        data = data.query(data_range+preselection)
         for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
             pt_index = pt_bins.index(ptbin[0])
             tsd = eff_score_array_list[pt_index][1][-1]
 
-            data_range = f'{ptbin[0]}<pt<{ptbin[1]}'
-            df_tmp = data.query(data_range)
+            data_range = f'{ptbin[0]}<pt<{ptbin[1]} and {mass_range_min}<m<{mass_range_max}'
             df_tmp.insert(0, 'score', model_handler_list[pt_index].predict(df_tmp[training_columns]))
-            df_tmp = df_tmp.query('score>@tsd')
+            df_tmp = data.query('score>@tsd and '+data_range+preselection)
 
             for ind in df_tmp.index:
                 if nvar == 3:

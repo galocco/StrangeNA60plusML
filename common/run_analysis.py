@@ -187,8 +187,8 @@ if APPLICATION:
 
 
         sub_dir_histos.cd()
-        #sigscan_eff, sigscan_tsd = ml_application.significance_scan(presel_eff, eff_score_array, ptbin, pt_spectrum, suffix=FILE_PREFIX, sigma_mass = SIGMA, custom=CUSTOM_SCAN, mass_range=MASS_WINDOW)
-        #eff_score_array = np.append(eff_score_array, [[sigscan_eff], [sigscan_tsd]], axis=1)
+        sigscan_eff, sigscan_tsd = ml_application.significance_scan(presel_eff, eff_score_array, ptbin, pt_spectrum, suffix=FILE_PREFIX, sigma_mass = SIGMA, custom=CUSTOM_SCAN, mass_range=MASS_WINDOW)
+        eff_score_array = np.append(eff_score_array, [[sigscan_eff], [sigscan_tsd]], axis=1)
 
         for eff, tsd in zip(pd.unique(eff_score_array[0][::-1]), pd.unique(eff_score_array[1][::-1])):
             histo_name = f'eff{eff:.3f}'
