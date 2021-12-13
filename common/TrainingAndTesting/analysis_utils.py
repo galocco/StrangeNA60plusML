@@ -136,8 +136,9 @@ def get_skimmed_large_data_hsp(mass, data_path, pt_bins, training_columns, suffi
             tsd = eff_score_array_list[pt_index][1][-1]
 
             data_range = f'{ptbin[0]}<pt<{ptbin[1]} and {mass_range_min}<m<{mass_range_max}'
+            df_tmp = data.query(data_range+preselection))
             df_tmp.insert(0, 'score', model_handler_list[pt_index].predict(df_tmp[training_columns]))
-            df_tmp = data.query('score>@tsd and '+data_range+preselection)
+            df_tmp = df_tmp.query('score>@tsd')
 
             for ind in df_tmp.index:
                 if nvar == 3:
