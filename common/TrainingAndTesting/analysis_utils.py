@@ -89,6 +89,8 @@ def get_skimmed_large_data_hsp(mass, data_path, pt_bins, training_columns, suffi
     eff_score_array_list = []
     tsd_min = 13
     tsd_max = 13
+    handlers_path = "../Models/handlers"
+    efficiencies_path = "../Results/Efficiencies"
     for ptbin in zip(pt_bins[:-1], pt_bins[1:]):
         pt_index = pt_bins.index(ptbin[0])
 
@@ -117,8 +119,6 @@ def get_skimmed_large_data_hsp(mass, data_path, pt_bins, training_columns, suffi
     nvar = 4 if split_sig else 3
     hsparse = THnSparseD('sparse_m_pt_s', ';mass (GeV/#it{c}^{2});#it{p}_{T} (GeV/#it{c});score;true;counts', nvar, nbins, xmin, xmax)
 
-    handlers_path = "../Models/handlers"
-    efficiencies_path = "../Results/Efficiencies"
 
     executor = ThreadPoolExecutor()
     data_tree_name = data_path + ":/ntcand"
