@@ -4,6 +4,8 @@ from concurrent.futures import ThreadPoolExecutor
 from math import floor, log10
 import warnings
 
+from pyparsing import col
+
 import aghast
 from matplotlib.pyplot import axis
 import numpy as np
@@ -136,7 +138,7 @@ def get_skimmed_large_data_hsp(mass, data_path, pt_bins, training_columns, suffi
             tsd = eff_score_array_list[pt_index][1][-1]
 
             data_range = f'{ptbin[0]}<pt<{ptbin[1]} and {mass_range_min}<m<{mass_range_max}'
-            df_tmp = data.query(data_range+preselection))
+            df_tmp = data.query(data_range+preselection)
             df_tmp.insert(0, 'score', model_handler_list[pt_index].predict(df_tmp[training_columns]))
             df_tmp = df_tmp.query('score>@tsd')
 
@@ -340,10 +342,9 @@ def fit_hist(
     else:
         print(f'Unsupported background model {bkg_model}')
     norm_params = []
-    if sig_model == 'd-gauss':
+    if sig_model == 'gauss':
         norm_params.append(0)
-        norm_params.append(3)
-        n_sigpars = 6
+        n_sigpars = 3
     elif sig_model == 'd-crystal':
         norm_params.append(4)
         n_sigpars = 7
@@ -351,17 +352,21 @@ def fit_hist(
         norm_params.append(0)
         n_sigpars = 5
     elif sig_model == 'kde':
+        kde = mc_fit_file.Get(f'fit/kde_{pt_range[0]:.2f}_{pt_range[1]:.2f}')
         n_sigpars = 1
         norm_params.append(0)
-    else:
-        if sig_model != 'gauss':
-            print(f'Unsupported signal model {sig_model}')
+    elif 'sub' in str(sig_model):
         norm_params.append(0)
         n_sigpars = 3
-    # define the fit function bkg_model + sig_model
-    if sig_model == "kde":
-        kde = mc_fit_file.Get(f'fit/kde_{pt_range[0]:.2f}_{pt_range[1]:.2f}')
+    else:
+        if sig_model != 'd-gauss':
+            print(f'Unsupported signal model {sig_model}')
+            print(f'Model setted to default: d-gauss')
+        norm_params.append(0)
+        norm_params.append(3)
+        n_sigpars = 6
 
+    # define the fit function bkg_model + sig_model
     def sig_plus_bkg(x, par):
         sig_val = 0
         tf1_bkg = TF1('tf1_bkg', f'{bkg_model}(0)', 0, 5)
@@ -392,7 +397,6 @@ def fit_hist(
     
     if sig_model == "d-crystal" or sig_model=="kde" or sig_model == "exp-gauss":
         fit_tpl = TF1('fitTpl', sig_plus_bkg, 0, 5, n_bkgpars+n_sigpars)
-        #print(f'fit/{sig_model}_{pt_range[0]:.2f}_{pt_range[1]:.2f}')
         if sig_model != "kde":
             mc_function = mc_fit_file.Get(f'fit/{sig_model}_{pt_range[0]:.2f}_{pt_range[1]:.2f}')
             for param in range(0, n_sigpars):
@@ -401,7 +405,16 @@ def fit_hist(
                         fit_tpl.FixParameter(n_bkgpars + param, mc_function.GetParameter(param))
                     else:
                         fit_tpl.SetParameter(n_bkgpars + param, mc_function.GetParameter(param))
-    elif sig_model == "d-gauss":    
+    elif sig_model == 'gauss' or 'sub' in str(sig_model):
+        fit_tpl = TF1('fitTpl', f'{bkg_model}(0) + gausn({n_bkgpars})', 0, 5)
+        mc_function = mc_fit_file.Get(f'fit/gauss_{pt_range[0]:.2f}_{pt_range[1]:.2f}')
+        for param in range(0, n_sigpars):
+            #if param not in norm_params:
+            if fix_params and not 'sub' in str(sig_model):
+                fit_tpl.FixParameter(n_bkgpars + param, mc_function.GetParameter(param))
+            else:
+                fit_tpl.SetParameter(n_bkgpars + param, mc_function.GetParameter(param))               
+    else:    
         fit_tpl = TF1('fitTpl', f'{bkg_model}(0) + [{n_bkgpars+6}]*(gausn({n_bkgpars}) + gausn({n_bkgpars+3}))', 0, 5)
         mc_function = mc_fit_file.Get(f'fit/{sig_model}_{pt_range[0]:.2f}_{pt_range[1]:.2f}')
         for param in range(0, n_sigpars):
@@ -410,17 +423,15 @@ def fit_hist(
                 fit_tpl.FixParameter(n_bkgpars + param, mc_function.GetParameter(param))
             else:
                 fit_tpl.SetParameter(n_bkgpars + param, mc_function.GetParameter(param))
-    else:
-        fit_tpl = TF1('fitTpl', f'{bkg_model}(0) + gausn({n_bkgpars})', 0, 5)
     
     histo_bkg = histo.Clone("histo_bkg")
-    peak_bins = [histo_bkg.GetXaxis().FindBin(mass-0.002*4), histo_bkg.GetXaxis().FindBin(mass+0.002*4)]
+    peak_bins = [histo_bkg.GetXaxis().FindBin(mass-peak_width), histo_bkg.GetXaxis().FindBin(mass+peak_width)]
     for bin in range(peak_bins[0], peak_bins[1]+1):
         histo_bkg.SetBinContent(bin, 0)
         histo_bkg.SetBinError(bin, 0)
     bkg_tpl = TF1('bkgTpl', f'{bkg_model}(0)', 0, 5)
-    histo_bkg.Fit(bkg_tpl, "R0QL","", mass*(1-mass_range), mass*(1+mass_range))
-    for param in range(0,n_bkgpars):
+    histo_bkg.Fit(bkg_tpl, "R0Q","", mass*(1-mass_range), mass*(1+mass_range))
+    for param in range(0, n_bkgpars):
         fit_tpl.SetParameter(param, bkg_tpl.GetParameter(param))
     
     # plotting stuff for fit_tpl
@@ -444,23 +455,26 @@ def fit_hist(
     histo.SetMarkerColor(1)
     histo.SetTitle(ax_titles)
     histo.SetMaximum(1.5 * histo.GetMaximum())
-    histo.Fit(fit_tpl, "QRL", "", hist_range[0], hist_range[1])
-    histo.SetDrawOption("e")
-    histo.GetXaxis().SetRangeUser(hist_range[0], hist_range[1])
+    
+    if sig_model == "kde":
+        histo.Fit(fit_tpl, "QR", "", hist_range[0], hist_range[1])
+    else:
+        histo.Fit(fit_tpl, "LQR", "", hist_range[0], hist_range[1])
+    if not 'sub' in str(sig_model):
+        bkg_tpl.SetParameters(fit_tpl.GetParameters())
+        histo.Draw()
+        histo.SetDrawOption("e")
+        histo.GetXaxis().SetRangeUser(hist_range[0], hist_range[1])
+    else:
+        histo_bkg.Draw()
+        histo_bkg.SetDrawOption("e")
+        histo_bkg.GetXaxis().SetRangeUser(hist_range[0], hist_range[1])
     # represent the bkg_model separately
-    bkg_tpl.SetParameters(fit_tpl.GetParameters())
     bkg_tpl.SetLineColor(600)
     bkg_tpl.SetLineStyle(2)
     bkg_tpl.Draw("same")
-    # represent the signal model separately
 
     # get the fit parameters
-    mu = fit_tpl.GetParameter(n_bkgpars+1)
-    muErr = fit_tpl.GetParError(n_bkgpars+1)
-    sigma = 0.002#fit_tpl.GetParameter(n_bkgpars+2)
-    sigmaErr = 0#fit_tpl.GetParError(n_bkgpars+2)
-    bkg = bkg_tpl.Integral(mu - peak_width, mu + peak_width) / histo.GetBinWidth(1)
-    
     signal = 0
     errsignal = 0
     if sig_model == "d-crystal":
@@ -471,66 +485,40 @@ def fit_hist(
     elif sig_model == 'd-gauss':
         signal = (fit_tpl.GetParameter(n_bkgpars+6)*(fit_tpl.GetParameter(n_bkgpars)+fit_tpl.GetParameter(n_bkgpars+3))) / histo.GetBinWidth(1)
         errsignal = (fit_tpl.GetParError(n_bkgpars+6)*(fit_tpl.GetParameter(n_bkgpars)+fit_tpl.GetParameter(n_bkgpars+3))) / histo.GetBinWidth(1)
+    elif 'sub' in str(sig_model):
+        width = float(sig_model[3:6])
+        sigma = fit_tpl.GetParameter(n_bkgpars+2)
+        signal = 0
+        peak_bins = [histo.GetXaxis().FindBin(mass-width*sigma), histo.GetXaxis().FindBin(mass+width*sigma)]
+        for bin in range(peak_bins[0], peak_bins[1]+1):
+            signal += histo.GetBinContent(bin)
+        peak_edges = [histo.GetXaxis().GetBinLowEdge(peak_bins[0]), histo.GetXaxis().GetBinUpEdge(peak_bins[1])]
+        background = bkg_tpl.Integral(peak_edges[0], peak_edges[1]) / histo.GetBinWidth(1)
+        errsignal = ROOT.TMath.Sqrt(signal+background)
+        signal -= background
     else:
         for param in norm_params:
             signal += fit_tpl.GetParameter(n_bkgpars+param) / histo.GetBinWidth(1)
             errsignal += fit_tpl.GetParError(n_bkgpars+param)**2
         errsignal = math.sqrt(errsignal) / histo.GetBinWidth(1)
-    
-    #print("signal = ",signal," +- ",errsignal)
-    #else:
-    #    signal = 0
-    #    bin_min = histo.GetXaxis().FindBin(mu - nsigma * sigma)
-    #    bin_max = histo.GetXaxis().FindBin(mu + nsigma * sigma)
-    #
-    #    for bin in range(bin_min,bin_max+1):
-    #        signal += histo.GetBinContent(bin)
-    #    signal -= bkg
-    #    errsignal = math.sqrt(signal+bkg)
-        
-
-    if bkg > 0:
-        errbkg = math.sqrt(bkg)
-    else:
-        errbkg = 0
-    # compute the significance
-    if signal+bkg > 0:
-        signif = signal/math.sqrt(signal+bkg)
-        deriv_sig = 1/math.sqrt(signal+bkg)-signif/(2*(signal+bkg))
-        deriv_bkg = -signal/(2*(math.pow(signal+bkg, 1.5)))
-        errsignif = math.sqrt((errsignal*deriv_sig)**2+(errbkg*deriv_bkg)**2)
-    else:
-        signif = 0
-        errsignif = 0
 
     # print fit info on the canvas
-    pinfo2 = TPaveText(0.5, 0.5, 0.91, 0.9, "NDC")
-    pinfo2.SetBorderSize(0)
-    pinfo2.SetFillStyle(0)
-    pinfo2.SetTextAlign(30+3)
-    pinfo2.SetTextFont(42)
+    pinfo = TPaveText(0.5, 0.5, 0.91, 0.9, "NDC")
+    pinfo.SetBorderSize(0)
+    pinfo.SetFillStyle(0)
+    pinfo.SetTextAlign(30+3)
+    pinfo.SetTextFont(42)
 
     string = 'Pb-Pb #sqrt{s_{NN}} = '+f'{Eint} GeV, centrality {0}-{5}%'
-    pinfo2.AddText(string)
+    pinfo.AddText(string)
 
     string = f'{pt_range[0]:.2f}'+' #leq #it{p}_{T} < '+f'{pt_range[1]:.2f}'+' GeV/#it{c} '
-    pinfo2.AddText(string)
-
-    #string = f'Significance {signif:.1f} #pm {errsignif:.1f} '
-    #pinfo2.AddText(string)
+    pinfo.AddText(string)
 
     string = f'S {signal:.0f} #pm {errsignal:.0f}'
-    pinfo2.AddText(string)
+    pinfo.AddText(string)
 
-    #string = f'B {bkg:.0f} #pm {errbkg:.0f}'
-    #pinfo2.AddText(string)
-
-    #if bkg > 0:
-    #    ratio = signal/bkg
-    #    string = f'S/B {ratio:.4f}'
-
-    #pinfo2.AddText(string)
-    pinfo2.Draw()
+    pinfo.Draw()
     gStyle.SetOptStat(0)
 
     st = histo.FindObject('stats')
@@ -544,7 +532,7 @@ def fit_hist(
     histo.Write()
     cv.Write()
     
-    return (signal, errsignal, signif, errsignif, mu, muErr, sigma, sigmaErr)
+    return (signal, errsignal)
 
 def rename_df_columns(df):
     rename_dict = {}
@@ -730,8 +718,33 @@ def save_bdt_output_plot(data, pt_range, suffix = ''):
     pinfo.AddText(string)
     pinfo.Draw()
     cv.SetLogy()
-    cv.SaveAs(bdt_score_dir + '/BDT_Score_' + suffix + info_string + '.pdf')
-    #cv.SaveAs(bdt_score_dir + '/BDT_Score_' + suffix + info_string + '_logy.pdf')
+    cv.SaveAs(bdt_score_dir + '/BDT_Score_' + suffix + info_string + '.png')
+
+def save_correlation_matricies(df_list, columns, suffix=''):
+    fig_path = os.environ['FIGURES']
+    bdt_eff_dir = fig_path
+
+    labels = ["Signal", "Background"]
+    
+    for label, df in zip(labels, df_list):
+        hist = ROOT.TH2D("corr_"+label, label+";;", len(columns), 0, len(columns), len(columns), 0, len(columns))
+        corr = df.corr()
+        cv = ROOT.TCanvas("cv", "cv",1600,1600)
+        axis_x = hist.GetXaxis()
+        axis_y = hist.GetYaxis()
+        for col_x in columns:
+            index_x = columns.index(col_x) + 1
+            axis_x.SetBinLabel(index_x, col_x)
+            axis_y.SetBinLabel(index_x, col_x)
+            for col_y in columns:
+                index_y = columns.index(col_y) + 1
+                hist.SetBinContent(index_x, index_y, round(corr.at[col_x, col_y], 3))
+        ROOT.gStyle.SetOptStat(0)
+        hist.Draw("TEXT COLZ")
+        cv.SaveAs(bdt_eff_dir + '/Corr_' + suffix + '_' + label + '.png')
+                
+    
+    return
 
 def save_bdt_efficiency(data, pt_range, suffix=''):
     fig_path = os.environ['FIGURES']
@@ -763,12 +776,13 @@ def save_bdt_efficiency(data, pt_range, suffix=''):
     cv = TCanvas("cv","cv")
     gStyle.SetOptStat(0)
     hist_eff.Draw()
-    cv.SaveAs(bdt_eff_dir + '/Eff_' + suffix + info_string + '.pdf')
+    cv.SaveAs(bdt_eff_dir + '/Eff_' + suffix + info_string + '.png')
     del df
 
 def get_pt_integral(pt_spectra, pt_min = 0, pt_max ="infinity"):
     mass = pt_spectra.GetParameter(1)
     T = pt_spectra.GetParameter(0)
+    
     if pt_max == "infinity":
         int_max = 0
     else:

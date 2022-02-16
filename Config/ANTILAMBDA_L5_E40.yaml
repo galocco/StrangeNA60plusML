@@ -11,7 +11,7 @@ NBINS: 40 #number of bins of the mass histograms
 PT_BINS: [0,0.4,0.6,0.8,1.0,1.2,1.6,2., 2.8] # the analysis is performed in pT bins 
 NEVENTS: 9000000 #number of events simulated in the data
 
-SIG_MODELS: ['d-gauss','kde'] #functions used to fit the mass peak
+SIG_MODELS: ['d-gauss','sub3.5'] #functions used to fit the mass peak
 BKG_MODELS: ['expo','pol1'] #fuctions used to fit the background
 
 EFF_RANGE_SYST: [0.05, 0.05] #efficiency range used for to study the systematic uncertaintes doe to the BDT selection and the fits
@@ -19,6 +19,7 @@ EFF_RANGE_SYST: [0.05, 0.05] #efficiency range used for to study the systematic 
 BDT_EFFICIENCY: [0.60, 1., 0.01] ##min, max ,step  effiency range 
 
 MC_PATH: /media/giacomo/Volume/ML_DATA/ANTILAMBDA_L5_E40/fntSig_ANTILAMBDA_L5_E40.root
+FIT_PATH: /media/giacomo/Volume/ML_DATA/ANTILAMBDA_L5_E40/fntSig_ANTILAMBDA_L5_E40.root
 BKG_PATH: /media/giacomo/Volume/ML_DATA/ANTILAMBDA_L5_E40/fntBkg_ANTILAMBDA_L5_E40_train.root
 DATA_PATH: /media/giacomo/Volume/ML_DATA/ANTILAMBDA_L5_E40/fntBkg_ANTILAMBDA_L5_E40.root
 
@@ -46,9 +47,9 @@ HYPERPARAMS:
   colsample_bytree: 0.64
   seed : 42
 
-HYPERPARAMS_RANGE: #TODO: check if it works without tuples
+HYPERPARAMS_RANGE:
   # booster parameters
-  max_depth: !!python/tuple [5, 20] # defines the maANTILAMBDAmum depth of a single tree (regularization)
+  max_depth: !!python/tuple [5, 20] # defines the maximum depth of a single tree (regularization)
   learning_rate: !!python/tuple [0.01, 0.3] # learning rate
   n_estimators: !!python/tuple [50, 500] # number of boosting trees
   gamma: !!python/tuple [0.3, 1.1] # specifies the minimum loss reduction required to make a split

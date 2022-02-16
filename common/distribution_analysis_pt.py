@@ -11,27 +11,10 @@ import numpy as np
 import yaml
 import plot_utils as pu
 import analysis_utils as au
-from ROOT import (TF1, TH1D, TH2D, TCanvas, TColor, TFile,
-                  TPaveText, gPad, gROOT,
+from ROOT import (TF1, TH1D, TH2D, TCanvas, TFile,
+                  TPaveText, gPad, gROOT, TLine, gStyle,
                   TDatabasePDG)
 import ROOT
-
-kBlueC = TColor.GetColor('#1f78b4')
-kBlueCT = TColor.GetColorTransparent(kBlueC, 0.5)
-kRedC = TColor.GetColor('#e31a1c')
-kRedCT = TColor.GetColorTransparent(kRedC, 0.5)
-kPurpleC = TColor.GetColor('#911eb4')
-kPurpleCT = TColor.GetColorTransparent(kPurpleC, 0.5)
-kOrangeC = TColor.GetColor('#ff7f00')
-kOrangeCT = TColor.GetColorTransparent(kOrangeC, 0.5)
-kGreenC = TColor.GetColor('#33a02c')
-kGreenCT = TColor.GetColorTransparent(kGreenC, 0.5)
-kMagentaC = TColor.GetColor('#f032e6')
-kMagentaCT = TColor.GetColorTransparent(kMagentaC, 0.5)
-kYellowC = TColor.GetColor('#ffe119')
-kYellowCT = TColor.GetColorTransparent(kYellowC, 0.5)
-kBrownC = TColor.GetColor('#b15928')
-kBrownCT = TColor.GetColorTransparent(kBrownC, 0.5)
 
 random.seed(1989)
 
@@ -101,9 +84,8 @@ if SCALE:
 else:
     n_run = NEVENTS
     
-inDirName = '0-5'
 
-h1BDTEff = results_file.Get(f'{inDirName}/BDTeff')
+h1BDTEff = results_file.Get('BDTeff')
 
 best_sig = np.round(np.array(h1BDTEff)[1:-1], 3)
 sig_ranges = []
@@ -120,11 +102,10 @@ ranges = {
         'SCAN': sig_ranges
 }
 
-results_file.cd(inDirName)
-out_dir = distribution.mkdir(inDirName)
-cvDir = out_dir.mkdir("canvas")
+results_file.cd()
+cvDir = distribution.mkdir("canvas")
 
-h1PreselEff = results_file.Get(f'{inDirName}/PreselEff')
+h1PreselEff = results_file.Get('PreselEff')
 
 for i in range(1, h1PreselEff.GetNbinsX() + 1):
     h1PreselEff.SetBinError(i, 0)
@@ -132,9 +113,28 @@ for i in range(1, h1PreselEff.GetNbinsX() + 1):
 h1PreselEff.SetTitle(f';{var} ({unit}); Preselection efficiency')
 h1PreselEff.UseCurrentStyle()
 h1PreselEff.SetMinimum(0)
-out_dir.cd()
+distribution.cd()
 h1PreselEff.Write("h1PreselEff")
 
+h1TotalEff = h1PreselEff.Clone("TotalEff")
+for i in range(1, h1TotalEff.GetNbinsX() + 1):
+    presel_eff = h1TotalEff.GetBinContent(i)
+    bdt_eff = h1BDTEff.GetBinContent(i)
+    h1TotalEff.SetBinContent(i, presel_eff*bdt_eff)
+    h1TotalEff.SetBinError(i, 0)
+
+
+h1TotalEff.SetTitle(f';{var} ({unit}); Preselection efficiency x BDT efficiency')
+h1TotalEff.UseCurrentStyle()
+h1TotalEff.SetMinimum(0)
+
+myCv = TCanvas(f"cv_eff")
+gStyle.SetOptStat(0)
+gPad.SetLeftMargin(0.15)
+h1TotalEff.Draw()
+myCv.SaveAs(resultsSysDir+"/efficiency_"+FILE_PREFIX+".pdf")
+myCv.SaveAs(resultsSysDir+"/efficiency_"+FILE_PREFIX+".png")
+gStyle.SetOptStat(1)
 hRawCounts = []
 raws = []
 errs = []
@@ -152,8 +152,7 @@ for sigmodel in SIG_MODELS:
     for bkgmodel in BKG_MODELS:
 
         for iBin in range(1, h1RawCounts[sigmodel][bkgmodel].GetNbinsX() + 1):
-            h1Counts = results_file.Get(f'{inDirName}/RawCounts{ranges["BEST"][iBin-1]:.3f}_{sigmodel}_{bkgmodel}')
-
+            h1Counts = results_file.Get(f'RawCounts{ranges["BEST"][iBin-1]:.3f}_{sigmodel}_{bkgmodel}')
             h1RawCounts[sigmodel][bkgmodel].SetBinContent(iBin, h1Counts.GetBinContent(iBin) / h1PreselEff.GetBinContent(iBin) / ranges['BEST'][iBin-1] / (MT_BINS_M[iBin]-MT_BINS_M[iBin-1])/ (MT_BINS_M[iBin-1]+MT_BINS_M[iBin])/2 / NEVENTS)
             h1RawCounts[sigmodel][bkgmodel].SetBinError(iBin, h1Counts.GetBinError(iBin) / h1PreselEff.GetBinContent(iBin) / ranges['BEST'][iBin-1] / (MT_BINS_M[iBin]-MT_BINS_M[iBin-1])/ (MT_BINS_M[iBin-1]+MT_BINS_M[iBin])/2 / math.sqrt(NEVENTS*n_run))
             
@@ -164,16 +163,18 @@ for sigmodel in SIG_MODELS:
             errs.append([])
             print(ranges['SCAN'][iBin - 1][0]," ", ranges['SCAN'][iBin - 1][1]," ", ranges['SCAN'][iBin - 1][2])
             for eff in np.arange(ranges['SCAN'][iBin - 1][0], ranges['SCAN'][iBin - 1][1], ranges['SCAN'][iBin - 1][2]):
-                h1Counts = results_file.Get(f'{inDirName}/RawCounts{eff:.3f}_{sigmodel}_{bkgmodel}')
+                if eff == 1.000:
+                    continue
+                h1Counts = results_file.Get(f'RawCounts{eff:.3f}_{sigmodel}_{bkgmodel}')
                # h1Counts.GetBinContent(iBin) / h1PreselEff.GetBinContent(iBin) / ranges['BEST'][iBin-1] / h1RawCountsPt[sigmodel][bkgmodel].GetBinWidth(iBin) / NEVENTS
                 raws[iBin-1].append(h1Counts.GetBinContent(iBin) / h1PreselEff.GetBinContent(iBin) / eff / h1RawCountsPt[sigmodel][bkgmodel].GetBinWidth(iBin)/ NEVENTS)
                 errs[iBin-1].append(h1Counts.GetBinError(iBin) / h1PreselEff.GetBinContent(iBin) / eff / h1RawCountsPt[sigmodel][bkgmodel].GetBinWidth(iBin)/ math.sqrt(NEVENTS*n_run) )
 
 
-        out_dir.cd()
-        h1RawCounts[sigmodel][bkgmodel].Fit(mt_distr, "0RM+", "",MT_BINS[0],MT_BINS[-1])
+        distribution.cd()
+        h1RawCounts[sigmodel][bkgmodel].Fit(mt_distr, "0IRM+", "",MT_BINS[0],MT_BINS[-1])
         fit_function = h1RawCounts[sigmodel][bkgmodel].GetFunction("mt_distr")
-        fit_function.SetLineColor(kOrangeC)
+        fit_function.SetLineColor(ROOT.kOrange)
         h1RawCounts[sigmodel][bkgmodel].Write()
         #hRawCounts.append(h1RawCounts[sigmodel][bkgmodel])
 
@@ -219,7 +220,7 @@ for sigmodel in SIG_MODELS:
         for iBin in range(1, h1RawCounts[sigmodel][bkgmodel].GetNbinsX() + 1):
             val = h1RawCounts[sigmodel][bkgmodel].GetBinContent(iBin)
 
-        out_dir.cd()
+        distribution.cd()
         myCv.Write()
 
         h1RawCounts[sigmodel][bkgmodel].Draw("ex0same")
@@ -231,9 +232,9 @@ for sigmodel in SIG_MODELS:
         ###########################################################################
         #h1RawCounts.UseCurrentStyle()
 
-        h1RawCountsPt[sigmodel][bkgmodel].Fit(pt_distr, "M0R+", "",PT_BINS[0],PT_BINS[-2])
+        h1RawCountsPt[sigmodel][bkgmodel].Fit(pt_distr, "MI0R+", "",PT_BINS[0],PT_BINS[-1])
         fit_function = h1RawCountsPt[sigmodel][bkgmodel].GetFunction("pt_distr")
-        fit_function.SetLineColor(kOrangeC)
+        fit_function.SetLineColor(ROOT.kOrange)
         h1RawCountsPt[sigmodel][bkgmodel].GetXaxis().SetRangeUser(PT_BINS[0],PT_BINS[-1])
         h1RawCountsPt[sigmodel][bkgmodel].Write()
         hRawCounts.append(h1RawCountsPt[sigmodel][bkgmodel])
@@ -282,7 +283,7 @@ for sigmodel in SIG_MODELS:
         for iBin in range(1, h1RawCountsPt[sigmodel][bkgmodel].GetNbinsX() + 1):
             val = h1RawCountsPt[sigmodel][bkgmodel].GetBinContent(iBin)
 
-        out_dir.cd()
+        distribution.cd()
         myCv.Write()
 
         h1RawCountsPt[sigmodel][bkgmodel].Draw("ex0same")
@@ -291,9 +292,9 @@ for sigmodel in SIG_MODELS:
         cvDir.cd()
         myCv.Write()
 
-out_dir.cd()
+distribution.cd()
 
-syst = TH1D("syst", ";T (MeV);Entries", 600, T*0.9*1000, T*1.1*1000)
+syst = TH1D("syst", ";T (MeV);Entries", 100, T*0.98*1000, T*1.02*1000)
 prob = TH1D("prob", ";Fit probability;Entries", 100, 0, 1)
 pars = TH2D("pars", ";T (MeV);Normalisation;Entries", 600, T*0.8*1000, T*1.2*1000, 300, 700000, 3000000)
 tmpCt = hRawCounts[0].Clone("tmpCt")
@@ -314,19 +315,32 @@ for _ in range(size):
     combo = (x for x in comboList)
     if combo in combinations:
         continue
-    pt_distr.SetParameter(0, 1.15104e+03)
+    #pt_distr.SetParameter(0, 1.15104e+03)
     combinations.add(combo)
-    tmpCt.Fit(pt_distr, "QR0+","",PT_BINS[0],PT_BINS[-2])
+    tmpCt.Fit(pt_distr, "QIR0+","",PT_BINS[0],PT_BINS[-2])
     prob.Fill(pt_distr.GetProb())
     syst.Fill(pt_distr.GetParameter(1)*1000)
     pars.Fill(pt_distr.GetParameter(1)*1000, pt_distr.GetParameter(0))
 
 syst.SetFillColor(600)
 syst.SetFillStyle(3345)
+
+print(syst.GetMaximum()*1.2)
+max_counts = syst.GetMaximum()*1.2
+syst.GetYaxis().SetRangeUser(0, max_counts)
 syst.Write()
 prob.Write()
 pars.Write()
 
+myCv = TCanvas(f"cv_syst")
+gPad.SetLeftMargin(0.15)
+syst.Draw()        
+true_value_line = TLine(T*1000, 0, T*1000, max_counts)
+true_value_line.SetLineColor(ROOT.kRed)
+true_value_line.SetLineStyle(7)
+true_value_line.Draw("same")
+myCv.SaveAs(resultsSysDir+"/pT_slope_syst_"+FILE_PREFIX+".pdf")
+myCv.SaveAs(resultsSysDir+"/pT_slope_syst_"+FILE_PREFIX+".png")
 results_file.Close()
 
 print('')

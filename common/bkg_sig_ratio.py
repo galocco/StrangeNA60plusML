@@ -8,7 +8,7 @@ from array import array
 from StrangeNA60plusML.common.run_analysis import NEVENTS
 import numpy as np
 import yaml
-from ROOT import TFile, gROOT, TF1, TH1D, TCanvas
+from ROOT import TFile, gROOT, TF1, TH1D
 
 # avoid pandas warning
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -50,10 +50,8 @@ results_dir = os.environ['RESULTS']
 ###############################################################################
 start_time = time.time()                          # for performances evaluation
 file_name = results_dir+f"/{FILE_PREFIX}/{FILE_PREFIX}_results_fit.root"
-inDirName = '0-5'
 input_file = TFile(file_name)
-h1BDTEff = input_file.Get(f'{inDirName}/BDTeff')
-
+h1BDTEff = input_file.Get(f'BDTeff')
 
 if CUSTOM:
     print("insert custom bdt efficiencies:")
@@ -80,7 +78,7 @@ for model in BKG_MODELS:
     hist_sigma = TH1D(f'hist_sigma_{model}', ';#it{p}_{T} (GeV/#it{c}); #sigma (GeV/#it{c}^{2})',len(PT_BINS)-1,binning)
 
     for index in range(0,len(best_sig_eff)):
-        dir_name = f'{inDirName}/pt_{PT_BINS[index]}{PT_BINS[index+1]}/'
+        dir_name = f'pt_{PT_BINS[index]}{PT_BINS[index+1]}/'
         obj_name = f'eff{best_sig_eff[index]:.3f}'
 
         histo = input_file.Get(dir_name+f'{model}/'+obj_name)
@@ -131,8 +129,8 @@ for model in BKG_MODELS:
         sigmaErr = math.sqrt(sigmaErr1**2+sigmaErr2**2)
         if math.isnan(sigmaErr):
             sigmaErr = 0
-        hist_sig.SetBinContent(index+1, signif/(PT_BINS[index+1]-PT_BINS[index])/math.sqrt(NEVENTS = params['NEVENTS'])
-        hist_sig.SetBinError(index+1, errsignif/(PT_BINS[index+1]-PT_BINS[index])/math.sqrt(NEVENTS = params['NEVENTS'])
+        hist_sig.SetBinContent(index+1, signif/(PT_BINS[index+1]-PT_BINS[index])/math.sqrt(NEVENTS)
+        hist_sig.SetBinError(index+1, errsignif/(PT_BINS[index+1]-PT_BINS[index])/math.sqrt(NEVENTS)
         hist_sigma.SetBinContent(index+1, sigma)
         hist_sigma.SetBinError(index+1, sigmaErr)
         

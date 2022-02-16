@@ -11,27 +11,9 @@ import numpy as np
 import yaml
 import plot_utils as pu
 import analysis_utils as au
-from ROOT import (TF1, TH1D, TH2D, TCanvas, TColor, TFile,
-                  TPaveText, gPad, gROOT,
-                  TDatabasePDG)
+from ROOT import (TF1, TH1D, TCanvas, TFile,
+                  TLine, gPad, gROOT, TDatabasePDG)
 import ROOT
-
-kBlueC = TColor.GetColor('#1f78b4')
-kBlueCT = TColor.GetColorTransparent(kBlueC, 0.5)
-kRedC = TColor.GetColor('#e31a1c')
-kRedCT = TColor.GetColorTransparent(kRedC, 0.5)
-kPurpleC = TColor.GetColor('#911eb4')
-kPurpleCT = TColor.GetColorTransparent(kPurpleC, 0.5)
-kOrangeC = TColor.GetColor('#ff7f00')
-kOrangeCT = TColor.GetColorTransparent(kOrangeC, 0.5)
-kGreenC = TColor.GetColor('#33a02c')
-kGreenCT = TColor.GetColorTransparent(kGreenC, 0.5)
-kMagentaC = TColor.GetColor('#f032e6')
-kMagentaCT = TColor.GetColorTransparent(kMagentaC, 0.5)
-kYellowC = TColor.GetColor('#ffe119')
-kYellowCT = TColor.GetColorTransparent(kYellowC, 0.5)
-kBrownC = TColor.GetColor('#b15928')
-kBrownCT = TColor.GetColorTransparent(kBrownC, 0.5)
 
 random.seed(1989)
 
@@ -88,10 +70,8 @@ if SCALE:
     n_run = rate*running_time*24*60*60*5
 else:
     n_run = NEVENTS
-    
-inDirName = '0-5'
 
-h1BDTEff = results_file.Get(f'{inDirName}/BDTeff')
+h1BDTEff = results_file.Get('BDTeff')
 
 best_sig = np.round(np.array(h1BDTEff)[1:-1], 3)
 sig_ranges = []
@@ -108,10 +88,9 @@ ranges = {
         'SCAN': sig_ranges
 }
 
-results_file.cd(inDirName)
-out_dir = distribution.mkdir(inDirName)
+results_file.cd()
 
-h1PreselEff = results_file.Get(f'{inDirName}/PreselEff')
+h1PreselEff = results_file.Get('PreselEff')
 
 for i in range(1, h1PreselEff.GetNbinsX() + 1):
     h1PreselEff.SetBinError(i, 0)
@@ -119,7 +98,7 @@ for i in range(1, h1PreselEff.GetNbinsX() + 1):
 h1PreselEff.SetTitle(f';{var} ({unit}); Preselection efficiency')
 h1PreselEff.UseCurrentStyle()
 h1PreselEff.SetMinimum(0)
-out_dir.cd()
+distribution.cd()
 h1PreselEff.Write("h1PreselEff")
 
 hRawCounts = []
@@ -134,7 +113,7 @@ h1RawCountsPt = {}
 for sigmodel in SIG_MODELS:
     h1RawCountsPt[sigmodel] = {}
     for bkgmodel in BKG_MODELS:
-        h1RawCountsPt[sigmodel][bkgmodel] = ROOT.TH1D(f"pt_best_{sigmodel}_{bkgmodel}",";#it{p}_{T} [GeV/#it{c}];1/N_{ev}dN/d#it{p}_{T} [(GeV/#it{c})^{-1}]",len(PT_BINS)-1,pt_binning)
+        h1RawCountsPt[sigmodel][bkgmodel] = ROOT.TH1D(f"pt_best_{sigmodel}_{bkgmodel}",";#it{p}_{T} [GeV/#it{c}];Counts/N_{ev} ",len(PT_BINS)-1,pt_binning)
 
 
 pt_distr = TF1("pt_distr", "x*exp(-TMath::Sqrt(x**2+[1]**2)/[0])", PT_BINS[0], PT_BINS[-1])
@@ -148,8 +127,8 @@ for sigmodel in SIG_MODELS:
     for bkgmodel in BKG_MODELS:
 
         for iBin in range(1, h1RawCountsPt[sigmodel][bkgmodel].GetNbinsX() + 1):
-            h1Counts = results_file.Get(f'{inDirName}/RawCounts{ranges["BEST"][iBin-1]:.3f}_{sigmodel}_{bkgmodel}')
-            #print(f'{inDirName}/RawCounts{ranges["BEST"][iBin-1]:.3f}_{sigmodel}_{bkgmodel}')
+            h1Counts = results_file.Get(f'RawCounts{ranges["BEST"][iBin-1]:.3f}_{sigmodel}_{bkgmodel}')
+            #print('RawCounts{ranges["BEST"][iBin-1]:.3f}_{sigmodel}_{bkgmodel}')
             h1RawCountsPt[sigmodel][bkgmodel].SetBinContent(iBin, h1Counts.GetBinContent(iBin) / h1PreselEff.GetBinContent(iBin) / ranges['BEST'][iBin-1]/ NEVENTS)
             h1RawCountsPt[sigmodel][bkgmodel].SetBinError(iBin, h1Counts.GetBinError(iBin) / h1PreselEff.GetBinContent(iBin) / ranges['BEST'][iBin-1]/ math.sqrt(NEVENTS*n_run))
             
@@ -157,17 +136,17 @@ for sigmodel in SIG_MODELS:
             errs.append([])
 
             for eff in np.arange(ranges['SCAN'][iBin - 1][0], ranges['SCAN'][iBin - 1][1], ranges['SCAN'][iBin - 1][2]):
-                h1Counts = results_file.Get(f'{inDirName}/RawCounts{eff:.3f}_{sigmodel}_{bkgmodel}')
+                h1Counts = results_file.Get(f'RawCounts{eff:.3f}_{sigmodel}_{bkgmodel}')
                 raws[iBin-1].append(h1Counts.GetBinContent(iBin) / h1PreselEff.GetBinContent(iBin) / eff/ NEVENTS)
                 errs[iBin-1].append(h1Counts.GetBinError(iBin) / h1PreselEff.GetBinContent(iBin) / eff/ math.sqrt(NEVENTS*n_run) )
 
 
-        out_dir.cd()
+        distribution.cd()
 
         ###########################################################################
         #h1RawCounts.UseCurrentStyle()
 
-        h1RawCountsPt[sigmodel][bkgmodel].GetXaxis().SetRangeUser(0,2.75)
+        h1RawCountsPt[sigmodel][bkgmodel].GetXaxis().SetRangeUser(PT_BINS[0], PT_BINS[-1])
         h1RawCountsPt[sigmodel][bkgmodel].Write()
         hRawCounts.append(h1RawCountsPt[sigmodel][bkgmodel])
 
@@ -205,14 +184,17 @@ for sigmodel in SIG_MODELS:
         for iBin in range(1, h1RawCountsPt[sigmodel][bkgmodel].GetNbinsX() + 1):
             val = h1RawCountsPt[sigmodel][bkgmodel].GetBinContent(iBin)
 
-out_dir.cd()
-
-syst = TH1D("syst", ";Yield;Entries", 800, MULTIPLICITY*0.6, MULTIPLICITY*1.4)
+distribution.cd()
+if PDG_CODE == 3334:
+    syst = TH1D("syst", ";Yield;Entries", 1000, MULTIPLICITY*0.5, MULTIPLICITY*4)
+else:
+    syst = TH1D("syst", ";Yield;Entries", 100, MULTIPLICITY*0.98, MULTIPLICITY*1.02)
 tmpCt = hRawCounts[0].Clone("tmpCt")
 
 combinations = set()
 size = 10000
 count=0
+
 for _ in range(size):
     tmpCt.Reset()
     comboList = []
@@ -233,8 +215,19 @@ for _ in range(size):
 
 syst.SetFillColor(600)
 syst.SetFillStyle(3345)
+print(syst.GetMaximum()*1.2)
+max_counts = syst.GetMaximum()*1.2
+syst.GetYaxis().SetRangeUser(0, max_counts)
 syst.Write()
-
+myCv = TCanvas(f"cv_syst")
+gPad.SetLeftMargin(0.15)
+syst.Draw()        
+true_value_line = TLine(MULTIPLICITY, 0, MULTIPLICITY, max_counts)
+true_value_line.SetLineColor(ROOT.kRed)
+true_value_line.SetLineStyle(7)
+true_value_line.Draw("same")
+myCv.SaveAs(resultsSysDir+"/yield_syst_"+FILE_PREFIX+".pdf")
+myCv.SaveAs(resultsSysDir+"/yield_syst_"+FILE_PREFIX+".png")
 results_file.Close()
 
 print('')

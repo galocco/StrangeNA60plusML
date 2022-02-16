@@ -19,10 +19,11 @@ EFF_RANGE_SYST: [0.05, 0.05]
 BDT_EFFICIENCY: [0.70, 1., 0.01] ##min, max ,step
 
 MC_PATH: /media/giacomo/Volume/ML_DATA/XI_L5_E40/fntSig_XI_L5_E40.root
+FIT_PATH: /media/giacomo/Volume/ML_DATA/XI_L5_E40/fntSig_XI_L5_E40.root
 BKG_PATH: /media/giacomo/Volume/ML_DATA/XI_L5_E40/fntBkg_XI_L5_E40_train.root
 DATA_PATH: /media/giacomo/Volume/ML_DATA/XI_L5_E40/fntBkg_XI_L5_E40.root
 
-PRESELECTION: cosp > 0.9999 and pt<2.5
+PRESELECTION: cosp > 0.99999 and dist > 2 and pt<2.5
 STD_SELECTION: pt<3 and dist > 5 and cosp > 0.999988 and dcaD < 0.007 and dca<0.015 and cospD > 0.999
 
 
@@ -46,7 +47,7 @@ HYPERPARAMS:
   colsample_bytree: 0.64
   seed : 42
 
-HYPERPARAMS_RANGE: #TODO: check if it works without tuples
+HYPERPARAMS_RANGE:
   # booster parameters
   max_depth: !!python/tuple [5, 20] # defines the maximum depth of a single tree (regularization)
   learning_rate: !!python/tuple [0.01, 0.3] # learning rate

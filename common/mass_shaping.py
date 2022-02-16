@@ -46,10 +46,11 @@ PRESELECTION = params['PRESELECTION']
 EFF_MIN, EFF_MAX, EFF_STEP = params['BDT_EFFICIENCY']
 FIX_EFF_ARRAY = np.arange(EFF_MIN, EFF_MAX, EFF_STEP)
 
+NBINS = params['NBINS']
 ###############################################################################
 # define paths for loading data
 
-data_path = os.path.expandvars(params['BKG_PATH'])
+data_path = os.path.expandvars(params['DATA_PATH'])
 mc_path = os.path.expandvars(params['MC_PATH'])
 NEVENTS = params["NEVENTS"]
 handlers_path = '../Models/handlers'
@@ -64,16 +65,15 @@ results_file.cd()
 
 mass = TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
 
-hnsparse_bkg = au.get_skimmed_large_data_hsp(mass, data_path, PT_BINS, COLUMNS, FILE_PREFIX, PRESELECTION + " and true < 0.5", MASS_WINDOW)
+hnsparse_bkg = au.get_skimmed_large_data_hsp(mass, data_path, PT_BINS, COLUMNS, FILE_PREFIX, PRESELECTION + " and true < 0.5", MASS_WINDOW, NBINS)
 ml_application_bkg = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, NEVENTS, hnsparse_bkg)
 
-#hnsparse_sig = au.get_skimmed_large_data_hsp(mass, mc_path, PT_BINS, COLUMNS, FILE_PREFIX, PRESELECTION, MASS_WINDOW)
-#ml_application_sig = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, NEVENTS, hnsparse_sig)
+hnsparse_sig = au.get_skimmed_large_data_hsp(mass, mc_path, PT_BINS, COLUMNS, FILE_PREFIX, PRESELECTION, MASS_WINDOW, NBINS)
+ml_application_sig = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, NEVENTS, hnsparse_sig)
 
 shift_bin = 1
 eff_index=0
 histo_split = []
-cent_dir_histos = results_file.mkdir('0-5')
 for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
     # data[0]=train_set, data[1]=y_train, data[2]=test_set, data[3]=y_test
 
@@ -88,7 +88,7 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
     eff_score_array, model_handler = ml_application_bkg.load_ML_analysis(ptbin, FILE_PREFIX)
     mass_bins = 40
     # define subdir for saving invariant mass histograms
-    sub_dir_histos = cent_dir_histos.mkdir(f'pt_{ptbin[0]}{ptbin[1]}')
+    sub_dir_histos = results_file.mkdir(f'pt_{ptbin[0]}{ptbin[1]}')
     sub_dir_histos.cd()
     sig_dir_histos = sub_dir_histos.mkdir('sig')
     bkg_dir_histos = sub_dir_histos.mkdir('bkg')
@@ -100,9 +100,9 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
         hbkg_sel = au.h1_from_sparse(hnsparse_bkg, ptbin, tsd, name=histo_name)
         hbkg_sel.Write()
         
-        #sig_dir_histos.cd()
-        #histo_name = f"eff{eff:.3f}"
-        #hsig_sel = au.h1_from_sparse(hnsparse_sig, ptbin, tsd, name=histo_name)
-        #hsig_sel.Write()
+        sig_dir_histos.cd()
+        histo_name = f"eff{eff:.3f}"
+        hsig_sel = au.h1_from_sparse(hnsparse_sig, ptbin, tsd, name=histo_name)
+        hsig_sel.Write()
             
 results_file.Close()

@@ -2,6 +2,7 @@
 import argparse
 
 from numpy import array
+from plot_utils import get_decimal
 import uproot
 import ROOT
 import os
@@ -13,8 +14,11 @@ from array import array
 # TODO: 
 #################################################
 
-
-
+def get_entries(th1):
+    counts = 0
+    for i in range(1,th1.GetNbinsX()+1):
+        counts+=th1.GetBinContent(i)
+    return counts
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-dg', '--dgauss', help='Fit with two gaussians', action='store_true')
@@ -88,19 +92,35 @@ pt_distr.SetParameter(1, T)
 pt_distr.SetParLimits(1, T*0.8, T*1.2)
 pt_distr.FixParameter(2, mass)
 
+pt_distr_gen = ROOT.TF1("pt_distr_gen", "x*exp(-TMath::Sqrt(x**2+[1]**2)/[0])", 0, 20)
+
+pt_distr_gen.FixParameter(0, T)
+pt_distr_gen.FixParameter(1, mass)
+
 #################################################
 # loop over the pT bins to extract the signal
 #################################################
 
+
 for bin in range(1, hist_data.GetNbinsX()*REBIN):
     
     fit_tpl = ROOT.TF1("fit_tpl", "pol1(0)+TMath::Voigt(x-[3],[4],[5])*[2]", MASS_MIN, MASS_MAX)
+    sig_tpl = ROOT.TF1("sig_tpl", "TMath::Voigt(x-[1],[2],[3])*[0]", MASS_MIN, MASS_MAX)
+    bkg_tpl = ROOT.TF1("bkg_tpl", "[0]+[1]*x", MASS_MIN, MASS_MAX)
     if dgauss:
         fit_tpl = ROOT.TF1("fit_tpl","gausn(2)+gausn(5)+pol1(0)", MASS_MIN, MASS_MAX)
 
-    lifetime = ROOT.TDatabasePDG.Instance().GetParticle(333).Lifetime()
-    fit_tpl.FixParameter(5,ROOT.TMath.Hbar()*6.242*ROOT.TMath.Power(10,9)/lifetime)
+    lifetime = ROOT.TDatabasePDG.Instance().GetParticle(PDG_CODE).Lifetime()
+
+    fit_tpl.FixParameter(5, ROOT.TMath.Hbar()*6.242*ROOT.TMath.Power(10,9)/lifetime)
+    sig_tpl.FixParameter(3, ROOT.TMath.Hbar()*6.242*ROOT.TMath.Power(10,9)/lifetime)
+
+    sig_tpl.SetParameter(1, mass)
+    sig_tpl.SetParLimits(1, mass-0.0003,mass+0.0003)
+
     fit_tpl.SetNpx(600)
+    sig_tpl.SetNpx(600)
+    bkg_tpl.SetNpx(600)
 
     fit_bkg = ROOT.TF1("fit_bkg","pol1(0)",MASS_MIN,MASS_MAX)
     fit_bkg.SetLineColor(ROOT.kBlue)
@@ -112,16 +132,41 @@ for bin in range(1, hist_data.GetNbinsX()*REBIN):
     proj_data.SetMarkerStyle(20)
     proj_data_sig = hist_data_sig.ProjectionY(f'{hist_data_sig.GetName()}_pt_{ptbin_lw:.1f}_{ptbin_up:.1f}', (bin-1)*REBIN+1, bin*REBIN)
     proj_data_sig.SetMarkerStyle(20)
+    sig_counts = proj_data_sig.GetEntries()
+    #sig_tpl.SetParameter(0, sig_counts*proj_data_sig.GetBinWidth(1))
+    #sig_tpl.SetParLimits(0, (sig_counts-10)*proj_data_sig.GetBinWidth(1), (sig_counts+10)*proj_data_sig.GetBinWidth(1))
+    proj_data_sig.Fit("sig_tpl","MIR0","", MASS_MIN, MASS_MAX)
+    proj_data_sig.Fit("sig_tpl","MIR","", MASS_MIN, MASS_MAX)
     dir_sig.cd()
     proj_data_sig.Write()
     # save the exact generated signal particles for further checks
     if bin<=hist_raw_mc.GetNbinsX():
-        hist_raw_mc.SetBinContent(bin, proj_data_sig.GetEntries())
-        hist_raw_mc.SetBinError(bin, ROOT.TMath.Sqrt(proj_data_sig.GetEntries()))
+        entries = get_entries(proj_data_sig)
+        hist_raw_mc.SetBinContent(bin, entries)
+        hist_raw_mc.SetBinError(bin, ROOT.TMath.Sqrt(entries))
     
 
     proj_data_bkg = hist_data_bkg.ProjectionY(f'{hist_data_bkg.GetName()}_pt_{ptbin_lw:.1f}_{ptbin_up:.1f}', (bin-1)*REBIN+1, bin*REBIN)
     proj_data_bkg.SetMarkerStyle(20)
+
+    x0 = proj_data_bkg.GetBinCenter(2)
+    x1 = proj_data_bkg.GetBinCenter(proj_data_bkg.GetNbinsX()-1)
+    y0 = proj_data_bkg.GetBinContent(2)
+    y1 = proj_data_bkg.GetBinContent(proj_data_bkg.GetNbinsX()-1)
+
+    c = (y0*x1-x0*y1)/(x1-x0)
+    m = (y1-y0)/(x1-x0)
+    print("y = mx + c")
+    print("m = ",m)
+    print("c = ",c)
+    bkg_tpl.SetParameter(0, -1000)
+    bkg_tpl.SetParameter(1, 1000)
+    bkg_tpl.SetParLimits(0, -5e3, 5e3)
+    bkg_tpl.SetParLimits(1, -5e3, 5e3)
+
+    proj_data_bkg.Fit("bkg_tpl","R","", MASS_MIN, MASS_MAX)
+    proj_data_bkg.Fit("bkg_tpl","MR","", MASS_MIN, MASS_MAX)
+    
     proj_mix = hist_mix.ProjectionY(f'{hist_mix.GetName()}_pt_{ptbin_lw:.1f}_{ptbin_up:.1f}', (bin-1)*REBIN+1, bin*REBIN)
     proj_mix.SetMarkerStyle(20)
 
@@ -205,7 +250,7 @@ for bin in range(1, hist_data.GetNbinsX()*REBIN):
 
     dir_sub.cd()
     proj_sub.GetXaxis().SetRangeUser(range_min, range_max)
-
+    print("prefit of the background")
     # set the parameters for the inv-mass fit function
     if dgauss:
         fit_tpl.SetParameter(3, mass)
@@ -217,16 +262,17 @@ for bin in range(1, hist_data.GetNbinsX()*REBIN):
         fit_tpl.SetParLimits(4, 0.001,0.004)
         fit_tpl.SetParLimits(7, 0.001,0.004)
     else:
-        fit_tpl.SetParameter(0, -1.47832e+03)
-        fit_tpl.SetParameter(1, 1.82557e+03)
-        fit_tpl.SetParameter(2, 2000)
-        #fit_tpl.SetParLimits(2, 10,7000)
-        fit_tpl.SetParameter(3, mass)
-        fit_tpl.SetParLimits(3, mass-0.001,mass+0.001)
-        fit_tpl.SetParameter(4, 0.0012)
-        fit_tpl.SetParLimits(4, 0.00085,0.002)
+        #fit_tpl.SetParameter(0, bkg_tpl.GetParameter(0))
+        #fit_tpl.SetParameter(1, bkg_tpl.GetParameter(1))
+        fit_tpl.SetParameter(2, sig_tpl.GetParameter(0))
+        fit_tpl.SetParLimits(2, sig_tpl.GetParameter(0)-10, sig_tpl.GetParameter(0)+10)
+        fit_tpl.SetParameter(3, sig_tpl.GetParameter(1))
+        fit_tpl.SetParLimits(3, sig_tpl.GetParameter(1)-0.001,sig_tpl.GetParameter(1)+0.001)
+        fit_tpl.SetParameter(4, sig_tpl.GetParameter(2))
+        fit_tpl.SetParLimits(4, sig_tpl.GetParameter(2)*0.98,sig_tpl.GetParameter(2)*1.02)
 
-    proj_sub.Fit("fit_tpl","MIRQ+","", MASS_MIN, MASS_MAX)
+    print("sig+bkg fit")
+    proj_sub.Fit("fit_tpl","MIR+","", MASS_MIN, MASS_MAX)
     proj_sub.GetYaxis().SetRangeUser(range_min_y, range_max_y)
 
     proj_sub.SetMarkerStyle(20)
@@ -242,8 +288,8 @@ for bin in range(1, hist_data.GetNbinsX()*REBIN):
             hist_raw.SetBinContent(bin, fit_tpl.GetParameter(2)/proj_sub.GetBinWidth(1))
             hist_raw.SetBinError(bin, fit_tpl.GetParError(2)/proj_sub.GetBinWidth(1))
         else:
-            hist_raw.SetBinContent(bin, (fit_tpl.GetParameter(2)+fit_tpl.GetParameter(5)))
-            hist_raw.SetBinError(bin, ROOT.TMath.Sqrt(fit_tpl.GetParError(2)**2+fit_tpl.GetParError(5)**2))
+            hist_raw.SetBinContent(bin, (fit_tpl.GetParameter(2)+fit_tpl.GetParameter(5))/proj_sub.GetBinWidth(1))
+            hist_raw.SetBinError(bin, ROOT.TMath.Sqrt(fit_tpl.GetParError(2)**2+fit_tpl.GetParError(5)**2)/proj_sub.GetBinWidth(1))
         hist_count = 0
 
         for i in range(1, proj_sub.GetNbinsX()+1):
@@ -380,7 +426,7 @@ proj_sub_int.GetYaxis().SetRangeUser(range_min_y, range_max_y)
 proj_sub_int.SetTitle(';m (GeV/#it{c}^{2});')
 proj_sub_int.GetYaxis().SetTitle(f'Counts/{1000*proj_sub_int.GetBinWidth(1):.2f}'+' MeV/#it{c}^{2}')
 proj_sub_int.SetMarkerStyle(20)
-proj_sub_int.Fit(fit_tpl,"MR+","", MASS_MIN, MASS_MAX)
+proj_sub_int.Fit(fit_tpl,"IMR+","", MASS_MIN, MASS_MAX)
 
 fit_bkg.SetParameter(0, fit_tpl.GetParameter(0))
 fit_bkg.SetParameter(1, fit_tpl.GetParameter(1))
@@ -495,9 +541,9 @@ for index, row in df_rec.iterrows():
 
 mult = 0
 err_mult = 0
-pt_range_factor = 1 #au.get_pt_integral(pt_distr, PT_BINS[0],PT_BINS[-1])/au.get_pt_integral(pt_distr)
+pt_range_factor = au.get_pt_integral(pt_distr_gen, 0.2,2.0)/au.get_pt_integral(pt_distr_gen)
 hist_eff.Write()
-for bin_pro in range(1, hist_pt.GetNbinsX()+1):
+for bin_pro in range(1, 12+1):
     eff = hist_eff.GetBinContent(bin_pro)
     if eff==0:
         eff = 1
@@ -506,11 +552,12 @@ for bin_pro in range(1, hist_pt.GetNbinsX()+1):
     hist_pt.SetBinContent(bin_pro, counts/hist_pt.GetBinWidth(bin_pro)/eff)
     hist_pt.SetBinError(bin_pro, err/hist_pt.GetBinWidth(bin_pro)/eff)
     mult += counts/eff
-    err_mult += err**2/eff
+    err_mult += (err/eff)**2
 
 err_mult = ROOT.TMath.Sqrt(err_mult)/BRATIO/pt_range_factor
-mult /= BRATIO
-mult /= pt_range_factor
+mult /= BRATIO*pt_range_factor
+#if err_mult == 0:
+#err_mult = 1
 
 print("**************************************************")
 print("multiplicity: ", mult," +- ",err_mult)
@@ -518,7 +565,8 @@ print("multiplicity gen: ", MULTIPLICITY)
 print("z_gauss: ", (MULTIPLICITY-mult)/err_mult)
 print("**************************************************")
 
-hist_pt.Fit("pt_distr","IMR+","",0.2,2.3)
+hist_pt.Fit("pt_distr","IMR0","",0.2,2.0)
+hist_pt.Fit("pt_distr","IMR+","",0.2,2.0)
 cv = ROOT.TCanvas("cv","cv")
 pinfo = ROOT.TPaveText(0.5, 0.65, 0.88, 0.86, "NDC")
 pinfo.SetBorderSize(0)
@@ -530,11 +578,15 @@ pinfo.AddText(f'T = {pt_distr.GetParameter(1)*1000:.1f} #pm {pt_distr.GetParErro
 pinfo.AddText('T_{gen} = 244.6 MeV')
 hist_pt.SetMarkerStyle(20)
 hist_pt.SetMarkerColor(ROOT.kBlue)
+hist_pt.GetXaxis().SetRangeUser(0.2,2.0)
 hist_pt.Draw("e")
 pinfo.Draw()
 cv.Write()
 cv.SaveAs(results_path+"/pt_"+suffix+".png")
 cv.SaveAs(results_path+"/pt_"+suffix+".pdf")
+cv.SetLogy()
+cv.SaveAs(results_path+"/pt_"+suffix+"_logy.png")
+cv.SaveAs(results_path+"/pt_"+suffix+"_logy.pdf")
 
 scale_factor = ROOT.TMath.Sqrt(nev/full_run)
 hist_pt_scaled = hist_pt.Clone("hist_pt_scaled")
@@ -543,21 +595,22 @@ for bin_pro in range(1, hist_pt_mc.GetNbinsX()+1):
     if bin_pro < 3 or bin_pro > 23:
         hist_pt_scaled.SetBinContent(bin_pro, 0)
         hist_pt_scaled.SetBinError(bin_pro, 0)
-        
+
 
 #################################################
 # produce the expected pT spectra after one month
 # of data taking
 #################################################
 
-hist_pt_scaled.Fit("pt_distr","IMR+","",0.2,2.3)
+hist_pt_scaled.Fit("pt_distr","IMR+","",0.2,2.0)
 
 for bin_pro in range(1, hist_pt_mc.GetNbinsX()+1):
     hist_pt_scaled.SetBinContent(bin_pro, pt_distr.Eval(hist_pt_scaled.GetBinCenter(bin_pro)))
     if bin_pro < 3 or bin_pro > 23:
         hist_pt_scaled.SetBinContent(bin_pro, 0)
         hist_pt_scaled.SetBinError(bin_pro, 0)
-hist_pt_scaled.GetXaxis().SetRangeUser(0.2,2.3)
+
+hist_pt_scaled.GetXaxis().SetRangeUser(0.2,2.0)
 cv_scaled = ROOT.TCanvas("cv_scaled","cv_scaled")
 pinfo_scaled = ROOT.TPaveText(0.5, 0.65, 0.88, 0.86, "NDC")
 pinfo_scaled.SetBorderSize(0)
@@ -581,16 +634,32 @@ hist_pt_scaled.Write()
 #################################################
 # exact generated pT distribution 
 #################################################
+err_mult = 0
+mult = 0
 
+pt_range_factor = au.get_pt_integral(pt_distr_gen, 0.0,3.0)/au.get_pt_integral(pt_distr_gen)
 for bin_pro in range(1, hist_pt_mc.GetNbinsX()+1):
     eff = hist_eff.GetBinContent(bin_pro)
     if eff==0 :
         eff = 1
-    counts = hist_raw_mc.GetBinContent(bin_pro)/hist_pt_mc.GetBinWidth(bin_pro)/nev
-    err = hist_raw_mc.GetBinError(bin_pro)/hist_pt_mc.GetBinWidth(bin_pro)/nev
-    hist_pt_mc.SetBinContent(bin_pro, counts/eff)
-    hist_pt_mc.SetBinError(bin_pro, err/eff)
+    counts = hist_raw_mc.GetBinContent(bin_pro)/nev
+    err = hist_raw_mc.GetBinError(bin_pro)/nev
+    hist_pt_mc.SetBinContent(bin_pro, counts/hist_pt_mc.GetBinWidth(bin_pro)/eff)
+    hist_pt_mc.SetBinError(bin_pro, err/hist_pt_mc.GetBinWidth(bin_pro)/eff)
+ 
+    mult += counts/eff/BRATIO/pt_range_factor
+    err_mult += (err/eff)**2
+    print("mult(",bin_pro,"): ",mult)
+    print("counts(",bin_pro,"): ",counts/eff/BRATIO/pt_range_factor)
 
+err_mult = ROOT.TMath.Sqrt(err_mult)/BRATIO/pt_range_factor
+#mult /= BRATIO*pt_range_factor
+print("**************************************************")
+print("TEST MC")
+print("multiplicity: ", mult," +- ",err_mult)
+print("multiplicity gen: ", MULTIPLICITY)
+print("z_gauss: ", (MULTIPLICITY-mult)/err_mult)
+print("**************************************************")
 hist_pt_mc.Fit("pt_distr","IR+","",0.,3.0)
 cv_mc = ROOT.TCanvas("cv_mc","cv_mc")
 pinfo_mc = ROOT.TPaveText(0.5, 0.65, 0.88, 0.86, "NDC")
@@ -622,9 +691,10 @@ for bin in range(1, hist_shift.GetNbinsX()+1):
 hist_shift.Write()
 hist2d_shift.Write()
 hist_mass.Write()
-fit_mass = ROOT.TF1("fit_mass","pol0",0.2,2.3)
+fit_mass = ROOT.TF1("fit_mass","pol0",0.2,2.0)
 hist_mass_corr.Fit(fit_mass,"MR+")
 cv_mass = ROOT.TCanvas("cv_mass","cv_mass")
+ROOT.gPad.SetLeftMargin(0.15)
 pinfo_mass = ROOT.TPaveText(0.5, 0.65, 0.88, 0.86, "NDC")
 pinfo_mass.SetBorderSize(0)
 pinfo_mass.SetFillStyle(0)
@@ -635,10 +705,48 @@ pinfo_mass.AddText(f'm = {fit_mass.GetParameter(0):.5f} #pm {fit_mass.GetParErro
 pinfo_mass.AddText('m_{gen} = '+f'{mass} MeV')
 hist_mass_corr.SetMarkerStyle(20)
 hist_mass_corr.SetMarkerColor(ROOT.kBlue)
+hist_mass_corr.GetXaxis().SetRangeUser(0.2,2.0)
+hist_min_val = hist_mass_corr.GetBinContent(2)-2*hist_mass_corr.GetBinError(2)
+hist_max_val = hist_mass_corr.GetBinContent(2)+3*hist_mass_corr.GetBinError(2)
+for iBin in range(2, 12):#hist_mass_corr.GetNbinsX()):
+    tmp_min = hist_mass_corr.GetBinContent(iBin)-2*hist_mass_corr.GetBinError(iBin)
+    tmp_max = hist_mass_corr.GetBinContent(iBin)+3*hist_mass_corr.GetBinError(iBin)
+    
+    print("tmp_max(",iBin,"): ",tmp_max)
+    print("tmp_min(",iBin,"): ",tmp_min)
+    if tmp_max > hist_max_val:
+        hist_max_val = tmp_max
+    if tmp_min < hist_min_val:
+        hist_min_val = tmp_min
+hist_mass_corr.GetYaxis().SetRangeUser(hist_min_val,hist_max_val)
 hist_mass_corr.Draw("e")
+
+merr_box = ROOT.TBox(0.2, fit_mass.GetParameter(0)-fit_mass.GetParError(0), 2.0, fit_mass.GetParameter(0)+fit_mass.GetParError(0))
+#merr_box.SetLineStyle(7)
+merr_box.SetLineWidth(1)
+merr_box.SetLineColor(ROOT.kRed)
+merr_box.SetFillColor(ROOT.kOrange)
+merr_box.SetFillStyle(3004)
+merr_box.Draw("same")
+
+mgen_line = ROOT.TLine(0.2, mass, 2.0, mass)
+mgen_line.SetLineStyle(7)
+mgen_line.SetLineColor(ROOT.kBlue)
+mgen_line.Draw("same")
+
+
+leg = ROOT.TLegend(0.2,0.2,.65,0.45)
+leg.SetFillStyle(0)
+leg.SetMargin(0.2) #separation symbol-text
+leg.SetBorderSize(0)
+leg.SetTextSize(0.025)
+leg.AddEntry(mgen_line, "PDG value", "l")
+leg.AddEntry(merr_box, "Measured mass", "fl")
+leg.Draw()
 pinfo_mass.Draw()
 cv_mass.Write()
-cv_mass.SaveAs(results_path+"/mass_"+suffix+".pdf")
+cv_mass.SaveAs(results_path+"/mass_values_"+suffix+".pdf")
+cv_mass.SaveAs(results_path+"/mass_values_"+suffix+".png")
 hist_mass_corr.Write()
 
 for bin in range(1, hist_shift.GetNbinsX()+1):
@@ -660,6 +768,7 @@ hist_mass_corr.Draw("e")
 pinfo_mass_scaled.Draw()
 cv_mass_scaled.Write()
 cv_mass_scaled.SaveAs(results_path+"/mass_"+suffix+"_scaled.pdf")
+cv_mass_scaled.SaveAs(results_path+"/mass_"+suffix+"_scaled.png")
 hist_mass_corr.Write()
 output.Close()
 

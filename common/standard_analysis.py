@@ -70,7 +70,7 @@ mc_file_name = params['MC_PATH']
 
 if TEST:
     file_name = results_dir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_sig_only_results.root'
-    STD_SELECTION = "pt < 3"
+    STD_SELECTION = params['STD_SELECTION']
 else:
     file_name = results_dir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_std_results.root'
     STD_SELECTION = params['STD_SELECTION']
@@ -81,20 +81,50 @@ mc_fit_file = TFile(mc_fit_file_name,"read")
 results_file = TFile(file_name, 'recreate')
 binning = array("d", PT_BINS)
 
-h1PreselEff = ROOT.TH1D("PreselEff",";#it{p}_{T} (GeV/#it{c}); efficiency",len(binning)-1,binning)
+h1PreselEff = ROOT.TH1D("PreselEff","Total efficiency;#it{p}_{T} (GeV/#it{c}); efficiency",len(binning)-1,binning)
+h1SelectEff = ROOT.TH1D("SelectEff","Rec x Acc;#it{p}_{T} (GeV/#it{c}); efficiency",len(binning)-1,binning)
+h1AfterEff = ROOT.TH1D("AfterEff","Selection efficiency;#it{p}_{T} (GeV/#it{c}); efficiency",len(binning)-1,binning)
 h1Gen = ROOT.TH1D("h1Gen",";#it{p}_{T} (GeV/#it{c}); efficiency",len(binning)-1,binning)
-df_rec = uproot.open(mc_file_name)['ntcand'].arrays(library="pd").query(STD_SELECTION)
+
+df_rec = uproot.open(mc_file_name)['ntcand'].arrays(library="pd")
+for pt in df_rec['pt']:
+    h1SelectEff.Fill(pt)
+
+df_rec = df_rec.query(STD_SELECTION)
+#df_rec = df_rec.query("pt > 0.9 and pt < 10")
 for pt in df_rec['pt']:
     h1PreselEff.Fill(pt)
+    h1AfterEff.Fill(pt)
 
 del df_rec
-df_gen = uproot.open(mc_file_name)['ntgen'].arrays(library="pd").query(STD_SELECTION)
+df_gen = uproot.open(mc_file_name)['ntgen'].arrays(library="pd")
 
 for pt in df_gen['pt']:
     h1Gen.Fill(pt)
 
-h1PreselEff.Divide(h1Gen)
+for iBin in range(1, len(binning)):
+    counts_num = h1PreselEff.GetBinContent(iBin)
+    counts_den = h1Gen.GetBinContent(iBin)
+    eff = counts_num/counts_den
+    h1PreselEff.SetBinContent(iBin, eff)
+    h1PreselEff.SetBinError(iBin, ROOT.TMath.Sqrt(eff*(1-eff)/counts_den))
+
+    counts_num = h1AfterEff.GetBinContent(iBin)
+    counts_den = h1SelectEff.GetBinContent(iBin)
+    eff = counts_num/counts_den
+    h1AfterEff.SetBinContent(iBin, eff)
+    h1AfterEff.SetBinError(iBin, ROOT.TMath.Sqrt(eff*(1-eff)/counts_den))
+
+    counts_num = h1SelectEff.GetBinContent(iBin)
+    counts_den = h1Gen.GetBinContent(iBin)
+    eff = counts_num/counts_den
+    h1SelectEff.SetBinContent(iBin, eff)
+    h1SelectEff.SetBinError(iBin, ROOT.TMath.Sqrt(eff*(1-eff)/counts_den))
+
+h1AfterEff.Write()
 h1PreselEff.Write()
+h1SelectEff.Write()
+
 del df_gen
 
 if TEST:
@@ -106,16 +136,19 @@ mass = TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
 pt_distr_gen = TF1("pt_distr_gen", "x*exp(-TMath::Sqrt(x**2+[1]**2)/[0])",PT_BINS[0],10)
 pt_distr_gen.FixParameter(0,T)
 pt_distr_gen.FixParameter(1,mass)
-pt_range_factor = au.get_pt_integral(pt_distr_gen, PT_BINS[0],PT_BINS[-1])/au.get_pt_integral(pt_distr_gen)
+print(PT_BINS[0]," - ", PT_BINS[-1])
+print(au.get_pt_integral(pt_distr_gen, 0, PT_BINS[0]))
+print(au.get_pt_integral(pt_distr_gen, PT_BINS[0], PT_BINS[-1]))
+print(au.get_pt_integral(pt_distr_gen))
+pt_range_factor = au.get_pt_integral(pt_distr_gen, PT_BINS[0], PT_BINS[-1])/au.get_pt_integral(pt_distr_gen)
 
 ###############################################################################
 # define paths for loading data
 if TEST:
-    data_path = os.path.expandvars(params['BKG_PATH'])
-    NEVENTS =1000000#params['NEVENTS']
+    data_path = os.path.expandvars(params['DATA_PATH'])
 else:
     data_path = os.path.expandvars(params['DATA_PATH'])
-    NEVENTS = params['NEVENTS']
+NEVENTS = params['NEVENTS']
 BKG_MODELS = params['BKG_MODELS']
 
 
@@ -130,8 +163,6 @@ if SCALE:
     n_run = rate*running_time*24*60*60*5
 else:
     n_run = NEVENTS
-
-
 
 hnsparse = au.get_skimmed_large_data_std_hsp(mass, data_path, PT_BINS, STD_SELECTION, MASS_WINDOW, NBINS)
 results_file.cd()
@@ -184,8 +215,8 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
                 err_rawcounts = ROOT.TMath.Sqrt(rawcounts)
                 h1_minv.Write()
             else:
-                rawcounts, err_rawcounts, _, _, _, _, _, _ = au.fit_hist(h1_minv, ptbin, mass, sig_model=sigmodel, bkg_model=bkgmodel, Eint=EINT, mass_range=MASS_WINDOW, mc_fit_file=mc_fit_file, directory = fit_bkg_dir, fix_params = False)
-            
+                rawcounts, err_rawcounts = au.fit_hist(h1_minv, ptbin, mass, sig_model=sigmodel, bkg_model=bkgmodel, Eint=EINT, mass_range=MASS_WINDOW, mc_fit_file=mc_fit_file, directory = fit_bkg_dir, fix_params = True)
+
             h1RawCounts[sigmodel][bkgmodel].SetBinContent(index, rawcounts / h1RawCounts[sigmodel][bkgmodel].GetBinWidth(index) / h1PreselEff.GetBinContent(index) / (MT_BINS_M[iBin]-MT_BINS_M[iBin-1])/ (MT_BINS_M[iBin-1]+MT_BINS_M[iBin])/2 / NEVENTS)
             h1RawCountsPt[sigmodel][bkgmodel].SetBinContent(index, rawcounts / h1RawCountsPt[sigmodel][bkgmodel].GetBinWidth(index) / h1PreselEff.GetBinContent(index)/ NEVENTS)            
             h1RawCounts[sigmodel][bkgmodel].SetBinError(index, err_rawcounts / h1RawCounts[sigmodel][bkgmodel].GetBinWidth(index) / h1PreselEff.GetBinContent(index) / (MT_BINS_M[iBin]-MT_BINS_M[iBin-1])/ (MT_BINS_M[iBin-1]+MT_BINS_M[iBin])/2 / NEVENTS)
@@ -201,7 +232,7 @@ for sigmodel in SIG_MODELS:
         ####################################################################
         h1RawCountsPt[sigmodel][bkgmodel].Fit(pt_distr, "MI0+", "",PT_BINS[0],PT_BINS[-1])
         fit_function = h1RawCountsPt[sigmodel][bkgmodel].GetFunction("pt_distr")
-        fit_function.SetLineColor(kOrangeC)
+        fit_function.SetLineColor(ROOT.kOrange)
         myCv = TCanvas(f"pT_SpectraCv_{sigmodel}_{bkgmodel}")
         gPad.SetLeftMargin(0.15); 
                     
@@ -240,11 +271,14 @@ for sigmodel in SIG_MODELS:
         iBin = 0
         for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
             iBin += 1
-            mult += h1RawCountsPt[sigmodel][bkgmodel].GetBinContent(iBin)*h1RawCountsPt[sigmodel][bkgmodel].GetBinWidth(iBin) 
-            print(ptbin[1]," ",ptbin[0]," diff: ",ptbin[1]-ptbin[0])
+            mult += h1RawCountsPt[sigmodel][bkgmodel].GetBinContent(iBin)*h1RawCountsPt[sigmodel][bkgmodel].GetBinWidth(iBin)
             err_mult += (h1RawCountsPt[sigmodel][bkgmodel].GetBinError(iBin)*h1RawCountsPt[sigmodel][bkgmodel].GetBinWidth(iBin))**2
+
         err_mult = ROOT.TMath.Sqrt(err_mult)/pt_range_factor/bratio
         mult /= pt_range_factor*bratio
+
+        print("pt_range_factor: ",pt_range_factor)
+        print("bratio: ",bratio)
         print("multiplicity: ", mult," +- ",err_mult)
         print("multiplicity gen: ", MULTIPLICITY)
         print("z_gauss: ", (MULTIPLICITY-mult)/err_mult)
@@ -317,6 +351,7 @@ for sigmodel in SIG_MODELS:
         pinfo.Draw()
         myCv.Write()
         h1RawCounts[sigmodel][bkgmodel].Write()
+        
 results_file.Close()
 print(f'--- analysis time: {((time.time() - start_time) / 60):.2f} minutes ---')
 

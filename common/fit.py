@@ -71,11 +71,9 @@ count=0
 start_time = time.time()                          # for performances evaluation
 # start the actual signal extraction
 mass = TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
-cent_dir_name = '0-5'
-cent_dir = output_file.mkdir(cent_dir_name)
-cent_dir.cd()
+output_file.cd()
 
-h1_eff = input_file.Get(cent_dir_name + '/PreselEff')
+h1_eff = input_file.Get('PreselEff')
 h1_BDT_eff = au.h1_rawcounts(PT_BINS, name = "BDTeff")
 
 for lab in LABELS:
@@ -91,10 +89,10 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
 
     # get the dir where the inv mass histo are
     subdir_name = f'pt_{ptbin[0]}{ptbin[1]}'
-    input_subdir = input_file.Get(f'{cent_dir_name}/{subdir_name}')
+    input_subdir = input_file.Get(f'{subdir_name}')
 
     # create the subdir in the output file
-    output_subdir = cent_dir.mkdir(subdir_name)
+    output_subdir = output_file.mkdir(subdir_name)
     output_subdir.cd()
     for sigmodel in SIG_MODELS:
         # create dirs for models
@@ -114,20 +112,17 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
                 #if (float(keff) != 0.97 and float(keff) != 0.98) or ptbin[0] > 0.2:
                 #    continue 
                 print("fit model: ",bkgmodel,"+",sigmodel," BDT efficiency: ",keff)
-                rawcounts, err_rawcounts, significance, err_significance, _, _, _, _ = au.fit_hist(hist, ptbin, mass, sig_model=sigmodel, bkg_model=bkgmodel, Eint=EINT, mass_range=MASS_WINDOW, mc_fit_file = mc_fit_file, directory = fit_bkg_dir, fix_params = FIX, peak_width=SIGMA*3)
+                rawcounts, err_rawcounts = au.fit_hist(hist, ptbin, mass, sig_model=sigmodel, bkg_model=bkgmodel, Eint=EINT, mass_range=MASS_WINDOW, mc_fit_file = mc_fit_file, directory = fit_bkg_dir, fix_params = FIX, peak_width=SIGMA*8.5)
 
                 dict_key = f'{keff}_{sigmodel}_{bkgmodel}'
 
                 h1_rawcounts_dict[dict_key].SetBinContent(ptbin_index, rawcounts)
                 h1_rawcounts_dict[dict_key].SetBinError(ptbin_index, err_rawcounts)
 
-                significance_dict[dict_key].SetBinContent(ptbin_index, significance)
-                significance_dict[dict_key].SetBinError(ptbin_index, err_significance)
-
                 if key == input_subdir.GetListOfKeys()[0]:
                     h1_BDT_eff.SetBinContent(ptbin_index, float(keff))                           
 
-cent_dir.cd()
+output_file.cd()
 h1_eff.Write()
 h1_BDT_eff.Write()
 for lab in LABELS:

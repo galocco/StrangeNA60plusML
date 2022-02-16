@@ -40,16 +40,16 @@ float get_pt_integral(float mass, float T, float pt_min = 0,float pt_max = -1){
     return int_max - int_min;
 }
 
-void check_multiplicity(TString signal_path = "/home/giacomo/StrangeNA60plusML/Data/K0S_L5_E40/fntSig_L5_E40_train.root", TString data_path = "/home/giacomo/StrangeNA60plusML/Data/K0S_L5_E40/fntBkg_K0S_L5_E40_data.root", int pdg_code = 310, TString suffix="K0S_L5_E40"){
+void check_multiplicity(TString signal_path = "/home/giacomo/StrangeNA60plusML/Data/OMEGA_L5_E40/fntSig_OMEGA_L5_E40.root", TString data_path = "/home/giacomo/StrangeNA60plusML/Data/OMEGA_L5_E40/fntBkg_OMEGA_L5_E40.root", int pdg_code = 3334, TString suffix="OMEGA_L5_E40"){
     TFile* signal_file = new TFile(signal_path.Data(),"read");
     TFile* data_file = new TFile(data_path.Data(),"read");
     std::cout<<pdg_code<<"\n";
     float mass = TDatabasePDG::Instance()->GetParticle(pdg_code)->Mass();
     TF1* pt_distr = new TF1("pt_distr", "[0]*x*exp(-TMath::Sqrt(x**2+[2]**2)/[1])",0,3);
     float T = 0.2446;
-    float bratio = 0.489;//phi
+    float bratio = 0.489;//OMEGA
     float multiplicity = 2.55;
-    float n_ev = 9000000;
+    float n_ev = 7320000;
     float pt_max = 3;
     if(TMath::Sqrt(pdg_code)==310){//Kaon
         bratio =  0.692;
@@ -99,8 +99,8 @@ void check_multiplicity(TString signal_path = "/home/giacomo/StrangeNA60plusML/D
 
     printf("efficiency: %f \n",eff);
     Float_t pt, m, true_cand,cosp;
-    TH1D* hist_eff = new TH1D("hist_eff",";;",30,0,pt_max);
-    TH1D* hist_gen = new TH1D("hist_gen",";;",30,0,pt_max);
+    TH1D* hist_eff = new TH1D("hist_eff",";;",4,0,pt_max);
+    TH1D* hist_gen = new TH1D("hist_gen",";;",4,0,pt_max);
 
     tree_rec->SetBranchAddress("pt",&pt);
     tree_rec->SetBranchAddress("cosp",&cosp);
@@ -124,7 +124,7 @@ void check_multiplicity(TString signal_path = "/home/giacomo/StrangeNA60plusML/D
         }
     }
     hist_eff->Divide(hist_gen);
-    TH1D* hist_data = new TH1D("hist_data",";;",30,0,pt_max);
+    TH1D* hist_data = new TH1D("hist_data",";;",4,0,pt_max);
     tree_data->SetBranchAddress("pt",&pt);
     tree_data->SetBranchAddress("m",&m);
     tree_data->SetBranchAddress("true",&true_cand);
@@ -165,7 +165,7 @@ void check_multiplicity(TString signal_path = "/home/giacomo/StrangeNA60plusML/D
     data_file->Close();
 }
 
-void check_features(TString signal_path = "/home/giacomo/StrangeNA60plusML/Data/K0S_L5_E40/fntSig_L5_E40_train.root", TString data_path = "/home/giacomo/StrangeNA60plusML/Data/K0S_L5_E40/fntBkg_K0S_L5_E40_data.root", int pdg_code = 310, TString suffix="K0S_L5_E40", bool signal_only=false){
+void check_features(TString signal_path = "/home/giacomo/StrangeNA60plusML/Data/OMEGA_L5_E40/fntSig_L5_E40_train.root", TString data_path = "/home/giacomo/StrangeNA60plusML/Data/OMEGA_L5_E40/fntBkg_OMEGA_L5_E40_data.root", int pdg_code = 310, TString suffix="OMEGA_L5_E40", bool signal_only=false){
     TFile* signal_file = new TFile(signal_path.Data(),"read");
     TFile* data_file = new TFile(data_path.Data(),"read");
     TFile* results = new TFile(Form("check_results_%s.root",suffix.Data()),"recreate");

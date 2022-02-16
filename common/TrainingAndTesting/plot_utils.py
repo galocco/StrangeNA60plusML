@@ -57,7 +57,7 @@ def plot_efficiency_significance(tsd, significance, efficiency, data_range_array
     if not os.path.exists(fig_eff_path):
         os.makedirs(fig_eff_path)
 
-    fig_name = '/sign_eff_pT{}{}.pdf'.format(
+    fig_name = '/sign_eff_pT{}{}.png'.format(
         data_range_array[1],
         data_range_array[2])
     plt.savefig(fig_eff_path + fig_name)
@@ -170,7 +170,7 @@ def plot_significance_scan_hsp(
     h1_sign.Draw("C same")
     #h1_sign_err.GetYAxis().SetRangeUser(-6,6)
     #h1_sign.GetYAxis().SetRangeUser(-6,6)
-    fig_name = f'Significance_pT{data_range_array[0]:.2f}{data_range_array[1]:.2f}_{suffix}.pdf'
+    fig_name = f'Significance_pT{data_range_array[0]:.2f}{data_range_array[1]:.2f}_{suffix}.png'
     fig_sig_path = os.environ['FIGURES']+'/Significance'
     
     if not os.path.exists(fig_sig_path):
@@ -178,7 +178,7 @@ def plot_significance_scan_hsp(
 
     cv_sig.SaveAs(fig_sig_path + '/' + fig_name)
 
-    fig_name = f'InvMass_pTpT{data_range_array[0]:.2f}{data_range_array[1]:.2f}_{suffix}.pdf'
+    fig_name = f'InvMass_pTpT{data_range_array[0]:.2f}{data_range_array[1]:.2f}_{suffix}.png'
     cv_inv.SaveAs(fig_sig_path + '/' + fig_name)
 
 def plot_confusion_matrix(y_true, df, score,
@@ -272,3 +272,4 @@ def get_decimal(error):
 def set_to_decimal(value):
     decimal = get_decimal(value)
     return round(value, decimal)
+

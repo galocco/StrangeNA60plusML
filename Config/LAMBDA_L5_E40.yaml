@@ -6,23 +6,24 @@ MULTIPLICITY: 43.1
 BRATIO: 0.639
 T: 0.258
 SIGMA: 0.001
-MASS_WINDOW: 0.01
-NBINS: 40
-PT_BINS: [0,0.25,0.5,0.75,1.,1.25,1.5,1.75,2.0,2.25,2.5,2.75, 3.0,3.25,3.5,3.75]
+MASS_WINDOW: 0.02
+NBINS: 80
+PT_BINS: [0,0.2,0.4,0.6,0.8,1.,1.25,1.5,1.75,2.0,2.25,2.5,2.75, 3.0]
 NEVENTS: 9000000
 
-SIG_MODELS: ['d-gauss','kde']
-BKG_MODELS: ['pol1', 'pol2']
+SIG_MODELS: ['d-gauss','kde','sub7.0','sub7.5','sub8.0']
+BKG_MODELS: ['pol1', 'pol2', 'expo']
 
-EFF_RANGE_SYST: [0.05, 0.05]
+EFF_RANGE_SYST: [0.02, 0.02]
 
-BDT_EFFICIENCY: [0.60, 1., 0.01] ##min, max ,step
+BDT_EFFICIENCY: [0.80, 1., 0.01] ##min, max ,step
 
 MC_PATH: /media/giacomo/Volume/ML_DATA/LAMBDA_L5_E40/fntSig_LAMBDA_L5_E40.root
+FIT_PATH: /media/giacomo/Volume/ML_DATA/LAMBDA_L5_E40/fntSig_LAMBDA_L5_E40_fit.root
 BKG_PATH: /media/giacomo/Volume/ML_DATA/LAMBDA_L5_E40/fntBkg_LAMBDA_L5_E40_train.root
 DATA_PATH: /media/giacomo/Volume/ML_DATA/LAMBDA_L5_E40/fntBkg_LAMBDA_L5_E40.root
 
-PRESELECTION: pt<3.75 and cosp > 0.9999
+PRESELECTION: pt<3 and cosp > 0.9998
 STD_SELECTION: pt<3 and dist > 5 and cosp > 0.999988 and dcaD < 0.007 and dca<0.015 and cospD > 0.999
 
 
@@ -38,7 +39,6 @@ XGBOOST_PARAMS:
 
 HYPERPARAMS:
   max_depth: 7
-  learning_rate: 0.167
   n_estimators: 83
   gamma: 0.525
   min_child_weight: 9.82
@@ -46,9 +46,9 @@ HYPERPARAMS:
   colsample_bytree: 0.64
   seed : 42
 
-HYPERPARAMS_RANGE: #TODO: check if it works without tuples
+HYPERPARAMS_RANGE:
   # booster parameters
-  max_depth: !!python/tuple [5, 20] # defines the maLAMBDAmum depth of a single tree (regularization)
+  max_depth: !!python/tuple [5, 20] # defines the maximum depth of a single tree (regularization)
   learning_rate: !!python/tuple [0.01, 0.3] # learning rate
   n_estimators: !!python/tuple [50, 500] # number of boosting trees
   gamma: !!python/tuple [0.3, 1.1] # specifies the minimum loss reduction required to make a split

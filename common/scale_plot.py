@@ -66,7 +66,7 @@ for sigmodel in SIG_MODELS:
         sig_index = 0
         for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
 
-            histo = input_file.Get(f'0-5/pt_{ptbin[0]}{ptbin[1]}/{sigmodel}/{bkgmodel}/eff{best_sig_eff[sig_index]:.3f}')
+            histo = input_file.Get(f'pt_{ptbin[0]}{ptbin[1]}/{sigmodel}/{bkgmodel}/eff{best_sig_eff[sig_index]:.3f}')
             fitTpl = histo.GetFunction("fitTpl")
             if sigmodel == "gauss":
                 n_sigpars = 3

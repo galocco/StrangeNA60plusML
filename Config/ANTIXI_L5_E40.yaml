@@ -7,11 +7,11 @@ BRATIO: 0.638
 T: 0.255
 SIGMA: 0.0008
 MASS_WINDOW: 0.01
-NBINS: 35
+NBINS: 40
 PT_BINS: [0.,3.]
-NEVENTS: 7400000
+NEVENTS: 9010000
 
-SIG_MODELS: ['d-gauss']
+SIG_MODELS: ['d-gauss','kde']
 BKG_MODELS: ['pol1', 'expo']
 
 EFF_RANGE_SYST: [0.05, 0.05]
@@ -19,6 +19,7 @@ EFF_RANGE_SYST: [0.05, 0.05]
 BDT_EFFICIENCY: [0.40, 1., 0.01] ##min, max ,step
 
 MC_PATH: /media/giacomo/Volume/ML_DATA/ANTIXI_L5_E40/fntSig_ANTIXI_L5_E40.root
+FIT_PATH: /media/giacomo/Volume/ML_DATA/ANTIXI_L5_E40/fntSig_ANTIXI_L5_E40.root
 BKG_PATH: /media/giacomo/Volume/ML_DATA/ANTIXI_L5_E40/fntBkg_ANTIXI_L5_E40_train.root
 DATA_PATH: /media/giacomo/Volume/ML_DATA/ANTIXI_L5_E40/fntBkg_ANTIXI_L5_E40.root
 
@@ -46,9 +47,9 @@ HYPERPARAMS:
   colsample_bytree: 0.64
   seed : 42
 
-HYPERPARAMS_RANGE: #TODO: check if it works without tuples
+HYPERPARAMS_RANGE:
   # booster parameters
-  max_depth: !!python/tuple [5, 20] # defines the maANTIXImum depth of a single tree (regularization)
+  max_depth: !!python/tuple [5, 20] # defines the maximum depth of a single tree (regularization)
   learning_rate: !!python/tuple [0.01, 0.3] # learning rate
   n_estimators: !!python/tuple [50, 500] # number of boosting trees
   gamma: !!python/tuple [0.3, 1.1] # specifies the minimum loss reduction required to make a split
@@ -61,10 +62,7 @@ HYPERPARAMS_RANGE: #TODO: check if it works without tuples
 TRAINING_COLUMNS: 
   - cosp
   - cospD
-  - bxy
   - bxyD
-  - dca
-  - dcaD
   - dist
   - distD
   - rapidity
