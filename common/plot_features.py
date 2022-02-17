@@ -47,9 +47,9 @@ file_name = results_dir + f'/{FILE_PREFIX}_features.root'
 results_file = TFile(file_name, 'recreate')
 
 mass = TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
-df_bkg = uproot.open(bkg_path)['ntcand'].arrays(library='pd',entry_stop=4000000).query("true < 0.5")
-df_skg = uproot.open(data_path)['ntcand'].arrays(library='pd',entry_stop=20000000).query("true > 0.5")
-df_sig = uproot.open(signal_path)['ntcand'].arrays(library='pd',entry_stop=4000000)
+df_bkg = uproot.open(bkg_path)['ntcand'].arrays(library='pd',entry_stop=400000).query("true < 0.5 and cosp > 0.9999")
+df_skg = uproot.open(data_path)['ntcand'].arrays(library='pd',entry_stop=20000000).query("true > 0.5 and cosp > 0.9999")
+df_sig = uproot.open(signal_path)['ntcand'].arrays(library='pd',entry_stop=400000).query("cosp > 0.9999")
 if "thetad" in df_bkg.columns:
     df_sig.rename(columns={"thetad": "costhetad"}, inplace=True)
     df_bkg.rename(columns={"thetad": "costhetad"}, inplace=True)
@@ -58,7 +58,7 @@ if "thetad" in df_bkg.columns:
     df_sig['thetad'] = df_sig.apply(lambda x: math.acos(x['costhetad'] if x['costhetad']<1 or x['costhetad']>-1 else -1), axis=1)
     df_bkg['thetad'] = df_bkg.apply(lambda x: math.acos(x['costhetad'] if x['costhetad']<1 or x['costhetad']>-1 else -1), axis=1)
 
-nbins = 200
+nbins = 4000
 cv = TCanvas("cv","cv")
 ROOT.gStyle.SetOptStat(0)
 for item1 in df_bkg.columns.tolist():
@@ -72,7 +72,10 @@ for item1 in df_bkg.columns.tolist():
             sig_min_val = df_sig[item1].min()
             min_val = sig_min_val
             max_val = sig_max_val
-            
+            if 'cosp' in item1:
+                min_val = 0.9999
+                max_val = 1
+                nbins = 100
             counts_sig, _ = np.histogram(df_sig[item1], nbins, range=[min_val,max_val])
             hist_sig = TH1D('hist_sig'+item1, ';'+item1+';pdf', nbins, min_val, max_val)
 
@@ -81,7 +84,6 @@ for item1 in df_bkg.columns.tolist():
 
             counts_skg, _ = np.histogram(df_skg[item1], nbins, range=[min_val,max_val])
             hist_skg = TH1D('hist_skg_'+item1, ';'+item1+';pdf', nbins, min_val, max_val)
-
             for index in range(0, nbins):
                 hist_sig.SetBinContent(index + 1, counts_sig[index]/sum(counts_sig))
                 hist_sig.SetBinError(index + 1, math.sqrt(counts_sig[index])/sum(counts_sig))

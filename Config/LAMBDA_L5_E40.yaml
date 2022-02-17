@@ -11,7 +11,7 @@ NBINS: 80
 PT_BINS: [0,0.2,0.4,0.6,0.8,1.,1.25,1.5,1.75,2.0,2.25,2.5,2.75, 3.0]
 NEVENTS: 9000000
 
-SIG_MODELS: ['d-gauss','kde','sub7.0','sub7.5','sub8.0']
+SIG_MODELS: ['d-gauss'] #,'kde','sub7.0','sub7.5','sub8.0']
 BKG_MODELS: ['pol1', 'pol2', 'expo']
 
 EFF_RANGE_SYST: [0.02, 0.02]
@@ -19,7 +19,7 @@ EFF_RANGE_SYST: [0.02, 0.02]
 BDT_EFFICIENCY: [0.80, 1., 0.01] ##min, max ,step
 
 MC_PATH: /media/giacomo/Volume/ML_DATA/LAMBDA_L5_E40/fntSig_LAMBDA_L5_E40.root
-FIT_PATH: /media/giacomo/Volume/ML_DATA/LAMBDA_L5_E40/fntSig_LAMBDA_L5_E40_fit.root
+FIT_PATH: /home/giacomo/StrangeNA60plusML/Data/fntSig_LAMBDA_L5_E40_fit.root
 BKG_PATH: /media/giacomo/Volume/ML_DATA/LAMBDA_L5_E40/fntBkg_LAMBDA_L5_E40_train.root
 DATA_PATH: /media/giacomo/Volume/ML_DATA/LAMBDA_L5_E40/fntBkg_LAMBDA_L5_E40.root
 

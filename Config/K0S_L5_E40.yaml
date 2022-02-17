@@ -12,7 +12,7 @@ NEVENTS: 9000000
 #PT_BINS: [0,0.2,0.4,0.6,0.8,1.,1.2,1.4,1.6,1.8,2.0,2.25,2.5,2.75, 3.0]
 PT_BINS: [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.,1.2,1.4,1.6,1.8,2.0,2.25,2.5,2.75, 3.0]
 
-SIG_MODELS: ['d-gauss','sub3.0','sub3.5'] #,'sub4.0','sub4.5','sub5.0'] # ','gauss', 'd-crystal'
+SIG_MODELS: ['d-gauss'] #,'sub4.0','sub4.5','sub5.0'] # ','gauss', 'd-crystal'
 BKG_MODELS: ['pol2', 'pol1','expo']
 
 EFF_RANGE_SYST: [0.02, 0.02]
@@ -21,8 +21,8 @@ BDT_EFFICIENCY: [0.8, 0.99, 0.01] ##min, max ,step
 
 MC_PATH: /home/giacomo/StrangeNA60plusML/Data/K0S_L5_E40/fntSig_L5_E40_train.root
 FIT_PATH: /home/giacomo/StrangeNA60plusML/Data/K0S_L5_E40/fntSig_L5_E40_train.root
-BKG_PATH: /media/giacomo/Volume/ML_DATA/K0S_L5_E40/fntBkg_K0S_L5_E40_train.root
-DATA_PATH: /media/giacomo/Volume/ML_DATA/K0S_L5_E40/fntBkg_K0S_L5_E40.root
+BKG_PATH: /media/giacomo/Volume/ML_DATA/K0S_L5_E40/fntBkg_K0S_L5_E40_train_old.root
+DATA_PATH: /media/giacomo/Volume/ML_DATA/K0S_L5_E40/fntBkg_K0S_L5_E40_old.root
 
 PRESELECTION: cosp > 0.9995 and pt < 3
 STD_SELECTION: true > 0

@@ -5,6 +5,7 @@ from itertools import count
 import math
 import os
 import random
+from syslog import LOG_KERN
 import time
 
 from analysis_utils import double_sided_crystal_ball, gauss_exp_tails
@@ -29,6 +30,9 @@ parser.add_argument('-g', '--gauss', help='Fit with the gaussian', action='store
 parser.add_argument('-l', '--lorentz', help='Fit with the lorentzian', action='store_true')
 parser.add_argument('-k', '--kde', help='Fit with the KDE', action='store_true')
 parser.add_argument('-f', '--fit', help='Compute the KDE', action='store_true')
+parser.add_argument('-w', '--weight', help='Fit mode: all weight to 1', action='store_true')
+parser.add_argument('-log', '--loglike', help='Fit mode: log-likelihood', action='store_true')
+parser.add_argument('-i', '--integral', help='Fit mode: integral', action='store_true')
 args = parser.parse_args()
 
 with open(os.path.expandvars(args.config), 'r') as stream:
@@ -73,6 +77,17 @@ KDE = args.kde
 LORENTZ = args.lorentz
 FIT = args.fit
 
+WEIGHT = args.weight
+LOGLIKE = args.loglike
+INT = args.integral
+
+FIT_MODE = "MR+"
+if INT:
+    FIT_MODE += "I"
+if LOGLIKE:
+    FIT_MODE += "L"
+if WEIGHT:
+    FIT_MODE += "W"
 ###############################################################################
 start_time = time.time()                          # for performances evaluation
 
@@ -118,6 +133,7 @@ if FIT:
             h1->GetYaxis()->SetRangeUser(0.1,h1->GetMaximum()*1.2);
             h1->Write();
             kde->Write();
+            kde->Delete();
             
         }
         results.Close();
@@ -127,7 +143,7 @@ if FIT:
     file_name = resultsSysDir + '/' + FILE_PREFIX + '_kde.root'
     file_string = ROOT.TString(file_name)
     tree_string = ROOT.TString(mc_file_name)
-    ROOT.fit_kde(file_string, tree_string, binning, len(binning)-1, mass, MASS_WINDOW, 1.75, NBINS)
+    ROOT.fit_kde(file_string, tree_string, binning, len(binning)-1, mass, MASS_WINDOW, 3, NBINS)
 
 fit_dict = {}
 name_dict = {}
@@ -238,7 +254,7 @@ file_name = resultsSysDir + '/' + FILE_PREFIX + '_mc_fit.root'
 fits_file = TFile(file_name, 'recreate')
 
 columns = ['m','pt']
-df_signal = uproot.open(mc_file_name)['ntcand'].arrays(library="pd").query(PRESELECTION)[columns]
+df_signal = uproot.open(mc_file_name)['ntcand'].arrays(library="pd", entry_stop=20000000).query(PRESELECTION)[columns]
 fits_file.cd()
 plot_dir = fits_file.mkdir("plot")
 fit_dir = fits_file.mkdir("fit")
@@ -309,12 +325,14 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
     cv_log.cd()
     hist_log.GetYaxis().SetRangeUser(0.1,hist_log.GetMaximum()*5)
     hist_log.Draw()
+
     for key in fit_dict:
         print("fit with: ",key)
-        hist.Fit(fit_dict[key],"MR+","", mass*(1-MASS_WINDOW), mass*(1+MASS_WINDOW))
+        hist.Fit(fit_dict[key],FIT_MODE,"", mass*(1-MASS_WINDOW), mass*(1+MASS_WINDOW))
         fit_dict[key].SetName(f'{save_dict[key]}_{ptbin[0]:.2f}_{ptbin[1]:.2f}')
         if key != "KDE":
             fit_dict[key].Write()
+        fit_dict[key].SetNpx(300)
         cv.cd()
         fit_dict[key].Draw("same")
         cv_log.cd()
