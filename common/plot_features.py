@@ -11,6 +11,7 @@ import uproot
 import yaml
 from ROOT import TFile, gROOT, TDatabasePDG, TH1D, TCanvas, TH1D
 import ROOT
+import pandas as pd
 
 # avoid pandas warning
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -19,6 +20,7 @@ gROOT.SetBatch()
 ###############################################################################
 parser = argparse.ArgumentParser()
 parser.add_argument('config', help='Path to the YAML configuration file')
+parser.add_argument('-p', '--presel', help='Apply preselection efficiency', action='store_true')
 args = parser.parse_args()
 
 with open(os.path.expandvars(args.config), 'r') as stream:
@@ -32,7 +34,8 @@ with open(os.path.expandvars(args.config), 'r') as stream:
 # define analysis global variables
 PDG_CODE = params['PDG']
 FILE_PREFIX = params['FILE_PREFIX']
-
+PRESELECTION = params['PRESELECTION']
+PRESEL = args.presel
 ###############################################################################
 # define paths for loading data
 signal_path = os.path.expandvars(params['MC_PATH'])
@@ -46,10 +49,17 @@ start_time = time.time()                          # for performances evaluation
 file_name = results_dir + f'/{FILE_PREFIX}_features.root'
 results_file = TFile(file_name, 'recreate')
 
+
+pd.set_option("display.precision", 10)
+
 mass = TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
-df_bkg = uproot.open(bkg_path)['ntcand'].arrays(library='pd',entry_stop=400000).query("true < 0.5 and cosp > 0.9999")
-df_skg = uproot.open(data_path)['ntcand'].arrays(library='pd',entry_stop=20000000).query("true > 0.5 and cosp > 0.9999")
-df_sig = uproot.open(signal_path)['ntcand'].arrays(library='pd',entry_stop=400000).query("cosp > 0.9999")
+df_bkg = uproot.open(bkg_path)['ntcand'].arrays(library='pd',entry_stop=400000).query("true < 0.5 and cosp > 0.9999 and mD > 1.110683 and mD < 1.120683")
+df_skg = uproot.open(data_path)['ntcand'].arrays(library='pd',entry_stop=20000000).query("true > 0.5 and cosp > 0.9999 and mD > 1.110683 and mD < 1.120683")
+df_sig = uproot.open(signal_path)['ntcand'].arrays(library='pd',entry_stop=400000).query("cosp > 0.9999 and mD > 1.110683 and mD < 1.120683")
+if PRESEL:
+    df_bkg = df_bkg.query(PRESELECTION)
+    df_skg = df_skg.query(PRESELECTION)
+    df_sig = df_sig.query(PRESELECTION)
 if "thetad" in df_bkg.columns:
     df_sig.rename(columns={"thetad": "costhetad"}, inplace=True)
     df_bkg.rename(columns={"thetad": "costhetad"}, inplace=True)
@@ -75,7 +85,7 @@ for item1 in df_bkg.columns.tolist():
             if 'cosp' in item1:
                 min_val = 0.9999
                 max_val = 1
-                nbins = 100
+                nbins = 5000
             counts_sig, _ = np.histogram(df_sig[item1], nbins, range=[min_val,max_val])
             hist_sig = TH1D('hist_sig'+item1, ';'+item1+';pdf', nbins, min_val, max_val)
 

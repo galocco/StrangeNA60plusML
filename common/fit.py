@@ -11,7 +11,7 @@ import yaml
 import analysis_utils as au
 import plot_utils as pu
 
-from ROOT import TH1D, TFile, gROOT, TDatabasePDG
+from ROOT import TH1D, TFile, gROOT, TDatabasePDG, gSystem
 
 # avoid pandas warning
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -21,6 +21,7 @@ gROOT.SetBatch()
 parser = argparse.ArgumentParser()
 parser.add_argument('config', help='Path to the YAML configuration file')
 parser.add_argument('-f', '--fix', help='Fix the parameters taken from the signal-only fit', action='store_true')
+parser.add_argument('-p', '--print', help='Produce png and pdf of the invariant mass plots', action='store_true')
 args = parser.parse_args()
 
 with open(os.path.expandvars(args.config), 'r') as stream:
@@ -44,13 +45,19 @@ FIX_EFF_ARRAY = np.arange(EFF_MIN, EFF_MAX, EFF_STEP)
 SIG_MODELS = params['SIG_MODELS']
 BKG_MODELS = params['BKG_MODELS']
 
-FIX = args.fix
+results_dir = os.environ['RESULTS']
+PLOT_DIR = results_dir+f'/{FILE_PREFIX}/{FILE_PREFIX}_mass_plots'
 
+if gSystem.AccessPathName(PLOT_DIR):
+    gSystem.Exec('mkdir '+PLOT_DIR)
+
+FIX = args.fix
+PRINT = ""
 LABELS = [f'{x:.3f}_{y}_{z}' for x in FIX_EFF_ARRAY for y in SIG_MODELS for z in BKG_MODELS]
 
 ###############################################################################
 # define paths for loading results
-results_dir = os.environ['RESULTS']
+
 
 input_file_name = results_dir + '/' + FILE_PREFIX + f'/{FILE_PREFIX}_results.root'
 input_file = TFile(input_file_name, 'read')
@@ -107,12 +114,12 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
                 
                 hist = TH1D(key.ReadObj())
                 hist.SetDirectory(0)
-                #if float(keff) < 0.7:
-                #    continue
-                #if (float(keff) != 0.97 and float(keff) != 0.98) or ptbin[0] > 0.2:
-                #    continue 
+
+                if args.print:
+                    PRINT = f'{PLOT_DIR}/{FILE_PREFIX}_pt_{ptbin[0]}_{ptbin[1]}_sig_{bkgmodel}_bkg_{bkgmodel}_bdt_eff_{keff}'
+
                 print("fit model: ",bkgmodel,"+",sigmodel," BDT efficiency: ",keff)
-                rawcounts, err_rawcounts = au.fit_hist(hist, ptbin, mass, sig_model=sigmodel, bkg_model=bkgmodel, Eint=EINT, mass_range=MASS_WINDOW, mc_fit_file = mc_fit_file, directory = fit_bkg_dir, fix_params = FIX, peak_width=SIGMA*8.5)
+                rawcounts, err_rawcounts = au.fit_hist(hist, ptbin, mass, sig_model=sigmodel, bkg_model=bkgmodel, Eint=EINT, mass_range=MASS_WINDOW, mc_fit_file = mc_fit_file, directory = fit_bkg_dir, fix_params = FIX, peak_width=SIGMA*4, print=PRINT)
 
                 dict_key = f'{keff}_{sigmodel}_{bkgmodel}'
 

@@ -273,7 +273,6 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
     print('\n==================================================')
     print(' pT:', ptbin)
     df_selected = df_signal.query("pt<@ptbin[1] and pt>@ptbin[0]")
-    x_train = df_selected['m'].to_numpy().reshape(-1,1)
 
     counts, _ = np.histogram(df_selected['m'], bins=NBINS, range=[mass*(1-MASS_WINDOW), mass*(1+MASS_WINDOW)])
     hist = TH1D(f'hist_mc_{ptbin[0]}_{ptbin[1]}', ';m (GeV/#it{c}^{2});Counts',NBINS,mass*(1-MASS_WINDOW), mass*(1+MASS_WINDOW))
@@ -284,7 +283,7 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
         hist.SetBinError(index + 1, math.sqrt(counts[index]))
 
     if CRYSTAL:
-        fit_dict['CRYSTAL'].SetParameters(1, 2.5, mass, hist.GetRMS()/2, hist.Integral(1, hist.GetNBINSX()), 1, 2.5)
+        fit_dict['CRYSTAL'].SetParameters(1, 2.5, mass, hist.GetRMS()/2, hist.Integral(1, hist.GetNbinsX()), 1, 2.5)
 
         fit_dict['CRYSTAL'].SetParLimits(0, 0.5, 2.5)
         fit_dict['CRYSTAL'].SetParLimits(1, 0.5, 4)
@@ -332,7 +331,7 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
         fit_dict[key].SetName(f'{save_dict[key]}_{ptbin[0]:.2f}_{ptbin[1]:.2f}')
         if key != "KDE":
             fit_dict[key].Write()
-        fit_dict[key].SetNpx(300)
+        fit_dict[key].SetNpx(600)
         cv.cd()
         fit_dict[key].Draw("same")
         cv_log.cd()
@@ -369,8 +368,8 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
             err_counts_fit = fit_dict[key].GetParError(0)
             fit_dict[key].SetParameter(0, 1)
             fit_dict[key].SetParError(0, 0)
-            integral = au.IntExp(fit_dict[key].GetParameter(3))+au.IntExp(fit_dict[key].GetParameter(4))+au.IntGauss(fit_dict[key].GetParameter(3))+au.IntGauss(fit_dict[key].GetParameter(4))
-            integral = fit_dict[key].Integral(mass*(1-MASS_WINDOW)-1, mass*(1+MASS_WINDOW)+1)
+            integral = 1 #au.IntExp(fit_dict[key].GetParameter(3))+au.IntExp(fit_dict[key].GetParameter(4))+au.IntGauss(fit_dict[key].GetParameter(3))+au.IntGauss(fit_dict[key].GetParameter(4))
+            integral = 1 #fit_dict[key].Integral(mass*(1-MASS_WINDOW)-1, mass*(1+MASS_WINDOW)+1)
             counts_fit *= integral
             err_counts_fit *= integral#ROOT.TMath.Sqrt(err_counts_fit**2+fit_dict[key].IntegralError(mass*(1-MASS_WINDOW)-1, mass*(1+MASS_WINDOW)+1)**2)
         elif key=="CRYSTAL":

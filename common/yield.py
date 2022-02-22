@@ -15,7 +15,7 @@ from ROOT import (TF1, TH1D, TCanvas, TFile,
                   TLine, gPad, gROOT, TDatabasePDG)
 import ROOT
 
-random.seed(1989)
+random.seed(1996)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("config", help="Path to the YAML configuration file")
@@ -42,7 +42,6 @@ SIG_MODELS = params['SIG_MODELS']
 BKG_MODELS = params['BKG_MODELS']
 
 SCALE = args.scale
-
 
 ###############################################################################
 start_time = time.time()                          # for performances evaluation
@@ -188,7 +187,7 @@ distribution.cd()
 if PDG_CODE == 3334:
     syst = TH1D("syst", ";Yield;Entries", 1000, MULTIPLICITY*0.5, MULTIPLICITY*4)
 else:
-    syst = TH1D("syst", ";Yield;Entries", 100, MULTIPLICITY*0.98, MULTIPLICITY*1.02)
+    syst = TH1D("syst", ";Yield;Entries", 1000, MULTIPLICITY*0.9, MULTIPLICITY*1.1)
 tmpCt = hRawCounts[0].Clone("tmpCt")
 
 combinations = set()

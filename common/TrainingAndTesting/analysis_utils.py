@@ -330,7 +330,7 @@ def get_ctbin_index(th2, ctbin):
 
 
 def fit_hist(
-        histo, pt_range, mass, directory, mc_fit_file, peak_width=3, sig_model="gauss", bkg_model="pol2", mass_range=0.04, Eint=17.3, fix_params = False):
+        histo, pt_range, mass, directory, mc_fit_file, peak_width=3, sig_model="gauss", bkg_model="pol2", mass_range=0.04, Eint=17.3, fix_params = False, print = ""):
     hist_range = [mass*(1-mass_range),mass*(1+mass_range)]
     # canvas for plotting the invariant mass distribution
     cv = TCanvas(f'cv_{histo.GetName()}')
@@ -362,8 +362,6 @@ def fit_hist(
         if sig_model != 'd-gauss':
             print(f'Unsupported signal model {sig_model}')
             print(f'Model setted to default: d-gauss')
-        norm_params.append(0)
-        norm_params.append(3)
         n_sigpars = 6
 
     # define the fit function bkg_model + sig_model
@@ -405,24 +403,46 @@ def fit_hist(
                         fit_tpl.FixParameter(n_bkgpars + param, mc_function.GetParameter(param))
                     else:
                         fit_tpl.SetParameter(n_bkgpars + param, mc_function.GetParameter(param))
+                        fit_tpl.SetParLimits(n_bkgpars + param, mc_function.GetParameter(param)-mc_function.GetParError(param)*3,
+                                                            mc_function.GetParameter(param)+mc_function.GetParError(param)*3)
+                else:
+                    fit_tpl.SetParameter(n_bkgpars + param, 100)
+                    fit_tpl.SetParLimits(n_bkgpars + param, 0, 1000)
+
     elif sig_model == 'gauss' or 'sub' in str(sig_model):
         fit_tpl = TF1('fitTpl', f'{bkg_model}(0) + gausn({n_bkgpars})', 0, 5)
         mc_function = mc_fit_file.Get(f'fit/gauss_{pt_range[0]:.2f}_{pt_range[1]:.2f}')
         for param in range(0, n_sigpars):
-            #if param not in norm_params:
-            if fix_params and not 'sub' in str(sig_model):
-                fit_tpl.FixParameter(n_bkgpars + param, mc_function.GetParameter(param))
+            if param not in norm_params:
+                if fix_params and not 'sub' in str(sig_model):
+                    fit_tpl.FixParameter(n_bkgpars + param, mc_function.GetParameter(param))
+                else:
+                    fit_tpl.SetParameter(n_bkgpars + param, mc_function.GetParameter(param))  
+                    fit_tpl.SetParLimits(n_bkgpars + param, mc_function.GetParameter(param)-mc_function.GetParError(param)*3,
+                                                        mc_function.GetParameter(param)+mc_function.GetParError(param)*3)
             else:
-                fit_tpl.SetParameter(n_bkgpars + param, mc_function.GetParameter(param))               
-    else:    
-        fit_tpl = TF1('fitTpl', f'{bkg_model}(0) + [{n_bkgpars+6}]*(gausn({n_bkgpars}) + gausn({n_bkgpars+3}))', 0, 5)
+                fit_tpl.SetParameter(n_bkgpars + param, 100)
+                fit_tpl.SetParLimits(n_bkgpars + param, 0, 1000)
+
+    else:
         mc_function = mc_fit_file.Get(f'fit/{sig_model}_{pt_range[0]:.2f}_{pt_range[1]:.2f}')
+
+        if fix_params:
+            fit_tpl = TF1('fitTpl', f'{bkg_model}(0) + [{n_bkgpars+6}]*(gausn({n_bkgpars}) + gausn({n_bkgpars+3}))', 0, 5)
+        else:
+            fit_tpl = TF1('fitTpl', f'{bkg_model}(0) + gausn({n_bkgpars}) + gausn({n_bkgpars+3})', 0, 5)
+            
         for param in range(0, n_sigpars):
-            #if param not in norm_params:
             if fix_params:
                 fit_tpl.FixParameter(n_bkgpars + param, mc_function.GetParameter(param))
             else:
-                fit_tpl.SetParameter(n_bkgpars + param, mc_function.GetParameter(param))
+                if param != 0 and param != 3:
+                    fit_tpl.SetParameter(n_bkgpars + param, mc_function.GetParameter(param))
+                    fit_tpl.SetParLimits(n_bkgpars + param, mc_function.GetParameter(param)-mc_function.GetParError(param)*3,
+                                                        mc_function.GetParameter(param)+mc_function.GetParError(param)*3)
+                else:
+                    fit_tpl.SetParameter(n_bkgpars + param, 100)
+                    fit_tpl.SetParLimits(n_bkgpars + param, 0, 1000)
     
     histo_bkg = histo.Clone("histo_bkg")
     peak_bins = [histo_bkg.GetXaxis().FindBin(mass-peak_width), histo_bkg.GetXaxis().FindBin(mass+peak_width)]
@@ -430,16 +450,16 @@ def fit_hist(
         histo_bkg.SetBinContent(bin, 0)
         histo_bkg.SetBinError(bin, 0)
     bkg_tpl = TF1('bkgTpl', f'{bkg_model}(0)', 0, 5)
-    histo_bkg.Fit(bkg_tpl, "R0Q","", mass*(1-mass_range), mass*(1+mass_range))
+    histo_bkg.Fit(bkg_tpl, "RIM0Q","", mass*(1-mass_range), mass*(1+mass_range))
     for param in range(0, n_bkgpars):
         fit_tpl.SetParameter(param, bkg_tpl.GetParameter(param))
     
     # plotting stuff for fit_tpl
-    fit_tpl.SetNpx(300)
+    fit_tpl.SetNpx(1000)
     fit_tpl.SetLineWidth(2)
     fit_tpl.SetLineColor(2)
     # plotting stuff for bkg model
-    bkg_tpl.SetNpx(300)
+    bkg_tpl.SetNpx(1000)
     bkg_tpl.SetLineWidth(2)
     bkg_tpl.SetLineStyle(2)
     bkg_tpl.SetLineColor(2)
@@ -457,9 +477,9 @@ def fit_hist(
     histo.SetMaximum(1.5 * histo.GetMaximum())
     
     if sig_model == "kde":
-        histo.Fit(fit_tpl, "QR", "", hist_range[0], hist_range[1])
+        histo.Fit(fit_tpl, "MQR", "", hist_range[0], hist_range[1])
     else:
-        histo.Fit(fit_tpl, "LQR", "", hist_range[0], hist_range[1])
+        histo.Fit(fit_tpl, "MIQR", "", hist_range[0], hist_range[1])
     if not 'sub' in str(sig_model):
         bkg_tpl.SetParameters(fit_tpl.GetParameters())
         histo.Draw()
@@ -483,8 +503,15 @@ def fit_hist(
         errsignal = math.sqrt(signal)
         signal -= background
     elif sig_model == 'd-gauss':
-        signal = (fit_tpl.GetParameter(n_bkgpars+6)*(fit_tpl.GetParameter(n_bkgpars)+fit_tpl.GetParameter(n_bkgpars+3))) / histo.GetBinWidth(1)
-        errsignal = (fit_tpl.GetParError(n_bkgpars+6)*(fit_tpl.GetParameter(n_bkgpars)+fit_tpl.GetParameter(n_bkgpars+3))) / histo.GetBinWidth(1)
+        #background = bkg_tpl.Integral(histo.GetXaxis().GetBinLowEdge(1), histo.GetXaxis().GetBinUpEdge(50)) / histo.GetBinWidth(1)
+        #signal = histo.GetEntries()-background
+        #errsignal = math.sqrt(signal)
+        signal = (fit_tpl.GetParameter(n_bkgpars)+fit_tpl.GetParameter(n_bkgpars+3)) / histo.GetBinWidth(1)
+        errsignal = math.sqrt(fit_tpl.GetParError(n_bkgpars)**2+fit_tpl.GetParError(n_bkgpars+3)**2) / histo.GetBinWidth(1)
+        if fix_params:
+            signal *= fit_tpl.GetParameter(n_bkgpars+6)
+            errsignal = fit_tpl.GetParError(n_bkgpars+6)*(fit_tpl.GetParameter(n_bkgpars)+fit_tpl.GetParameter(n_bkgpars+3)) / histo.GetBinWidth(1)
+        
     elif 'sub' in str(sig_model):
         width = float(sig_model[3:6])
         sigma = fit_tpl.GetParameter(n_bkgpars+2)
@@ -531,25 +558,20 @@ def fit_hist(
     directory.cd()
     histo.Write()
     cv.Write()
+    if print != "":
+        cv.SaveAs(print+".pdf")
+        cv.SaveAs(print+".png")
     
     return (signal, errsignal)
 
-def rename_df_columns(df):
-    rename_dict = {}
-
-    for col in df.columns:
-
-        if col.endswith('_f'):
-            rename_dict[col] = col[:-2]
-    
-    df.rename(columns = rename_dict, inplace=True)
-
+#produce the correspondent mT = sqrt(pT^2 + mass^2)-mass array from the give pT array
 def pt_array_to_mt_m0_array(pt_array, mass):
     mt_array = []
     for pt_item in pt_array:
         mt_array.append(math.sqrt(pt_item**2+mass**2)-mass)
     return mt_array
 
+#produce the correspondent mT = sqrt(pT^2 + mass^2)-mass array from the give pT array
 def pt_array_to_mt_array(pt_array, mass):
     mt_array = []
     for pt_item in pt_array:
@@ -617,15 +639,16 @@ def gauss_exp_tails(x, par):
     else:
         return N*TMath.Exp(-tau1 * (u - 0.5 * tau1))
 
-
+#integral of the e^{-tau*x} from 0 to infinity
 def IntExp(tau):
     return TMath.Exp(-(tau**2)/2.) / TMath.Abs(tau)
 
-
+#integral of gaussian from -infinity to x
 def IntGauss(x):
   rootPiBy2 = TMath.Sqrt(TMath.PiOver2())
   return rootPiBy2 * (TMath.Erf(TMath.Abs(x) / TMath.Sqrt2()))
 
+#save the BDT output distributions for signal and bkg for the train and test set
 def save_bdt_output_plot(data, pt_range, suffix = ''):
     fig_path = os.environ['FIGURES']
     info_string = f'_{pt_range[0]}{pt_range[1]}'
@@ -720,6 +743,7 @@ def save_bdt_output_plot(data, pt_range, suffix = ''):
     cv.SetLogy()
     cv.SaveAs(bdt_score_dir + '/BDT_Score_' + suffix + info_string + '.png')
 
+#save the correlation matricies of the features used for the training + mass for signal and background
 def save_correlation_matricies(df_list, columns, suffix=''):
     fig_path = os.environ['FIGURES']
     bdt_eff_dir = fig_path
@@ -742,10 +766,9 @@ def save_correlation_matricies(df_list, columns, suffix=''):
         ROOT.gStyle.SetOptStat(0)
         hist.Draw("TEXT COLZ")
         cv.SaveAs(bdt_eff_dir + '/Corr_' + suffix + '_' + label + '.png')
-                
-    
     return
 
+#save the efficiency vs BDT output selection computed on the test set
 def save_bdt_efficiency(data, pt_range, suffix=''):
     fig_path = os.environ['FIGURES']
     info_string = f'_{pt_range[0]}{pt_range[1]}'
@@ -779,6 +802,8 @@ def save_bdt_efficiency(data, pt_range, suffix=''):
     cv.SaveAs(bdt_eff_dir + '/Eff_' + suffix + info_string + '.png')
     del df
 
+#returns the integral of the pT distribution function between pt_min and pt_max
+# dN/dpt = C*x*exp(-sqrt(x^2+mass^2)/T)
 def get_pt_integral(pt_spectra, pt_min = 0, pt_max ="infinity"):
     mass = pt_spectra.GetParameter(1)
     T = pt_spectra.GetParameter(0)

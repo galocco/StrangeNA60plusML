@@ -23,6 +23,7 @@ gROOT.SetBatch()
 ###############################################################################
 parser = argparse.ArgumentParser()
 parser.add_argument('config', help='Path to the YAML configuration file')
+parser.add_argument('-d', '--data', help='Use only data', action='store_true')
 args = parser.parse_args()
 
 with open(os.path.expandvars(args.config), 'r') as stream:
@@ -47,11 +48,19 @@ EFF_MIN, EFF_MAX, EFF_STEP = params['BDT_EFFICIENCY']
 FIX_EFF_ARRAY = np.arange(EFF_MIN, EFF_MAX, EFF_STEP)
 
 NBINS = params['NBINS']
+ONLY_DATA = args.data
 ###############################################################################
 # define paths for loading data
 
 data_path = os.path.expandvars(params['DATA_PATH'])
+#mc_path = os.path.expandvars(params['DATA_PATH'])
+
+#if ONLY_DATA:
+#    mc_path = os.path.expandvars(params['DATA_PATH'])
+#    SIGNAL_SELECTION = " and true > 0.5"
+#else:
 mc_path = os.path.expandvars(params['MC_PATH'])
+#    SIGNAL_SELECTION = ""
 NEVENTS = params["NEVENTS"]
 handlers_path = '../Models/handlers'
 ###############################################################################
@@ -65,11 +74,11 @@ results_file.cd()
 
 mass = TDatabasePDG.Instance().GetParticle(PDG_CODE).Mass()
 
+hnsparse_sig = au.get_skimmed_large_data_hsp(mass, mc_path, PT_BINS, COLUMNS, FILE_PREFIX, PRESELECTION, MASS_WINDOW, NBINS)
+ml_application_sig = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, NEVENTS, hnsparse_sig)
 hnsparse_bkg = au.get_skimmed_large_data_hsp(mass, data_path, PT_BINS, COLUMNS, FILE_PREFIX, PRESELECTION + " and true < 0.5", MASS_WINDOW, NBINS)
 ml_application_bkg = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, NEVENTS, hnsparse_bkg)
 
-hnsparse_sig = au.get_skimmed_large_data_hsp(mass, mc_path, PT_BINS, COLUMNS, FILE_PREFIX, PRESELECTION, MASS_WINDOW, NBINS)
-ml_application_sig = ModelApplication(PDG_CODE, MULTIPLICITY, BRATIO, NEVENTS, hnsparse_sig)
 
 shift_bin = 1
 eff_index=0
