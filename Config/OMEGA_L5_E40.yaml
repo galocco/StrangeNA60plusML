@@ -1,31 +1,36 @@
-FILE_PREFIX: 'OMEGA_L5_E40_analysis'
+FILE_PREFIX: 'OMEGA_L5_E40_analysis' #name of directory in StrangeNA60plusML/Results
 
-PDG: 3334
-EINT: 40
-MULTIPLICITY: 0.14
-BRATIO: 0.433
-T: 0.218
-SIGMA: 0.002
-MASS_WINDOW: 0.03
-NBINS: 80
-PT_BINS: [0.9,10]
-NEVENTS: 9000000
+PDG: 3334 #pdg code of the particle
+EINT: 40 #energy of the collision. Used only for the plots
+MULTIPLICITY: 0.14 # multiplicity of the particle
+BRATIO: 0.433 # branching ratio of the decay studied
+T: 0.218 # T slope parameter
+SIGMA: 0.002 # parameter used to compute the expected significance. The mass peak is assumed gaussian with sigma = SIGMA in MeV/c^2
+MASS_WINDOW: 0.03 #define the mass range of the mass histograms [mass_pdg*(1-MASS_WINDOW),mass_pdg*(1-MASS_WINDOW)]
+NBINS: 80 #number of bins of the mass histograms
+PT_BINS: [0.9,10] # the analysis is performed in pT bins
+NEVENTS: 9000000 #number of events simulated in the data
 
-SIG_MODELS: ['kde','d-gauss']
-BKG_MODELS: ['pol1', 'expo']
+SIG_MODELS: ['d-gauss'] #functions used to fit the mass peak
+BKG_MODELS: ['pol1', 'expo'] #fuctions used to fit the background
 
-EFF_RANGE_SYST: [0.05, 0.05]
+EFF_RANGE_SYST: [0.05, 0.05] #efficiency range used for to study the systematic uncertaintes doe to the BDT selection and the fits
 
-BDT_EFFICIENCY: [0.01, 1., 0.01] ##min, max ,step
+BDT_EFFICIENCY: [0.01, 1., 0.01]  #min, max ,step in the effiency range 
 
+#data path
 MC_PATH: /home/giacomo/StrangeNA60plusML/Data/OMEGA_L5_E40/fntSig_OMEGA_L5_E40.root
 FIT_PATH: /home/giacomo/StrangeNA60plusML/Data/OMEGA_L5_E40/fntSig_OMEGA_L5_E40.root
 BKG_PATH: /home/giacomo/StrangeNA60plusML/Data/OMEGA_L5_E40/fntBkg_OMEGA_L5_E40_train.root
 DATA_PATH: /home/giacomo/StrangeNA60plusML/Data/OMEGA_L5_E40/fntBkg_OMEGA_L5_E40.root
 
-PRESELECTION: pt < 10 and cosp > 0.9999 and mD < 1.117 and mD > 1.1145 and dcaD < 0.002 and dca < 0.003 and distD > 0.2 and m > 1.6223 and m < 1.7226
-STD_SELECTION: cosp > 0.999998595 and dcaD < 0.0016 and dca < 0.0023 and dist > 0.14 and cospD > 0.999997 and distD > 0.31 and rapidity < 2.55 and mD < 1.117 and mD > 1.1145 and (bxyD < -0.0032 or bxyD > 0.0032) and (bxy < -0.0008 or bxy > 0.0008)
-
+PRESELECTION: pt < 10 and cosp > 0.99999 and mD < 1.117 and mD > 1.1145 and dcaD < 0.002 and dca < 0.003 and distD > 0.2 and m > 1.6223 and m < 1.7226   #preselection applied on all the trees
+STD_SELECTION: (bxyD < -0.0032 or bxyD > 0.0032) and (bxy < -0.0008 or bxy > 0.0008) and mD < 1.117 and mD > 1.1145 and rapidity < 2.55 and dcaD < 0.0016 and cospD > 0.999997 and distD > 0.31 and dist > 0.14  and distD > 0.2 and dca < 0.0023 and cosp > 0.999998 and pt > 0.9 #595 #   #selection used in the standard analysis
+#dca dubbio
+#cosp no
+#cospD ok
+#dist ok?
+#distD ok
 
 XGBOOST_PARAMS:
   # general parameters
@@ -60,7 +65,6 @@ HYPERPARAMS_RANGE:
   # # alpha: (0,10]  # L1 regularization term on weight
 
 TRAINING_COLUMNS: 
-  - cosp
   - cospD
   - bxyD
   - bxy

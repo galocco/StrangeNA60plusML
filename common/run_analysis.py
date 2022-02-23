@@ -102,7 +102,7 @@ if TRAIN:
         part_time = time.time()
 
         # data[0]=train_set, data[1]=y_train, data[2]=test_set, data[3]=y_test
-        data = ml_analysis.prepare_dataframe(COLUMNS, pt_range=ptbin, test_size=0.2)
+        data = ml_analysis.prepare_dataframe(COLUMNS, pt_range=ptbin, test_size=0.5)
 
         input_model = xgb.XGBClassifier(verbosity = 0)
         model_handler = ModelHandler(input_model)
@@ -112,8 +112,7 @@ if TRAIN:
         model_handler.set_training_columns(COLUMNS)
 
         if OPTIMIZE:
-            model_handler.optimize_params_bayes(
-                data, HYPERPARAMS_RANGE, 'roc_auc', init_points=10, n_iter=5)
+            model_handler.optimize_params_bayes(data, HYPERPARAMS_RANGE, 'roc_auc', init_points=10, n_iter=5)
 
         model_handler.train_test_model(data)
         print("train test model")

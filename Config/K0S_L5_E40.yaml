@@ -1,31 +1,31 @@
-FILE_PREFIX: 'K0S_L5_E40_analysis'
+FILE_PREFIX: 'K0S_L5_E40_analysis' #name of directory in StrangeNA60plusML/Results
 
-PDG: 310
-EINT: 40
-MULTIPLICITY: 39.15
-BRATIO: 0.692
-T: 0.22745
-SIGMA: 0.003
-MASS_WINDOW: 0.1
-NBINS: 100
-NEVENTS: 9000000
-#PT_BINS: [0,0.2,0.4,0.6,0.8,1.,1.2,1.4,1.6,1.8,2.0,2.25,2.5,2.75, 3.0]
-PT_BINS: [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.,1.2,1.4,1.6,1.8,2.0,2.25,2.5,2.75, 3.0]
+PDG: 310 #pdg code of the particle
+EINT: 40 #energy of the collision. Used only for the plots
+MULTIPLICITY: 39.15 # multiplicity of the particle
+BRATIO: 0.692 # branching ratio of the decay studied
+T: 0.22745 # T slope parameter
+SIGMA: 0.003 # parameter used to compute the expected significance. The mass peak is assumed gaussian with sigma = SIGMA in MeV/c^2
+MASS_WINDOW: 0.075 #define the mass range of the mass histograms [mass_pdg*(1-MASS_WINDOW),mass_pdg*(1-MASS_WINDOW)]
+NBINS: 75 #number of bins of the mass histograms
+PT_BINS: [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.,1.2,1.4,1.6,1.8,2.0,2.25,2.5,2.75, 3.0]  # the analysis is performed in pT bins
+NEVENTS: 9000000 #number of events simulated in the data
 
-SIG_MODELS: ['d-gauss'] #,'sub4.0','sub4.5','sub5.0'] # ','gauss', 'd-crystal'
-BKG_MODELS: ['pol2', 'pol1','expo']
+SIG_MODELS: ['d-gauss'] #functions used to fit the mass peak
+BKG_MODELS: ['pol1','pol2','expo'] #fuctions used to fit the background
 
-EFF_RANGE_SYST: [0.02, 0.02]
+EFF_RANGE_SYST: [0.02, 0.02] #efficiency range used for to study the systematic uncertaintes doe to the BDT selection and the fits
 
-BDT_EFFICIENCY: [0.8, 0.99, 0.01] ##min, max ,step
+BDT_EFFICIENCY: [0.8, 0.99, 0.01] #min, max ,step in the effiency range 
 
-MC_PATH: /home/giacomo/StrangeNA60plusML/Data/K0S_L5_E40/fntSig_L5_E40_train.root
-FIT_PATH: /home/giacomo/StrangeNA60plusML/Data/K0S_L5_E40/fntSig_L5_E40_train.root
-BKG_PATH: /media/giacomo/Volume/ML_DATA/K0S_L5_E40/fntBkg_K0S_L5_E40_train_old.root
-DATA_PATH: /media/giacomo/Volume/ML_DATA/K0S_L5_E40/fntBkg_K0S_L5_E40_old.root
+#data path
+MC_PATH: /media/giacomo/Volume/ML_DATA/K0S_L5_E40/fntSig_L5_E40.root
+FIT_PATH: /media/giacomo/Volume/ML_DATA/K0S_L5_E40/fntSig_L5_E40.root
+BKG_PATH: /media/giacomo/Volume/ML_DATA/K0S_L5_E40/fntBkg_K0S_L5_E40_train.root
+DATA_PATH: /media/giacomo/Volume/ML_DATA/K0S_L5_E40/fntBkg_K0S_L5_E40.root
 
-PRESELECTION: cosp > 0.9995 and pt < 3
-STD_SELECTION: true > 0
+PRESELECTION: cosp > 0.9994 and pt < 3 and arm > -0.83 and arm < 0.83 #preselection applied on all the trees
+STD_SELECTION: dist > 0.2 and cosp > 0.99999 and (d0prod < -0.00002 or d0prod > 0.00002) and dca < 0.003 and arm > -0.84 and arm < 0.84 #selection used in the standard analysis
 
 XGBOOST_PARAMS:
   # general parameters

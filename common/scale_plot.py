@@ -4,11 +4,13 @@ import argparse
 from inspect import getattr_static
 import math
 import os
+
+from matplotlib.pyplot import hist
 import plot_utils as pu
 import numpy as np
 import yaml
 import ROOT
-from ROOT import TF1, TCanvas, TFile, TPaveText, gStyle, gPad
+from ROOT import TF1, TCanvas, TFile, TPaveText, gStyle, gPad, gSystem
 from scipy import stats
 
 ###############################################################################
@@ -38,14 +40,17 @@ CUSTOM = args.custom
 FIX = args.fix
 
 NEVENTS = params['NEVENTS']
-###############################################################################
-# define paths for loading data
 
 ###############################################################################
 file_name = f"../Results/{FILE_PREFIX}/{FILE_PREFIX}_scaled.root"
 results_file = TFile(file_name,"recreate")
 file_name = f"../Results/{FILE_PREFIX}/{FILE_PREFIX}_results_fit.root"
 input_file = TFile(file_name,"read")
+
+results_dir = os.environ['RESULTS']+"/"+FILE_PREFIX+"/"+FILE_PREFIX+"_scaled_plots"
+if gSystem.AccessPathName(results_dir):
+    gSystem.Exec('mkdir '+results_dir)
+
 h1BDTEff = input_file.Get(f'BDTeff')
 if CUSTOM:
     print("insert custom bdt efficiencies:")
@@ -117,6 +122,7 @@ for sigmodel in SIG_MODELS:
                     lineshape.SetParameter(n_bkgpars + 3, lineshape.GetParameter(n_bkgpars + 3)*full_run/NEVENTS)
             
             
+            histo.Fit(lineshape, "IM0R+")
             lineshape.SetNpx(600)
             lineshape.Draw("same")
 
@@ -138,7 +144,7 @@ for sigmodel in SIG_MODELS:
             else:
                 if FIX:
                     signal = (lineshape.GetParameter(n_bkgpars)+lineshape.GetParameter(n_bkgpars+3))*lineshape.GetParameter(n_bkgpars+6) / histo.GetBinWidth(1)
-                    errsignal = ROOT.TMath.Sqrt(lineshape.GetParError(n_bkgpars+6)) / histo.GetBinWidth(1)
+                    errsignal = (lineshape.GetParameter(n_bkgpars)+lineshape.GetParameter(n_bkgpars+3))*ROOT.TMath.Sqrt(lineshape.GetParError(n_bkgpars+6)) / histo.GetBinWidth(1)
                 else:
                     signal = (lineshape.GetParameter(n_bkgpars)+lineshape.GetParameter(n_bkgpars+3)) / histo.GetBinWidth(1)
                     errsignal = ROOT.TMath.Sqrt(lineshape.GetParError(n_bkgpars+3)**2+lineshape.GetParError(n_bkgpars)**2) / histo.GetBinWidth(1)
@@ -172,6 +178,7 @@ for sigmodel in SIG_MODELS:
             results_file.cd()
             cv.Write()
             histo.Write()
-            cv.SaveAs(FILE_PREFIX+f'_{sigmodel}_{bkgmodel}_pt_{ptbin[0]}{ptbin[1]}.pdf')
+            cv.SaveAs(results_dir + "/"+FILE_PREFIX+f'_{sigmodel}_{bkgmodel}_pt_{ptbin[0]}{ptbin[1]}.pdf')
+            cv.SaveAs(results_dir + "/"+FILE_PREFIX+f'_{sigmodel}_{bkgmodel}_pt_{ptbin[0]}{ptbin[1]}.png')
 results_file.Close()
 input_file.Close()

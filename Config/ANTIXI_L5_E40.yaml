@@ -1,30 +1,31 @@
-FILE_PREFIX: 'ANTIXI_L5_E40_analysis'
+FILE_PREFIX: 'ANTIXI_L5_E40_analysis' #name of directory in StrangeNA60plusML/Results
 
-PDG: 3312
-EINT: 40
-MULTIPLICITY: 0.13
-BRATIO: 0.638
-T: 0.255
-SIGMA: 0.0008
-MASS_WINDOW: 0.01
-NBINS: 40
-PT_BINS: [0.,3.]
-NEVENTS: 9010000
+PDG: 3312 #pdg code of the particle
+EINT: 40 #energy of the collision. Used only for the plots
+MULTIPLICITY: 0.13 # multiplicity of the particle
+BRATIO: 0.638 # branching ratio of the decay studied
+T: 0.255 # T slope parameter
+SIGMA: 0.0008 # parameter used to compute the expected significance. The mass peak is assumed gaussian with sigma = SIGMA in MeV/c^2
+MASS_WINDOW: 0.01 #define the mass range of the mass histograms [mass_pdg*(1-MASS_WINDOW),mass_pdg*(1-MASS_WINDOW)]
+NBINS: 40 #number of bins of the mass histograms
+PT_BINS: [0.,3.] # the analysis is performed in pT bins
+NEVENTS: 9010000 #number of events simulated in the data
 
-SIG_MODELS: ['d-gauss','kde']
-BKG_MODELS: ['pol1', 'expo']
+SIG_MODELS: ['d-gauss'] #functions used to fit the mass peak
+BKG_MODELS: ['expo','pol1'] #fuctions used to fit the background
 
-EFF_RANGE_SYST: [0.05, 0.05]
+EFF_RANGE_SYST: [0.05, 0.05] #efficiency range used for to study the systematic uncertaintes doe to the BDT selection and the fits
 
-BDT_EFFICIENCY: [0.40, 1., 0.01] ##min, max ,step
+BDT_EFFICIENCY: [0.40, 1., 0.01] #min, max ,step in the effiency range 
 
+#data path
 MC_PATH: /media/giacomo/Volume/ML_DATA/ANTIXI_L5_E40/fntSig_ANTIXI_L5_E40.root
 FIT_PATH: /media/giacomo/Volume/ML_DATA/ANTIXI_L5_E40/fntSig_ANTIXI_L5_E40.root
 BKG_PATH: /media/giacomo/Volume/ML_DATA/ANTIXI_L5_E40/fntBkg_ANTIXI_L5_E40_train.root
 DATA_PATH: /media/giacomo/Volume/ML_DATA/ANTIXI_L5_E40/fntBkg_ANTIXI_L5_E40.root
 
-PRESELECTION: cosp > 0.9999 and pt<3 #and mD<1.118 and mD>1.113
-STD_SELECTION: pt<3 and dist > 5 and cosp > 0.999988 and dcaD < 0.007 and dca<0.015 and cospD > 0.999
+PRESELECTION: cosp > 0.9999 and pt<3  #preselection applied on all the trees
+STD_SELECTION: pt<3 and dist > 5 and cosp > 0.999988 and dcaD < 0.007 and dca<0.015 and cospD > 0.999  #selection used in the standard analysis
 
 
 XGBOOST_PARAMS:

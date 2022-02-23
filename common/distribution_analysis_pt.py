@@ -161,18 +161,16 @@ for sigmodel in SIG_MODELS:
             
             raws.append([])
             errs.append([])
-            print(ranges['SCAN'][iBin - 1][0]," ", ranges['SCAN'][iBin - 1][1]," ", ranges['SCAN'][iBin - 1][2])
             for eff in np.arange(ranges['SCAN'][iBin - 1][0], ranges['SCAN'][iBin - 1][1], ranges['SCAN'][iBin - 1][2]):
                 if eff == 1.000:
                     continue
                 h1Counts = results_file.Get(f'RawCounts{eff:.3f}_{sigmodel}_{bkgmodel}')
-               # h1Counts.GetBinContent(iBin) / h1PreselEff.GetBinContent(iBin) / ranges['BEST'][iBin-1] / h1RawCountsPt[sigmodel][bkgmodel].GetBinWidth(iBin) / NEVENTS
                 raws[iBin-1].append(h1Counts.GetBinContent(iBin) / h1PreselEff.GetBinContent(iBin) / eff / h1RawCountsPt[sigmodel][bkgmodel].GetBinWidth(iBin)/ NEVENTS)
                 errs[iBin-1].append(h1Counts.GetBinError(iBin) / h1PreselEff.GetBinContent(iBin) / eff / h1RawCountsPt[sigmodel][bkgmodel].GetBinWidth(iBin)/ math.sqrt(NEVENTS*n_run) )
 
 
         distribution.cd()
-        h1RawCounts[sigmodel][bkgmodel].Fit(mt_distr, "0IRM+", "",MT_BINS[0],MT_BINS[-1])
+        h1RawCounts[sigmodel][bkgmodel].Fit(mt_distr, "I0RM+", "",MT_BINS[0],MT_BINS[-1])
         fit_function = h1RawCounts[sigmodel][bkgmodel].GetFunction("mt_distr")
         fit_function.SetLineColor(ROOT.kOrange)
         h1RawCounts[sigmodel][bkgmodel].Write()
@@ -232,7 +230,7 @@ for sigmodel in SIG_MODELS:
         ###########################################################################
         #h1RawCounts.UseCurrentStyle()
 
-        h1RawCountsPt[sigmodel][bkgmodel].Fit(pt_distr, "MI0R+", "",PT_BINS[0],PT_BINS[-1])
+        h1RawCountsPt[sigmodel][bkgmodel].Fit(pt_distr, "IM0R+", "",PT_BINS[0],PT_BINS[-1])
         fit_function = h1RawCountsPt[sigmodel][bkgmodel].GetFunction("pt_distr")
         fit_function.SetLineColor(ROOT.kOrange)
         h1RawCountsPt[sigmodel][bkgmodel].GetXaxis().SetRangeUser(PT_BINS[0],PT_BINS[-1])
@@ -296,7 +294,7 @@ distribution.cd()
 
 syst = TH1D("syst", ";T (MeV);Entries", 100, T*0.98*1000, T*1.02*1000)
 prob = TH1D("prob", ";Fit probability;Entries", 100, 0, 1)
-pars = TH2D("pars", ";T (MeV);Normalisation;Entries", 600, T*0.8*1000, T*1.2*1000, 300, 700000, 3000000)
+pars = TH2D("pars", ";T (MeV);Normalisation;Entries", 600, T*0.7*1000, T*1.3*1000, 300, 700000, 3000000)
 tmpCt = hRawCounts[0].Clone("tmpCt")
 
 combinations = set()
@@ -315,17 +313,16 @@ for _ in range(size):
     combo = (x for x in comboList)
     if combo in combinations:
         continue
-    #pt_distr.SetParameter(0, 1.15104e+03)
     combinations.add(combo)
-    tmpCt.Fit(pt_distr, "QIR0+","",PT_BINS[0],PT_BINS[-2])
-    prob.Fill(pt_distr.GetProb())
-    syst.Fill(pt_distr.GetParameter(1)*1000)
-    pars.Fill(pt_distr.GetParameter(1)*1000, pt_distr.GetParameter(0))
+    tmpCt.Fit(pt_distr, "IQR0+","",PT_BINS[0],PT_BINS[-2])
+    if pt_distr.GetProb() > -0.1:
+        prob.Fill(pt_distr.GetProb())
+        syst.Fill(pt_distr.GetParameter(1)*1000)
+        pars.Fill(pt_distr.GetParameter(1)*1000, pt_distr.GetParameter(0))
 
 syst.SetFillColor(600)
 syst.SetFillStyle(3345)
 
-print(syst.GetMaximum()*1.2)
 max_counts = syst.GetMaximum()*1.2
 syst.GetYaxis().SetRangeUser(0, max_counts)
 syst.Write()
