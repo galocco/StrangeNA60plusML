@@ -3,6 +3,9 @@ FILE_PREFIX: 'LAMBDAC_L5_E40_analysis' #name of directory in StrangeNA60plusML/R
 PDG: 3122 #pdg code of the particle
 EINT: 40 #energy of the collision. Used only for the plots
 SIGMA: 0.001 # parameter used to compute the expected significance. The mass peak is assumed gaussian with sigma = SIGMA in MeV/c^2
+MULTIPLICITY: 0.13
+BRATIO: 0.638
+T: 0.255
 MASS_WINDOW: 0.02 #define the mass range of the mass histograms [mass_pdg*(1-MASS_WINDOW),mass_pdg*(1-MASS_WINDOW)]
 NBINS: 80 #number of bins of the mass histograms
 PT_BINS: [0,10] # the analysis is performed in pT bins 
