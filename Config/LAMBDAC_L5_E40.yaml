@@ -1,0 +1,64 @@
+FILE_PREFIX: 'LAMBDAC_L5_E40_analysis' #name of directory in StrangeNA60plusML/Results
+
+PDG: 3122 #pdg code of the particle
+EINT: 40 #energy of the collision. Used only for the plots
+SIGMA: 0.001 # parameter used to compute the expected significance. The mass peak is assumed gaussian with sigma = SIGMA in MeV/c^2
+MASS_WINDOW: 0.02 #define the mass range of the mass histograms [mass_pdg*(1-MASS_WINDOW),mass_pdg*(1-MASS_WINDOW)]
+NBINS: 80 #number of bins of the mass histograms
+PT_BINS: [0,10] # the analysis is performed in pT bins 
+NEVENTS: 9000000 #number of events simulated in the data
+
+SIG_MODELS: ['d-gauss','gauss'] #functions used to fit the mass peak
+BKG_MODELS: ['pol1', 'pol2'] #fuctions used to fit the background
+
+EFF_RANGE_SYST: [0.02, 0.02] #efficiency range used for to study the systematic uncertaintes doe to the BDT selection and the fits
+
+BDT_EFFICIENCY: [0.80, 1., 0.01] #min, max ,step in the effiency range 
+
+#data path
+MC_PATH: /media/giacomo/Volume/ML_DATA/LAMBDAC_L5_E40/fntSig_LAMBDAC_L5_E40.root
+FIT_PATH: /media/giacomo/Volume/ML_DATA/LAMBDAC_L5_E40/fntSig_LAMBDAC_L5_E40.root #this can be the same of MC_PATH
+BKG_PATH: /media/giacomo/Volume/ML_DATA/LAMBDAC_L5_E40/fntBkg_LAMBDAC_L5_E40_train.root
+DATA_PATH: /media/giacomo/Volume/ML_DATA/LAMBDAC_L5_E40/fntBkg_LAMBDAC_L5_E40.root 
+
+PRESELECTION: pt<3 and cosp > 0.9998 #preselection applied on all the trees
+STD_SELECTION: pt<3 and dist > 5 and cosp > 0.999988 and dcaD < 0.007 and dca<0.015 and cospD > 0.999 #selection used in the standard analysis
+
+
+XGBOOST_PARAMS:
+  # general parameters
+  silent: 1 # print message (useful to understand whats happening)
+  n_jobs: 8 # number of available threads
+  # learning task parameters
+  objective: binary:logistic
+  random_state: 42
+  eval_metric: auc
+  tree_method: hist
+
+HYPERPARAMS:
+  max_depth: 7
+  n_estimators: 83
+  gamma: 0.525
+  min_child_weight: 9.82
+  subsample: 0.89
+  colsample_bytree: 0.64
+  seed : 42
+
+HYPERPARAMS_RANGE:
+  # booster parameters
+  max_depth: !!python/tuple [5, 20] # defines the maximum depth of a single tree (regularization)
+  learning_rate: !!python/tuple [0.01, 0.3] # learning rate
+  n_estimators: !!python/tuple [50, 500] # number of boosting trees
+  gamma: !!python/tuple [0.3, 1.1] # specifies the minimum loss reduction required to make a split
+  min_child_weight: !!python/tuple [1, 12]
+  subsample: !!python/tuple [0.5, 0.9] # denotes the fraction of observations to be randomly samples for each tree
+  colsample_bytree: !!python/tuple [0.5, 0.9] # denotes the fraction of columns to be randomly samples for each tree
+  # # lambda: (0,10]  # L2 regularization term on weights
+  # # alpha: (0,10]  # L1 regularization term on weight
+
+TRAINING_COLUMNS: 
+  - cosp
+  - dist
+  - dca
+  - d0prod
+  - rapidity
