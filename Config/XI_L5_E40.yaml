@@ -1,69 +1,78 @@
-FILE_PREFIX: 'XI_L5_E40_analysis' #name of directory in StrangeNA60plusML/Results
-
-PDG: 3312 #pdg code of the particle
-EINT: 40 #energy of the collision. Used only for the plots
-MULTIPLICITY: 2.96 # multiplicity of the particle
-BRATIO: 0.638 # branching ratio of the decay studied
-T: 0.222 # T slope parameter
-SIGMA: 0.0008 # parameter used to compute the expected significance. The mass peak is assumed gaussian with sigma = SIGMA in MeV/c^2
-MASS_WINDOW: 0.012 #define the mass range of the mass histograms [mass_pdg*(1-MASS_WINDOW),mass_pdg*(1-MASS_WINDOW)]
-NBINS: 35 #number of bins of the mass histograms
-PT_BINS: [0.,0.5,0.8,1.,1.25,1.5, 2.5] # the analysis is performed in pT bins 
-NEVENTS: 9000000 #number of events simulated in the data
-
-SIG_MODELS: ['d-gauss'] #functions used to fit the mass peak
-BKG_MODELS: ['pol1', 'expo'] #fuctions used to fit the background
-
-EFF_RANGE_SYST: [0.05, 0.05] #efficiency range used for to study the systematic uncertaintes doe to the BDT selection and the fits
-
-BDT_EFFICIENCY: [0.70, 1., 0.01] #min, max ,step in the effiency range 
-
-#data path
-MC_PATH: /media/giacomo/Volume/ML_DATA/XI_L5_E40/fntSig_XI_L5_E40.root
-FIT_PATH: /media/giacomo/Volume/ML_DATA/XI_L5_E40/fntSig_XI_L5_E40.root
-BKG_PATH: /media/giacomo/Volume/ML_DATA/XI_L5_E40/fntBkg_XI_L5_E40_train.root
-DATA_PATH: /media/giacomo/Volume/ML_DATA/XI_L5_E40/fntBkg_XI_L5_E40.root
-
-PRESELECTION: cosp > 0.9999 and pt<2.5 #preselection applied on all the trees
-STD_SELECTION: pt<3 and dist > 5 and cosp > 0.999988 and dcaD < 0.007 and dca<0.015 and cospD > 0.999 #selection used in the standard analysis
-
-
+BDT_EFFICIENCY:
+- 0.7
+- 1.0
+- 0.01
+BKG_MODELS:
+- pol1
+- expo
+BKG_PATH: /home/giacomo/StrangeNA60plusML/Data/XI_L5_E40/fntBkg_XI_E40_train.root
+BRATIO: 0.638
+DATA_PATH: /home/giacomo/StrangeNA60plusML/Data/XI_L5_E40/fntBkg_XI_E40_data.root
+EFF_RANGE_SYST:
+- 0.05
+- 0.05
+EINT: 40
+FILE_PREFIX: XI_L5_E40_analysis
+FIT_PATH: /home/giacomo/StrangeNA60plusML/Data/XI_L5_E40/fntSig_XI_E40_train.root
+HYPERPARAMS:
+  colsample_bytree: 0.64
+  gamma: 0.525
+  learning_rate: 0.167
+  max_depth: 7
+  min_child_weight: 9.82
+  n_estimators: 83
+  seed: 42
+  subsample: 0.89
+HYPERPARAMS_RANGE:
+  colsample_bytree:
+  - 0.5
+  - 0.9
+  gamma:
+  - 0.3
+  - 1.1
+  learning_rate:
+  - 0.01
+  - 0.3
+  max_depth:
+  - 5
+  - 20
+  min_child_weight:
+  - 1
+  - 12
+  n_estimators:
+  - 50
+  - 500
+  subsample:
+  - 0.5
+  - 0.9
+INFO_PATH: /home/giacomo/StrangeNA60plusML/Data/XI_L5_E40/Bkg-histos_XI_E40_data.root
+MASS_WINDOW: 0.015
+MC_PATH: /home/giacomo/StrangeNA60plusML/Data/XI_L5_E40/fntSig_XI_E40_train.root
+MULTIPLICITY: 2.96
+NBINS: 35
+NEVENTS: 19468956.0
+PDG: 3312
+PRESELECTION: cosp > 0.9999 and pt<2.5
+PT_BINS:
+- 0.0
+- 3
+SIGMA: 0.0008
+SIG_MODELS:
+- d-gauss
+STD_SELECTION: pt<3 and dist > 5 and cosp > 0.999988 and dcaD < 0.007 and dca<0.015
+  and cospD > 0.999
+T: 0.222
+TRAINING_COLUMNS:
+- cosp
+- bxy
+- bxyD
+- dca
+- dcaD
+- dist
 XGBOOST_PARAMS:
-  # general parameters
-  silent: 1 # print message (useful to understand whats happening)
-  n_jobs: 8 # number of available threads
-  # learning task parameters
+  eval_metric: auc
+  n_jobs: 8
   objective: binary:logistic
   random_state: 42
-  eval_metric: auc
+  silent: 1
   tree_method: hist
-
-HYPERPARAMS:
-  max_depth: 7
-  learning_rate: 0.167
-  n_estimators: 83
-  gamma: 0.525
-  min_child_weight: 9.82
-  subsample: 0.89
-  colsample_bytree: 0.64
-  seed : 42
-
-HYPERPARAMS_RANGE:
-  # booster parameters
-  max_depth: !!python/tuple [5, 20] # defines the maximum depth of a single tree (regularization)
-  learning_rate: !!python/tuple [0.01, 0.3] # learning rate
-  n_estimators: !!python/tuple [50, 500] # number of boosting trees
-  gamma: !!python/tuple [0.3, 1.1] # specifies the minimum loss reduction required to make a split
-  min_child_weight: !!python/tuple [1, 12]
-  subsample: !!python/tuple [0.5, 0.9] # denotes the fraction of observations to be randomly samples for each tree
-  colsample_bytree: !!python/tuple [0.5, 0.9] # denotes the fraction of columns to be randomly samples for each tree
-  # # lambda: (0,10]  # L2 regularization term on weights
-  # # alpha: (0,10]  # L1 regularization term on weight
-
-TRAINING_COLUMNS: 
-  - cosp
-  - bxy
-  - bxyD
-  - dca
-  - dcaD
-  - dist

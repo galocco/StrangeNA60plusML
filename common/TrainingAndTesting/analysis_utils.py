@@ -1,21 +1,15 @@
-from itertools import count
 import math
 from concurrent.futures import ThreadPoolExecutor
 from math import floor, log10
 import warnings
 
-from pyparsing import col
-
 import aghast
-from matplotlib.pyplot import axis
 import numpy as np
 import uproot
 from hipe4ml.model_handler import ModelHandler
 import ROOT
-from ROOT import TF1, TH1D, TCanvas, TPaveStats, TPaveText, gStyle, THnSparseD, TMath, TFile
+from ROOT import TF1, TH1D, TCanvas, TPaveStats, TPaveText, gStyle, THnSparseD, TMath
 from array import array
-import pickle
-import pandas as pd
 from scipy import stats
 import os
 # avoid pandas warning
@@ -332,6 +326,13 @@ def get_ctbin_index(th2, ctbin):
 def fit_hist(
         histo, pt_range, mass, directory, mc_fit_file, peak_width=3, sig_model="gauss", bkg_model="pol2", mass_range=0.04, Eint=17.3, fix_params = False, print = ""):
     hist_range = [mass*(1-mass_range),mass*(1+mass_range)]
+    ROOT.Math.MinimizerOptions.SetDefaultMinimizer("Minuit2")
+
+    integrator = ROOT.Math.GaussIntegrator()
+    integrator.SetAbsTolerance(1e-6)
+    integrator.SetRelTolerance(1e-6)
+
+
     # canvas for plotting the invariant mass distribution
     cv = TCanvas(f'cv_{histo.GetName()}')
     # define the number of parameters depending on the bkg model
@@ -479,7 +480,9 @@ def fit_hist(
     if sig_model == "kde":
         histo.Fit(fit_tpl, "MQR", "", hist_range[0], hist_range[1])
     else:
-        histo.Fit(fit_tpl, "MIQR", "", hist_range[0], hist_range[1])
+        #histo.Fit(fit_tpl, "MIQR", "", hist_range[0], hist_range[1])
+        histo.Fit(fit_tpl, "MIQ", "", hist_range[0], hist_range[1])
+        
     if not 'sub' in str(sig_model):
         bkg_tpl.SetParameters(fit_tpl.GetParameters())
         histo.Draw()

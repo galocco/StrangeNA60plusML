@@ -48,7 +48,7 @@ BRATIO = params["BRATIO"]
 REBIN = params["REBIN"]
 ###############################################################################
 
-full_run = 10**10
+full_run = 6*10**9
 input = ROOT.TFile(inputFile)
 hist_data = input.Get("data")
 hist_data_sig = input.Get("data_sig")

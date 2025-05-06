@@ -12,7 +12,7 @@ import analysis_utils as au
 import plot_utils as pu
 
 from ROOT import TH1D, TFile, gROOT, TDatabasePDG, gSystem
-
+import ROOT
 # avoid pandas warning
 warnings.simplefilter(action='ignore', category=FutureWarning)
 gROOT.SetBatch()

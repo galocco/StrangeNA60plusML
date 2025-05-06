@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
 
 import argparse
-from inspect import getattr_static
 import math
 import os
 
-from matplotlib.pyplot import hist
 import plot_utils as pu
 import numpy as np
 import yaml
 import ROOT
 from ROOT import TF1, TCanvas, TFile, TPaveText, gStyle, gPad, gSystem
-from scipy import stats
 
 ###############################################################################
 parser = argparse.ArgumentParser()
@@ -61,7 +58,7 @@ else:
     best_sig_eff = np.round(np.array(h1BDTEff)[1:-1], 3)
     print(best_sig_eff)
 
-full_run = 10**10
+full_run = 3*10**10
 for sigmodel in SIG_MODELS:
     for bkgmodel in BKG_MODELS:
 
@@ -110,24 +107,31 @@ for sigmodel in SIG_MODELS:
 
             true_mass = histo.GetBinCenter(int(histo.GetNbinsX()/2))
             histo.GetYaxis().SetRangeUser(0,1.5*int(lineshape.Eval(true_mass)*full_run/NEVENTS))
+            
+            histo.GetYaxis().SetLabelSize(0.04)
+            histo.GetXaxis().SetLabelSize(0.04)
+
+            histo.GetYaxis().SetTitleSize(0.05)
+            histo.GetXaxis().SetTitleSize(0.05)
+
             histo.Draw()
 
             for par_index in range(0, n_bkgpars):
                 lineshape.SetParameter(par_index, lineshape.GetParameter(par_index)*full_run/NEVENTS)
+
             if sigmodel == "d-gauss":
-                if FIX:
-                    lineshape.SetParameter(n_bkgpars + 6, lineshape.GetParameter(n_bkgpars + 6)*full_run/NEVENTS)
-                else:
-                    lineshape.SetParameter(n_bkgpars, lineshape.GetParameter(n_bkgpars)*full_run/NEVENTS)
-                    lineshape.SetParameter(n_bkgpars + 3, lineshape.GetParameter(n_bkgpars + 3)*full_run/NEVENTS)
+                lineshape.SetParameter(n_bkgpars, lineshape.GetParameter(n_bkgpars)*full_run/NEVENTS)
+                lineshape.SetParameter(n_bkgpars + 3, lineshape.GetParameter(n_bkgpars + 3)*full_run/NEVENTS)
             
-            
+            ROOT.Math.IntegratorOneDimOptions.SetDefaultAbsTolerance(1.E-1)
+            ROOT.Math.IntegratorOneDimOptions.SetDefaultRelTolerance(1.E-1)
             histo.Fit(lineshape, "IM0R+")
-            lineshape.SetNpx(600)
-            lineshape.Draw("same")
+            lineshape.SetLineColor(ROOT.kBlue)
+            lineshape.SetNpx(10000)
+            lineshape.SetRange(0, 5)
 
             bkg_tpl = TF1('bkg_tpl', f'{bkgmodel}(0)', 0, 5)
-            bkg_tpl.SetNpx(600)
+            bkg_tpl.SetNpx(10000)
 
             for par_index in range(0, n_bkgpars):
                 bkg_tpl.SetParameter(par_index, lineshape.GetParameter(par_index))
@@ -155,24 +159,45 @@ for sigmodel in SIG_MODELS:
             pinfo2.SetFillStyle(0)
             pinfo2.SetTextAlign(30+3)
             pinfo2.SetTextFont(42)
+            pinfo2.SetTextSize(0.045)
+
 
             string = 'Pb-Pb #sqrt{s_{NN}} = '+f'{EINT} GeV, centrality 0-5%'
             pinfo2.AddText(string)
+            if "K0S" in FILE_PREFIX:
+                string = 'K^{0}_{S} #rightarrow#pi^{+} + #pi^{-}'
+            elif "LAMBDA" in FILE_PREFIX:
+                string = '#Lambda^{0} #rightarrow p + #pi^{-}'
+            elif "LAMBDA" in FILE_PREFIX:
+                string = '#bar{#Lambda}^{0} #rightarrow #bar{p} + #pi^{+}'
+            elif "PHI" in FILE_PREFIX:
+                string = '#phi #rightarrow K^{+} + K^{-}'
+            elif "OMEGA" in FILE_PREFIX:
+                string = '#Omega^{#pm} #rightarrow #Lambda^{0} + K^{-} #rightarrow p + #pi^{-} + K^{-}'
+            elif "XI" in FILE_PREFIX:
+                string = '#Xi^{-} #rightarrow #Lambda^{0} + #pi^{-} #rightarrow p + #pi^{-} + #pi^{-}'
+            elif "ANTIXI" in FILE_PREFIX:
+                string = '#Xi^{+} #rightarrow #bar{#Lambda}^{0} + #pi^{+} #rightarrow #bar{p} + #pi^{+} + #pi^{+}'
 
-            string = f'{ptbin[0]:.2f}'+' #leq #it{p}_{T} < '+f'{ptbin[1]:.2f}'+' GeV/#it{c} '
+            
             pinfo2.AddText(string)
 
-            string = f'S {signal:.0f} #pm {errsignal:.0f}'
+            string = f'{ptbin[0]:.2f}'+' #leq #it{p}_{T} < '+f'{ptbin[1]:.2f}'+' GeV/#it{c} '
+            string = ' #it{p}_{T} > '+f'{ptbin[0]:.2f}'+' GeV/#it{c} '
+            pinfo2.AddText(string)
+
+            string = f'S {signal:.0f}#pm {errsignal:.0f}'
             pinfo2.AddText(string)
             
             pinfo2.Draw()
             gStyle.SetOptStat(0)
             
-            bkg_tpl.SetNpx(300)
+            bkg_tpl.SetNpx(10000)
             bkg_tpl.SetLineWidth(2)
             bkg_tpl.SetLineStyle(2)
-            bkg_tpl.SetLineColor(ROOT.kBlue)
+            bkg_tpl.SetLineColor(ROOT.kRed)
             bkg_tpl.Draw("same")
+            lineshape.Draw("same")
 
             sig_index += 1
             results_file.cd()

@@ -1,26 +1,45 @@
-FILE_PREFIX: 'PHI_L5_E40_analysis'
-
-PDG: 333
-EINT: 40
-MULTIPLICITY: 2.55
+BKG_MODELS:
+- expo
+- pol1
+- pol2
 BRATIO: 0.489
-T: 0.2446
-SIGMA: 0.0025
-MASS_MIN: 0.98
-MASS_MAX: 1.10
-NBINS: 60
-MASS_WINDOW: 0.04
-#PT_BINS: [0,0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0,1.1,1.2,1.3,1.4,1.5,1.6,1.7,1.8,1.9,2.0,2.1,2.2,2.3,2.4,2.5,2.6,2.7,2.8,2.9,3.0]
-PT_BINS: [0,0.2,0.4,0.6,0.8,1.0,1.2,1.4,1.6,1.8,2.0,2.2,2.4,2.6,2.8,3.0]
-REBIN: 2
-SIG_MODELS: ['gauss', 'd-gauss']
-BKG_MODELS: ['expo', 'pol1', 'pol2']
-
-MC_PATH: /home/giacomo/StrangeNA60plusML/Data/PHI_L5_E40/fntSig_PHI_L5_E40.root
-
+EFF_FILE: /home/giacomo/StrangeNA60plusML/Data/PHI_L5_E40_nev1000000_2245517281/Signal_histos_L5_E40.root
+EINT: 40
+FILE_PREFIX: PHI_L5_E40_analysis
+INFO_PATH: /home/giacomo/StrangeNA60plusML/Data/PHI_L5_E40/Bkg-histos_PHI_E40.root
 INPUT_FILE: /home/giacomo/StrangeNA60plusML/Data/PHI_L5_E40/Results_L5_E40.root
-EFF_FILE: /home/giacomo/PHI_L5_E40_nev1000000_2245517281/Signal_histos_L5_E40.root
-SIGNAL_FILE: /home/giacomo/StrangeNA60plusML/Data/PHI_L5_E40/fntSig_PHI_L5_E40.root
-
+MASS_MAX: 1.1
+MASS_MIN: 0.98
+MASS_WINDOW: 0.04
+MC_PATH: /home/giacomo/StrangeNA60plusML/Data/PHI_L5_E40/fntSig_PHI_L5_E40.root
+MULTIPLICITY: 2.55
+NBINS: 60
+NEVENTS: 4662923.0
+PDG: 333
 PRESELECTION: cosp > 0.9999 and pt<3
-STD_SELECTION: pt<3 and dist > 5 and cosp > 0.999988 and dcaD < 0.007 and dca<0.015 and cospD > 0.999
+PT_BINS:
+- 0
+- 0.2
+- 0.4
+- 0.6
+- 0.8
+- 1.0
+- 1.2
+- 1.4
+- 1.6
+- 1.8
+- 2.0
+- 2.2
+- 2.4
+- 2.6
+- 2.8
+- 3.0
+REBIN: 2
+SIGMA: 0.0025
+SIGNAL_FILE: /home/giacomo/StrangeNA60plusML/Data/PHI_L5_E40/fntSig_PHI_L5_E40.root
+SIG_MODELS:
+- gauss
+- d-gauss
+STD_SELECTION: pt<3 and dist > 5 and cosp > 0.999988 and dcaD < 0.007 and dca<0.015
+  and cospD > 0.999
+T: 0.2446
