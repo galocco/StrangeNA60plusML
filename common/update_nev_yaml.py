@@ -12,16 +12,15 @@ def update_nevents(yaml_file_path):
     data = yaml.safe_load(content)
 
     root_file = ROOT.TFile(data["INFO_PATH"])
+    nev_data = root_file.Get("hNevents").GetBinContent(1)
+    root_file.Close()
+
+    root_file = ROOT.TFile(data["INFO_PATH"].replace("data", "train"))
     nev = root_file.Get("hNevents").GetBinContent(1)
     root_file.Close()
-    print()
-    # Modify the NEVENTS value
-    if 'NEVENTS' in data:
-        print(f"Old NEVENTS value: {data['NEVENTS']}")
-        data['NEVENTS'] = nev
-    else:
-        print("NEVENTS key not found. Adding it.")
-        data['NEVENTS'] = nev
+
+    data['NEVENTS'] = nev
+    data['NEVENTS_DATA'] = nev_data
 
     # Write the updated data back to the file
     with open(yaml_file_path, 'w') as file:

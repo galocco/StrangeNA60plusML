@@ -4,7 +4,6 @@ BDT_EFFICIENCY:
 - 0.01
 BKG_MODELS:
 - pol1
-- pol2
 BKG_PATH: /home/giacomo/StrangeNA60plusML/Data/LAMBDA_L5_E40/fntBkg_LAMBDA_E40_train.root
 BRATIO: 0.639
 DATA_PATH: /home/giacomo/StrangeNA60plusML/Data/LAMBDA_L5_E40/fntBkg_LAMBDA_E40_data.root
@@ -49,17 +48,41 @@ MASS_WINDOW: 0.02
 MC_PATH: /home/giacomo/StrangeNA60plusML/Data/LAMBDA_L5_E40/fntSig_LAMBDA_E40_train.root
 MULTIPLICITY: 43.1
 NBINS: 80
-NEVENTS: 19468956.0
+NEVENTS: 4963600.0
+NEVENTS_DATA: 19468956.0
 PDG: 3122
-PRESELECTION: pt<3 and cosp > 0.9998
+PRESELECTION: cosp > 0.9995 and impp > 0.01 and impn > 0.01
 PT_BINS:
 - 0
-- 10
-SIGMA: 0.001
+- 0.1
+- 0.2
+- 0.3
+- 0.4
+- 0.5
+- 0.6
+- 0.7
+- 0.8
+- 0.9
+- 1.0
+- 1.1
+- 1.2
+- 1.3
+- 1.4
+- 1.5
+- 1.6
+- 1.7
+- 1.8
+- 1.9
+- 2.0
+- 2.2
+- 2.4
+- 2.6
+- 3.0
+SIGMA: 0.0015
 SIG_MODELS:
 - d-gauss
-STD_SELECTION: pt<3 and dist > 5 and cosp > 0.999988 and dcaD < 0.007 and dca<0.015
-  and cospD > 0.999
+STD_SELECTION: dist > 5 and cosp > 0.999988 and dcaD < 0.007 and dca<0.015 and cospD
+  > 0.999
 T: 0.258
 TRAINING_COLUMNS:
 - cosp

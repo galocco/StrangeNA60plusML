@@ -35,7 +35,7 @@ MULTIPLICITY = params['MULTIPLICITY']
 PDG_CODE = params['PDG']
 PT_BINS = params['PT_BINS']
 EFF_MIN, EFF_MAX, EFF_STEP = params['BDT_EFFICIENCY']
-NEVENTS = params['NEVENTS']
+NEVENTS_DATA = params['NEVENTS_DATA']
 BRATIO = params["BRATIO"]
 
 SIG_MODELS = params['SIG_MODELS']
@@ -68,7 +68,7 @@ results_file = TFile(file_name, 'read')
 if SCALE:
     n_run = rate*running_time*24*60*60*5
 else:
-    n_run = NEVENTS
+    n_run = NEVENTS_DATA
 
 h1BDTEff = results_file.Get('BDTeff')
 
@@ -128,16 +128,16 @@ for sigmodel in SIG_MODELS:
         for iBin in range(1, h1RawCountsPt[sigmodel][bkgmodel].GetNbinsX() + 1):
             h1Counts = results_file.Get(f'RawCounts{ranges["BEST"][iBin-1]:.3f}_{sigmodel}_{bkgmodel}')
             #print('RawCounts{ranges["BEST"][iBin-1]:.3f}_{sigmodel}_{bkgmodel}')
-            h1RawCountsPt[sigmodel][bkgmodel].SetBinContent(iBin, h1Counts.GetBinContent(iBin) / h1PreselEff.GetBinContent(iBin) / ranges['BEST'][iBin-1]/ NEVENTS)
-            h1RawCountsPt[sigmodel][bkgmodel].SetBinError(iBin, h1Counts.GetBinError(iBin) / h1PreselEff.GetBinContent(iBin) / ranges['BEST'][iBin-1]/ math.sqrt(NEVENTS*n_run))
+            h1RawCountsPt[sigmodel][bkgmodel].SetBinContent(iBin, h1Counts.GetBinContent(iBin) / h1PreselEff.GetBinContent(iBin) / ranges['BEST'][iBin-1]/ NEVENTS_DATA)
+            h1RawCountsPt[sigmodel][bkgmodel].SetBinError(iBin, h1Counts.GetBinError(iBin) / h1PreselEff.GetBinContent(iBin) / ranges['BEST'][iBin-1]/ math.sqrt(NEVENTS_DATA*n_run))
             
             raws.append([])
             errs.append([])
 
             for eff in np.arange(ranges['SCAN'][iBin - 1][0], ranges['SCAN'][iBin - 1][1], ranges['SCAN'][iBin - 1][2]):
                 h1Counts = results_file.Get(f'RawCounts{eff:.3f}_{sigmodel}_{bkgmodel}')
-                raws[iBin-1].append(h1Counts.GetBinContent(iBin) / h1PreselEff.GetBinContent(iBin) / eff/ NEVENTS)
-                errs[iBin-1].append(h1Counts.GetBinError(iBin) / h1PreselEff.GetBinContent(iBin) / eff/ math.sqrt(NEVENTS*n_run) )
+                raws[iBin-1].append(h1Counts.GetBinContent(iBin) / h1PreselEff.GetBinContent(iBin) / eff/ NEVENTS_DATA)
+                errs[iBin-1].append(h1Counts.GetBinError(iBin) / h1PreselEff.GetBinContent(iBin) / eff/ math.sqrt(NEVENTS_DATA*n_run) )
 
 
         distribution.cd()

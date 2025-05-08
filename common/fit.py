@@ -119,7 +119,7 @@ for ptbin in zip(PT_BINS[:-1], PT_BINS[1:]):
                     PRINT = f'{PLOT_DIR}/{FILE_PREFIX}_pt_{ptbin[0]}_{ptbin[1]}_sig_{bkgmodel}_bkg_{bkgmodel}_bdt_eff_{keff}'
 
                 print("fit model: ",bkgmodel,"+",sigmodel," BDT efficiency: ",keff)
-                rawcounts, err_rawcounts = au.fit_hist(hist, ptbin, mass, sig_model=sigmodel, bkg_model=bkgmodel, Eint=EINT, mass_range=MASS_WINDOW, mc_fit_file = mc_fit_file, directory = fit_bkg_dir, fix_params = FIX, peak_width=SIGMA*4, print=PRINT)
+                rawcounts, err_rawcounts = au.fit_hist(hist, ptbin, mass, sig_model=sigmodel, bkg_model=bkgmodel, Eint=EINT, mass_range=MASS_WINDOW, mc_fit_file = mc_fit_file, directory = fit_bkg_dir, fix_params = FIX, peak_width=SIGMA*4, do_print=PRINT)
 
                 dict_key = f'{keff}_{sigmodel}_{bkgmodel}'
 

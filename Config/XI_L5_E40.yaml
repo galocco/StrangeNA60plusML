@@ -4,7 +4,6 @@ BDT_EFFICIENCY:
 - 0.01
 BKG_MODELS:
 - pol1
-- expo
 BKG_PATH: /home/giacomo/StrangeNA60plusML/Data/XI_L5_E40/fntBkg_XI_E40_train.root
 BRATIO: 0.638
 DATA_PATH: /home/giacomo/StrangeNA60plusML/Data/XI_L5_E40/fntBkg_XI_E40_data.root
@@ -46,17 +45,28 @@ HYPERPARAMS_RANGE:
   - 0.5
   - 0.9
 INFO_PATH: /home/giacomo/StrangeNA60plusML/Data/XI_L5_E40/Bkg-histos_XI_E40_data.root
-MASS_WINDOW: 0.015
+MASS_WINDOW: 0.018
 MC_PATH: /home/giacomo/StrangeNA60plusML/Data/XI_L5_E40/fntSig_XI_E40_train.root
 MULTIPLICITY: 2.96
 NBINS: 35
-NEVENTS: 19468956.0
+NEVENTS: 4963600.0
+NEVENTS_DATA: 19468956.0
 PDG: 3312
-PRESELECTION: cosp > 0.9999 and pt<2.5
+PRESELECTION: cosp > 0.9995 and imp1 > 0.01 and imp2 > 0.01 and imp0 > 0.01
 PT_BINS:
-- 0.0
-- 3
-SIGMA: 0.0008
+- 0
+- 0.2
+- 0.4
+- 0.6
+- 0.8
+- 1.0
+- 1.2
+- 1.4
+- 1.6
+- 1.8
+- 2.0
+- 2.5
+SIGMA: 0.0022
 SIG_MODELS:
 - d-gauss
 STD_SELECTION: pt<3 and dist > 5 and cosp > 0.999988 and dcaD < 0.007 and dca<0.015
@@ -69,6 +79,7 @@ TRAINING_COLUMNS:
 - dca
 - dcaD
 - dist
+
 XGBOOST_PARAMS:
   eval_metric: auc
   n_jobs: 8

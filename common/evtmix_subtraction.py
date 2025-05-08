@@ -33,7 +33,6 @@ with open(os.path.expandvars(args.config), 'r') as stream:
 
 ################################################################################
 inputFile = params["INPUT_FILE"]
-effFile = params["EFF_FILE"]
 suffix = params["FILE_PREFIX"]
 dgauss = args.dgauss  
 signal_file = params["SIGNAL_FILE"]
@@ -48,7 +47,7 @@ BRATIO = params["BRATIO"]
 REBIN = params["REBIN"]
 ###############################################################################
 
-full_run = 6*10**9
+full_run = 0.15*3*10**10
 input = ROOT.TFile(inputFile)
 hist_data = input.Get("data")
 hist_data_sig = input.Get("data_sig")

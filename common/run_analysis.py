@@ -102,7 +102,7 @@ if TRAIN:
         part_time = time.time()
 
         # data[0]=train_set, data[1]=y_train, data[2]=test_set, data[3]=y_test
-        data = ml_analysis.prepare_dataframe(COLUMNS, pt_range=ptbin, test_size=0.5)
+        data = ml_analysis.prepare_dataframe(COLUMNS, pt_range=ptbin, test_size=0.6)
 
         input_model = xgb.XGBClassifier(verbosity = 0)
         model_handler = ModelHandler(input_model)

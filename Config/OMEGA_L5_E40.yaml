@@ -49,14 +49,16 @@ MASS_WINDOW: 0.03
 MC_PATH: /home/giacomo/StrangeNA60plusML/Data/OMEGA_L5_E40/fntSig_OMEGA_E40_train.root
 MULTIPLICITY: 0.14
 NBINS: 80
-NEVENTS: 19718956.0
+NEVENTS: 4713600.0
+NEVENTS_DATA: 19718956.0
 PDG: 3334
-PRESELECTION: pt < 10 and cosp > 0.99999 and mD < 1.117 and mD > 1.1145 and dcaD <
-  0.002 and dca < 0.003 and distD > 0.2 and m > 1.6223 and m < 1.7226
+PRESELECTION: cosp > 0.9995 and imp1 > 0.01 and imp2 > 0.01 and imp0 > 0.01
 PT_BINS:
 - 0
-- 10
-SIGMA: 0.002
+- 1
+- 1.5
+- 2.5
+SIGMA: 0.0025
 SIG_MODELS:
 - gauss
 STD_SELECTION: (bxyD < -0.0032 or bxyD > 0.0032) and (bxy < -0.0008 or bxy > 0.0008)
@@ -65,11 +67,12 @@ STD_SELECTION: (bxyD < -0.0032 or bxyD > 0.0032) and (bxy < -0.0008 or bxy > 0.0
   cosp > 0.999998 and pt > 0.9
 T: 0.218
 TRAINING_COLUMNS:
-- cospD
-- bxyD
+- cosp
 - bxy
+- bxyD
+- dca
+- dcaD
 - dist
-- rapidity
 XGBOOST_PARAMS:
   eval_metric: auc
   n_jobs: 8

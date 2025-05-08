@@ -324,15 +324,8 @@ def get_ctbin_index(th2, ctbin):
 
 
 def fit_hist(
-        histo, pt_range, mass, directory, mc_fit_file, peak_width=3, sig_model="gauss", bkg_model="pol2", mass_range=0.04, Eint=17.3, fix_params = False, print = ""):
+        histo, pt_range, mass, directory, mc_fit_file, peak_width=3, sig_model="gauss", bkg_model="pol2", mass_range=0.04, Eint=17.3, fix_params = False, do_print = ""):
     hist_range = [mass*(1-mass_range),mass*(1+mass_range)]
-    ROOT.Math.MinimizerOptions.SetDefaultMinimizer("Minuit2")
-
-    integrator = ROOT.Math.GaussIntegrator()
-    integrator.SetAbsTolerance(1e-6)
-    integrator.SetRelTolerance(1e-6)
-
-
     # canvas for plotting the invariant mass distribution
     cv = TCanvas(f'cv_{histo.GetName()}')
     # define the number of parameters depending on the bkg model
@@ -444,14 +437,17 @@ def fit_hist(
                 else:
                     fit_tpl.SetParameter(n_bkgpars + param, 100)
                     fit_tpl.SetParLimits(n_bkgpars + param, 0, 1000)
-    
+
+
     histo_bkg = histo.Clone("histo_bkg")
     peak_bins = [histo_bkg.GetXaxis().FindBin(mass-peak_width), histo_bkg.GetXaxis().FindBin(mass+peak_width)]
     for bin in range(peak_bins[0], peak_bins[1]+1):
         histo_bkg.SetBinContent(bin, 0)
         histo_bkg.SetBinError(bin, 0)
     bkg_tpl = TF1('bkgTpl', f'{bkg_model}(0)', 0, 5)
-    histo_bkg.Fit(bkg_tpl, "RIM0Q","", mass*(1-mass_range), mass*(1+mass_range))
+
+    histo_bkg.Fit(bkg_tpl, "RM0Q","", mass*(1-mass_range), mass*(1+mass_range))
+
     for param in range(0, n_bkgpars):
         fit_tpl.SetParameter(param, bkg_tpl.GetParameter(param))
     
@@ -480,8 +476,8 @@ def fit_hist(
     if sig_model == "kde":
         histo.Fit(fit_tpl, "MQR", "", hist_range[0], hist_range[1])
     else:
-        #histo.Fit(fit_tpl, "MIQR", "", hist_range[0], hist_range[1])
-        histo.Fit(fit_tpl, "MIQ", "", hist_range[0], hist_range[1])
+
+        histo.Fit(fit_tpl, "MQR", "", hist_range[0], hist_range[1])
         
     if not 'sub' in str(sig_model):
         bkg_tpl.SetParameters(fit_tpl.GetParameters())
@@ -561,9 +557,9 @@ def fit_hist(
     directory.cd()
     histo.Write()
     cv.Write()
-    if print != "":
-        cv.SaveAs(print+".pdf")
-        cv.SaveAs(print+".png")
+    if do_print != "":
+        cv.SaveAs(do_print+".pdf")
+        cv.SaveAs(do_print+".png")
     
     return (signal, errsignal)
 
@@ -820,3 +816,36 @@ def get_pt_integral(pt_spectra, pt_min = 0, pt_max ="infinity"):
     t_min = ROOT.TMath.Sqrt(pt_min**2+mass**2)/T
     int_min = -T**2*(ROOT.TMath.Exp(-t_min)*(1+t_min))
     return int_max - int_min
+
+def significance_with_uncertainty(S, B):
+    """
+    Compute the significance Z = S / sqrt(S + B)
+    and its uncertainty δZ using error propagation,
+    assuming Poisson uncertainties: δS = sqrt(S), δB = sqrt(B).
+    
+    Parameters:
+        S (float): number of signal events
+        B (float): number of background events
+        
+    Returns:
+        Z (float): significance
+        dZ (float): uncertainty on the significance
+    """
+    if S < 0 or B < 0:
+        raise ValueError("S and B must be non-negative.")
+    if S + B == 0:
+        return 0.0, 0.0  # undefined, but return 0 safely
+
+    Z = S / np.sqrt(S + B)
+
+    # Poisson uncertainties
+    dS = np.sqrt(S)
+    dB = np.sqrt(B)
+
+    # Error propagation
+    dZ = np.sqrt(
+        ((S + 2*B) / (2 * (S + B)**(3/2)) * dS)**2 +
+        ((S) / (2 * (S + B)**(3/2)) * dB)**2
+    )
+
+    return Z, dZ

@@ -1,22 +1,24 @@
-BKG_MODELS:
-- expo
-- pol1
-- pol2
-BRATIO: 0.489
-EFF_FILE: /home/giacomo/StrangeNA60plusML/Data/PHI_L5_E40_nev1000000_2245517281/Signal_histos_L5_E40.root
-EINT: 40
 FILE_PREFIX: PHI_L5_E40_analysis
-INFO_PATH: /home/giacomo/StrangeNA60plusML/Data/PHI_L5_E40/Bkg-histos_PHI_E40.root
-INPUT_FILE: /home/giacomo/StrangeNA60plusML/Data/PHI_L5_E40/Results_L5_E40.root
+BKG_MODELS:
+- pol1
+EINT: 40
+
+BRATIO: 0.489
+
+INFO_PATH:   /home/giacomo/StrangeNA60plusML/Data/PHI_L5_E40/Bkg-histos_PHI_E40.root #to get the number of events
+
+INPUT_FILE:  /home/giacomo/StrangeNA60plusML/Data/PHI_L5_E40/Results_PHI_L5_E40.root
+SIGNAL_FILE: /home/giacomo/StrangeNA60plusML/Data/PHI_L5_E40/fntSig_PHI_L5_E40.root #to compute the efficiency
+
 MASS_MAX: 1.1
 MASS_MIN: 0.98
 MASS_WINDOW: 0.04
-MC_PATH: /home/giacomo/StrangeNA60plusML/Data/PHI_L5_E40/fntSig_PHI_L5_E40.root
 MULTIPLICITY: 2.55
 NBINS: 60
 NEVENTS: 4662923.0
+NEVENTS_DATA: 4662923.0
 PDG: 333
-PRESELECTION: cosp > 0.9999 and pt<3
+PRESELECTION: cosp > 0.9999
 PT_BINS:
 - 0
 - 0.2
@@ -34,9 +36,7 @@ PT_BINS:
 - 2.6
 - 2.8
 - 3.0
-REBIN: 2
 SIGMA: 0.0025
-SIGNAL_FILE: /home/giacomo/StrangeNA60plusML/Data/PHI_L5_E40/fntSig_PHI_L5_E40.root
 SIG_MODELS:
 - gauss
 - d-gauss
